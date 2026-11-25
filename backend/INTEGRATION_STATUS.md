@@ -46,3 +46,17 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - CRITICAL: completed periods MUST reject backdated ledger writes; otherwise archival snapshots can become inconsistent. Implement authoritative event timestamps, transactional closure/append fencing, and idempotent scheduled catch-up before deploy.
 - CRITICAL: snapshotting alone is not a scheduling mechanism. Choose a supported job mechanism, handle missed period boundaries and empty periods, and only then label resets operational.
 - Architecture remains provisional; the project owner asked to use GDevelop as primary platform, and D1 is only one candidate backend. Selecting a Cloudflare billing/deployment path requires separate owner approval.
+
+
+## Persistent room / backend gateway checkpoint (2026-11-25, UNTESTED)
+- Added `backend/storage/migrations/002_room_checkpoints.sql`: room state checkpoints and UID-bound seats.
+- Added `backend/storage/room-checkpoints.cjs`: initialize rooms with verified UIDs, load state, optimistic-revision save, verified seat lookup, and query recoverable rooms.
+- Added `backend/online/persistence-gateway.cjs`: composes Firebase join verification, fail-closed VIP authorization, player profiles, room checkpoints, UID-based resume, scoring hooks, period leaderboards, and previous-period snapshot hook.
+- **NOT integrated:** the ZIP test server still runs its older in-memory handlers. No database exists, no migration was applied, no scheduled archiver is active, and no tests were run.
+- **Critical before any live deployment:** commit room state + score events atomically, or implement a durable transactional event outbox with replay on restart. Current `persistGameState` + `applyWinner` / `applyLuckyBox` are distinct calls and can be interrupted between steps, so this gateway alone does NOT guarantee exactly-once delivery.
+- **Critical:** choose one authoritative coordinator for each room; optimistic revision guards prevent overwrites but do not alone resolve competing turn calculations or clock races.
+- **Critical:** resume requires verifying Firebase UID again, rechecking VIP entitlement, and binding the current WebSocket to that UID. Old bearer-token-only resumes in the ZIP server must be removed before production.
+- **Critical:** `listRecoverableRooms` returns candidates only; automatic restoration, timers, waiting queues, and multi-instance synchronization are not implemented.
+- **Critical:** `backend/storage/score-period-service.cjs` has a previous-period archive function, but no scheduled invocation, missed-run catch-up, or closed-period event fence. Leaderboard resets are not operational.
+- **Product fit:** This SQL backend is a provisional independent server architecture, NOT native GDevelop Multiplayer/Cloud. If GDevelop-managed multiplayer is required, design the service boundaries and compatibility separately rather than claim automatic integration.
+- **Security:** the original project repository is public. Do not commit Firebase credentials, private keys or service-account JSON. Do not deploy the prototype with unrestricted VIP rooms.
