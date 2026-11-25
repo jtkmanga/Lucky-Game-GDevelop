@@ -35,3 +35,14 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - Current score sum includes all events since creation. The Free weekly and VIP daily reset/snapshot rules are **not yet implemented**; leaderboard here is therefore NOT the final resettable leaderboard.
 - `recordGameWinner` requires transactional `db.batch`; any target environment must support its D1 atomic semantics.
 - A production durability, concurrency, migration, restore, and performance review is still necessary when testing resumes. Do not count this as a completed live feature.
+
+
+## Daily/weekly leaderboard periods (2026-11-25; untested draft)
+- `backend/storage/score-periods.cjs` computes Bangkok UTC+07:00 score periods: VIP daily at 00:00; Free weekly on Sunday at 00:00. Boundaries use half-open ranges `[startMs, endMs)`.
+- `backend/storage/migrations/001_score_period_archives.sql` defines idempotent historical leaderboard archive tables; it is **NOT APPLIED**.
+- `backend/storage/score-period-service.cjs` provides mode-scoped current rankings and score reads; archival snapshots for the previous closed period; readback of archived rankings. Keeps the append-only ledger, and archives at most 100 ranked entries per period.
+- These files have **NOT been run or tested** at the owner's request; no scheduled worker or background job was configured and no database was created.
+- CRITICAL: `backend/storage/d1-store.cjs` still exposes lifetime `leaderboard` and `getScore` methods. The current server still does not use `score-period-service.cjs`. A future integration must route UI leaderboard reads to the period-scoped service and remove/avoid lifetime totals for rankings.
+- CRITICAL: completed periods MUST reject backdated ledger writes; otherwise archival snapshots can become inconsistent. Implement authoritative event timestamps, transactional closure/append fencing, and idempotent scheduled catch-up before deploy.
+- CRITICAL: snapshotting alone is not a scheduling mechanism. Choose a supported job mechanism, handle missed period boundaries and empty periods, and only then label resets operational.
+- Architecture remains provisional; the project owner asked to use GDevelop as primary platform, and D1 is only one candidate backend. Selecting a Cloudflare billing/deployment path requires separate owner approval.
