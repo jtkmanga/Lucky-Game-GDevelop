@@ -189,7 +189,7 @@ const server=http.createServer((req,res)=>{
  if(u.pathname==='/api/supabase-config'){
   const config={
    url:supabaseConfig.origin,
-   publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY
+   publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY,
    mode:'supabase'
   };
   if(!config.publishableKey){res.writeHead(503);res.end('Supabase web config missing');return;}
