@@ -30,10 +30,10 @@
 | Free room 4 / VIP room 2, queue, server dice, snake/ladder, 20s skip, 1 Lucky Box, win+10 | Legacy ZIP `server.js` and `rules.js` | Historical 7/7 smoke checks on **guest-only in-memory prototype**; NOT authenticated/persistent |
 | Five different random maps | Old design request | **NOT PRESENT in new original engine**; current `map:1` |
 | Resume | Legacy guest token and in-memory seat | Not durable or UID-secure across restart |
-| Google login on real WS | `backend/auth/firebase-id-token.cjs` + Firebase-based draft Railway bridge | **Incompatible with newly chosen Supabase Auth**; needs replacement; NOT TESTED |
+| Google login on real WS | `backend/auth/firebase-id-token.cjs` + Firebase-based draft Railway bridge | Supabase source replacement drafted; NOT TESTED |
 | VIP verification | `backend/auth/room-access.cjs` checks trusted storage; PostgreSQL draft `getVipEntitlement` | Source draft only; not live and no grants/payments |
 | Persistent rooms/scores | `backend/railway/001_postgres.sql`, `postgres-store.cjs`; older D1 drafts | Unapplied SQL draft; **no app tables yet established** in Supabase |
-| WebSocket with secure joining + DB turns | `backend/railway/secure-server.cjs`; `tools/prepare_railway_secure.py`; `railway.json` | Draft, Firebase-only, single-process limit 500, **NOT tested/deployed** |
+| WebSocket with secure joining + DB turns | `backend/railway/secure-server.cjs`; `tools/prepare_railway_secure.py`; `railway.json` | Draft now targets Supabase Auth/private PostgreSQL; single-process limit 500; **NOT tested/deployed** |
 | Free weekly/VIP daily rankings | D1 period service draft | Not wired to Supabase, no active schedule |
 | Admin, price editing, real payment/VIP entitlement | Old game requirements | Not integrated into new app |
 | Test scripts | `qa/lucky-rules-automated.test.cjs`, `qa/lucky-ws-load.cjs` | Authored, **not run since testing pause** |
@@ -76,3 +76,14 @@
 
 ## Mandatory after every future engineering session
 Append a dated checkpoint or edit this file: date, files changed, commit IDs, what is source-only vs actually configured/tested, outside services mutated, costs, explicit pending gates and **one next action**. Avoid claiming 100% before successful acceptance.
+
+## Session checkpoint — 2026-11-25 Supabase P1 source work
+- Required canonical files and relevant Railway/Supabase source inspected in order.
+- Supabase read-only table listing for public/game returned none; game schema absent. Google OAuth configuration not verified.
+- Draft private game schema + RLS, Supabase access-token verifier, private PostgreSQL store, Railway WebSocket Supabase auth integration, browser OAuth bridge and no-secrets env template have been committed to GitHub.
+- Source commits: 3149bbf, 8c6e4ac, 253309b, 00a1c93, afc80d9, ad20c0e, 5e2c4b8, 41b1c1e, 4095aea.
+- No migration applied; no Railway service, deploy, Google OAuth actual configuration, unit tests, smoke tests or load tests. All new code is UNTESTED DRAFT.
+- Existing D1/Firebase and Railway public-schema Postgres files are superseded drafts; selected server now references Supabase. Do not apply old SQL.
+- No new paid resources or charge-incurring operations.
+- Detailed latest engineering checkpoint: backend/supabase/P1_STATUS_TH.md.
+- NEXT SINGLE ACTION: Review Supabase Google OAuth provider configuration and migration prerequisites read-only. Improve UID reconnect implementation in source; do not apply schema or deploy without scoped permission.
