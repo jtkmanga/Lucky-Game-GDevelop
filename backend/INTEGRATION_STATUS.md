@@ -100,3 +100,11 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - The connected tool catalog does not expose GDevelop account/editor automation. No GDevelop Cloud import, GDevelop runtime execution, tests, publishing or production deployment have taken place. Import requires an authorized editor session using GDevelop Desktop/open project.
 - Owner requested notification at the GDevelop import point. This checkpoint is **ready for import**, not **import completed**.
 - All testing remains on hold per owner instruction; no new costs.
+
+
+## GDevelop import v3 prepared (2026-11-25; NOT imported)
+- New local conversation artifact: `Lucky_Game_GDevelop_Multiplayer_Import_v3.zip` with the same UI v12 scene and a configurable preview-only WebSocket URL.
+- Updated `tools/build_gdevelop_import.py` to name the v3 ZIP and maintain a safe iframe configuration script.
+- Added `GDEVELOP_IMPORT_HANDOFF_TH.md` for a one-command import preparation from the existing Codespace.
+- This is **NOT saved inside the user's GDevelop account**. No GDevelop account/editor connector was available and no authorized remote editor session was operated. The app must still open the generated JSON before actual import can be confirmed.
+- Backend security modules, persistence, and coordinator remain separate drafts. Do not deploy this preview in public or accept VIP payments. Tests remain paused as instructed.
