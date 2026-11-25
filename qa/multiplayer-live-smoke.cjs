@@ -69,6 +69,15 @@ function client(name, mode, token) {
    assert.equal(new Set(rolled.map(r=>r.event.dice)).size,1);
    assert.ok(rolled.every(r=>r.game.turn===2&&r.game.current===1));
    console.log('PASS server dice + synchronized next turn across four clients');
+   assert.ok(vip.every(c=>!c.seen.some(x=>x.type==='state'&&x.event?.type==='roll')),'VIP room leaked FREE game event');
+   console.log('PASS Free/VIP game-event isolation');
+   await delay(180);
+   const outsider=free[states.findIndex(s=>s.seat===2)];
+   outsider.send({type:'roll',dice:6,actor:1});
+   const denied=await outsider.wait(x=>x.type==='error'&&String(x.message).includes('ยังไม่ถึงตาของคุณ'));
+   assert.ok(denied);
+   assert.ok(free.every(c=>!c.seen.some(x=>x.type==='state'&&x.game?.turn===3)),'out-of-turn roll advanced game');
+   console.log('PASS out-of-turn roll rejected, forged dice/actor ignored');
    const target=free[states.findIndex(s=>s.seat===1)];
    const idmsg=await target.wait(x=>x.type==='identity');
    const token=idmsg.token;
@@ -80,7 +89,7 @@ function client(name, mode, token) {
    assert.equal(resume.seat,1);
    assert.equal(resume.game.turn,2);
    console.log('PASS reconnect resumes same seat, room, and turn');
-   console.log('RESULT 5/5 integration checks PASS (local smoke; not real Google auth)');
+   console.log('RESULT 7/7 integration checks PASS (local smoke; not real Google auth)');
  }catch(e){console.error('FAIL',e.stack||e);process.exitCode=1;}
  finally{for(const c of clients)try{c.ws.terminate();}catch{}proc.kill('SIGTERM');}
 })().catch(e=>{console.error(e);process.exitCode=1;});
