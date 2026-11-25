@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS game.score_events (
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
  UNIQUE (game_id,kind) -- a winner and a Lucky Box at most once per room; admin events must use different scheme in later migration
 );
+CREATE UNIQUE INDEX IF NOT EXISTS score_events_one_award_per_game
+ ON game.score_events(game_id,kind) WHERE kind IN ('win','lucky_box');
 CREATE INDEX IF NOT EXISTS score_events_time_idx ON game.score_events (mode,created_at,uid);
 CREATE TABLE IF NOT EXISTS game.leaderboard_archives (
  mode TEXT NOT NULL CHECK(mode IN ('free','vip')),
