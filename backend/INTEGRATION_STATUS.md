@@ -25,3 +25,13 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - Verified identity does not confer VIP, ownership of purchased items, or payment settlement.
 - New modules have **not** been executed or tested under the owner's pause instruction. Avoid declaring authentication or VIP complete.
 - Preserve all existing UI layout/colors and keep the original Cloudflare game separate. No new costs, no production changes.
+
+
+## Persistence development checkpoint (2026-11-25, untested)
+- Added `backend/storage/schema.sql`: SQLite/D1 schema for players, unique display names, append-only score ledger, VIP entitlements, completed game results.
+- Added `backend/storage/d1-store.cjs`: D1-compatible server-side adapter for player creation/rename, VIP lookup, winner +10 with game-result idempotency, Lucky Box ledger idempotency, score lookup, and Free/VIP leaderboard.
+- These are **draft modules only**: no D1 database was created or migrated, no server imports these modules, and no tests were run by owner instruction.
+- Winner and Lucky Box events MUST originate from authoritative gameplay, never client-provided event/score values. VIP grants are deliberately not exposed to the game client; future admin/payment fulfillment requires separately authenticated trusted backend logic and auditable grant records.
+- Current score sum includes all events since creation. The Free weekly and VIP daily reset/snapshot rules are **not yet implemented**; leaderboard here is therefore NOT the final resettable leaderboard.
+- `recordGameWinner` requires transactional `db.batch`; any target environment must support its D1 atomic semantics.
+- A production durability, concurrency, migration, restore, and performance review is still necessary when testing resumes. Do not count this as a completed live feature.
