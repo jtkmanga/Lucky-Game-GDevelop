@@ -62,6 +62,8 @@ function client(name, mode, token) {
    assert.ok(vStates.every(s=>s.game.mode==='vip'&&s.game.players.length===2));
    console.log('PASS VIP 2 separate WebSocket clients / isolated room');
    const roller=free[states.findIndex(s=>s.seat===0)];
+   // The server ignores messages arriving <100ms after join; allow its per-socket guard to elapse.
+   await delay(180);
    roller.send({type:'roll'});
    const rolled=await Promise.all(free.map(c=>c.wait(x=>x.type==='state'&&x.event?.type==='roll')));
    assert.equal(new Set(rolled.map(r=>r.event.dice)).size,1);
