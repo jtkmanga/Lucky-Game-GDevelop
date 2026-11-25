@@ -1,0 +1,17 @@
+# Render Blueprint: PREVIEW ONLY. Nothing is deployed by committing this file.
+# Free service; no database; no paid resources; auto deploy disabled.
+services:
+  - type: web
+    name: lucky-game-gdevelop-preview
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: python3 tools/prepare_render_web.py && cd render-web && npm install --omit=dev --no-audit --no-fund
+    startCommand: node render-web/server.js
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENABLE_INSECURE_GUEST_WS
+        value: "false"
