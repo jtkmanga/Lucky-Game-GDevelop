@@ -38,11 +38,11 @@ if html.count(src)!=1:
 connect="""function onlineConnect(){"""
 if html.count(connect)!=1:
     raise RuntimeError('Online Connect entry changed; manual review required')
-html=html.replace(connect, """async function onlineConnect(){
- let authenticatedIdToken;
- try{authenticatedIdToken=await window.luckyGetIdToken();}
- catch(error){toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}
-""",1)
+html=html.replace(connect,"async function onlineConnect(){",1)
+check=""" if(!/^https?:$/.test(location.protocol)){toast('ต้องเปิดผ่าน http หรือ https');return;}"""
+if html.count(check)!=1:
+    raise RuntimeError('Online Connect guard changed; manual review required')
+html=html.replace(check,check+"""\n let authenticatedIdToken;\n try{authenticatedIdToken=await window.luckyGetIdToken();}\n catch(error){toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}""",1)
 legacy="""let token=null;try{token=localStorage.getItem('lucky-online-test-token')}catch{}
   onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],token});"""
 secure="""onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],idToken:authenticatedIdToken});"""
