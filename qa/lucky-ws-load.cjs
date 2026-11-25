@@ -3,7 +3,14 @@
 // Lucky Game TEST-ONLY WebSocket synthetic players.
 // NO real Google login, VIP security, payments or database verification.
 // No automatic remote load: loopback URL by default, external requires opt-in.
-const WebSocket = require('ws');
+const path = require('node:path');
+let WebSocket;
+try { WebSocket = require('ws'); }
+catch (err) {
+  // The Codespaces preparer installs ws inside render-web/, not repo root.
+  try { WebSocket = require(path.resolve(__dirname, '../render-web/node_modules/ws')); }
+  catch { throw Error('ws package missing: prepare render-web/ and npm install first'); }
+}
 const {performance} = require('node:perf_hooks');
 
 function arg(name, fallback) {
