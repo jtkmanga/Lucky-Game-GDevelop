@@ -71,3 +71,12 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - **Before deploying:** enforce that historical score snapshots are never finalized while pending outbox awards exist for that score period. Any late-drained event must not silently change an already archived ranking.
 - **Before deploying:** review consistency under concurrently executing outbox drains, prevent duplicate/conflicting event IDs, verify strict timestamp boundaries, enforce one coordinator per room and restore interrupted turn deadlines.
 - **No tests performed** as requested. No migrations, scheduled tasks, external hosting or costs introduced.
+
+
+## Restart recovery planning + archive write fences (2026-11-25; UNTESTED)
+- Added `backend/storage/migrations/004_period_archive_fences.sql`. SQLite triggers reject inserting archived-period score records/outbox intents and reject finalizing a period while an outbox event for that period is pending. **Migration has not been applied**.
+- Added `backend/online/recovery-planner.cjs`. For each persisted room, it proposes one of: restore waiting lobby, restore remaining turn timer, skip an already-expired turn without auto-roll, request manual reconciliation for a missing deadline, or do nothing for finished rooms. Uses the preserved 20-second turn policy.
+- Updated `backend/online/persistence-gateway.cjs` with `planInterruptedRooms()`. This only creates a recovery *plan*: it does not run the game engine, skip turns, recreate WebSockets, or start timers. The coordinator must use per-room single-writer control and compare the revision again before applying each plan.
+- **No tests, no runtime wiring, no scheduler, no migrations, no deployment** per owner's direction. The ZIP prototype remains separate and insecure for production.
+- **Before deployment:** database trigger semantics and partial failure behavior require real validation; closed-period archival must be reconciled with any already-written historical or backdated data. Pending outbox rows from unarchived periods can block closure until successfully processed.
+- **Known migration concern:** SQLite foreign key enforcement is required for revision receipts/markers, and all update + insert statements must execute in one atomic transaction. A D1-compatible transactional adapter and migration ordering must be confirmed.
