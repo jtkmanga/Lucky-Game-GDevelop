@@ -108,3 +108,10 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - Added `GDEVELOP_IMPORT_HANDOFF_TH.md` for a one-command import preparation from the existing Codespace.
 - This is **NOT saved inside the user's GDevelop account**. No GDevelop account/editor connector was available and no authorized remote editor session was operated. The app must still open the generated JSON before actual import can be confirmed.
 - Backend security modules, persistence, and coordinator remain separate drafts. Do not deploy this preview in public or accept VIP payments. Tests remain paused as instructed.
+
+
+## 2026-11-25 — Codespaces import preparation simplified
+- Added `tools/prepare_gdevelop_import.sh` (commit `758ba69d439769388cdbacbf0258e141756335cf`) to regenerate/extract the GDevelop v3 JSON + assets in the existing Codespace without requiring another ZIP upload or manual unzip.
+- Updated `GDEVELOP_IMPORT_HANDOFF_TH.md` with the single command. This script **does not start GDevelop, authenticate, save to GDevelop Cloud, execute tests, deploy or publish**.
+- Current status: **Desktop import files prepared; actual GDevelop editor import remains blocked by lack of an authorized interactive GDevelop account/editor session.**
+- As requested, UI retained; testing and deployment remain paused.
