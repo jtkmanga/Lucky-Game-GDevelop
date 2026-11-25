@@ -42,3 +42,14 @@ Important: Allow the actual Railway domain in Firebase Authentication authorized
 Prior directive: pause all tests; avoid unapproved spending and no production deployments. In this task only an empty private Railway staging project was created, and source-only drafts were committed to GitHub. **No tests, paid database creation, running services, deployments or charge-incurring load were triggered.**
 
 Next steps are configuration and integration; deploy only when owner explicitly enables staging and the billing scope is clear.
+
+
+## 2026-11-25 — Supabase Free project created (owner confirmed)
+- Supabase OAuth connector confirmed: organization `jtkmanga@gmail.com's Org`.
+- Created `Lucky-Game` project (ref `llbkxnazkliskzcureec`) in **Singapore `ap-southeast-1`**. Provider cost quote: **$0/month for project creation**, explicitly confirmed at $0.
+- Provider `get_project` reports **ACTIVE_HEALTHY**, PostgreSQL 17.
+- Project dashboard: https://supabase.com/dashboard/project/llbkxnazkliskzcureec
+- **No schema/migrations, Google OAuth provider configuration, database credentials, Railway environment variables, service or deployment have been configured yet.**
+- **Architecture decision pending code migration:** use Supabase Auth/JWT and Supabase PostgreSQL for Lucky Game. The current Railway draft still verifies Firebase ID Tokens, so it is incompatible with Supabase Login until the auth bridge and server verifier are replaced. Do not deploy the existing draft unchanged.
+- Avoid separate Railway PostgreSQL while Supabase supplies the primary DB. Never commit database password, service role/secret key, or OAuth client secret. Enable RLS on every exposed public table. Prefer private application schema for server-managed VIP/score/room tables.
+- Keep the owner's pause on all tests and deployment; no Railway services or payments created.
