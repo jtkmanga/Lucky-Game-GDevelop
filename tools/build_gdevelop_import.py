@@ -10,7 +10,7 @@ import shutil
 import tempfile
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-OUT = REPO / "Lucky_Game_GDevelop_Multiplayer_Import_v2.zip"
+OUT = REPO / "Lucky_Game_GDevelop_Multiplayer_Import_v3.zip"
 BRIDGE_ZIP = REPO / "Lucky_Game_GDevelop_Full_UI_Bridge_v1.zip"
 MULTI_ZIP = REPO / "Lucky_Game_Multiplayer_Test_v1.zip"
 
@@ -36,7 +36,7 @@ with tempfile.TemporaryDirectory() as d:
     html = (multi / "public/index.html").read_text(encoding="utf8")
     old = "const socket=new WebSocket(protocol+'//'+location.host+'/ws');onlineSocket=socket;"
     new = "const endpoint=window.LUCKY_GDEVELOP_TEST_WS||protocol+'//'+location.host+'/ws';const socket=new WebSocket(endpoint);onlineSocket=socket;"
-    if old not in html:
+    if html.count(old) != 1:
         raise RuntimeError("Multiplayer adapter source changed: review before rebuild")
     html = html.replace(old, new)
     code = """// Lucky Game: HTML v12 bridge for GDevelop preview, NOT a native conversion.
@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory() as d:
     }
   }catch(_){}
   html=html.replace('</head>',
-    '<script>window.LUCKY_GDEVELOP_TEST_WS='+JSON.stringify(endpoint)+';</script></head>');
+    '<script>window.LUCKY_GDEVELOP_TEST_WS='+JSON.stringify(endpoint)+';<'+'/script></head>');
   const frame=document.createElement('iframe');
   frame.id='lucky-full-ui-bridge';
   frame.title='Lucky Game v12 Multiplayer Preview';
@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory() as d:
     (output / "LuckyGame_GDevelop_Multiplayer_Preview.json").write_text(
         json.dumps(game, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     (output / "README_TH.md").write_text(
-        "# Lucky Game GDevelop Preview Bridge v2\n\n"
+        "# Lucky Game GDevelop Preview Bridge v3\n\n"
         "เปิด LuckyGame_GDevelop_Multiplayer_Preview.json ด้วย GDevelop Desktop "
         "หลังแตก ZIP ให้ assets อยู่ในโฟลเดอร์เดิม\n\n"
         "นี่คือ HTML iframe preview ไม่ใช่ Native GDevelop Multiplayer\n"
