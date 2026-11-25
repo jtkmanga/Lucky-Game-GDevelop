@@ -6,14 +6,20 @@
 ## Source repository
 `jtkmanga/Lucky-Game-GDevelop` (`main`), separate from the older Snakes-and-Ladders project.
 
-## Create import package in the existing Codespace
-Single command (no game tests, deployment or authentication):
+## Prepare the import project in the existing Codespace
+One command (prepares files only; no tests, deployments, GDevelop login or game execution):
 
 ```bash
-cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && python3 tools/build_gdevelop_import.py && mkdir -p gdevelop-import && unzip -oq Lucky_Game_GDevelop_Multiplayer_Import_v3.zip -d gdevelop-import && echo "Open: /workspaces/Lucky-Game-GDevelop/gdevelop-import/LuckyGame_GDevelop_Multiplayer_Preview/LuckyGame_GDevelop_Multiplayer_Preview.json"
+cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && bash tools/prepare_gdevelop_import.sh
 ```
 
-Inside GDevelop **Desktop** running in the Codespaces environment, use **File → Open** and choose that JSON file. Leave the adjacent `assets` folder in place. The project cannot be marked Cloud-imported until an authorized GDevelop editor session actually opens and saves it. GDevelop's desktop login previously stalled in the remote session; do not assume it is currently authenticated.
+The script generates and extracts the v3 archive and prints the exact path to the GDevelop Desktop JSON project. Expected path:
+
+```
+/workspaces/Lucky-Game-GDevelop/gdevelop-import/LuckyGame_GDevelop_Multiplayer_Preview/LuckyGame_GDevelop_Multiplayer_Preview.json
+```
+
+In an **authorized GDevelop Desktop** session, select File → Open and choose that JSON. Keep the adjacent `assets` directory. Opening and saving in GDevelop Cloud is **not accomplished by this script**, and no Cloud API is available through the current integrations.
 
 ## WebSocket preview caveat
 The embedded HTML assumes a `/ws` endpoint at its preview host unless `?lucky_ws=<URL-encoded-wss-endpoint>` is appended to the preview URL. Only use an explicitly controlled **test** endpoint (e.g., a running Codespace's port 8081 with permission). The ZIP's standalone server is still guest-only and cannot enforce payment or VIP access. It is not wired to `backend/` Firebase, D1, and coordinator modules.
