@@ -186,6 +186,16 @@ async function handle(ws,msg){
 }
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
+ if(u.pathname==='/api/firebase-config'){
+  const config={
+   apiKey:process.env.FIREBASE_API_KEY||'',
+   authDomain:process.env.FIREBASE_AUTH_DOMAIN||'',
+   projectId:process.env.FIREBASE_PROJECT_ID
+  };
+  if(!config.apiKey||!config.authDomain){res.writeHead(503);res.end('Firebase web config missing');return;}
+  res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});
+  res.end(JSON.stringify(config));return;
+ }
  if(u.pathname==='/health'){
   res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});
   res.end(JSON.stringify({ok:true,mode:'draft-auth-required'}));return;
