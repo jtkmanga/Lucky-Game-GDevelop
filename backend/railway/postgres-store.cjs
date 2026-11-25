@@ -8,7 +8,7 @@ function createRailwayStore(connectionString) {
   if(!connectionString || typeof connectionString!=='string')throw Error('DATABASE_URL required');
   const pool=new Pool({connectionString,max:8,connectionTimeoutMillis:5000,idleTimeoutMillis:30000});
   const db={
-    async health(){await pool.query('SELECT 1');},
+    async health(){const r=await pool.query("SELECT to_regclass('public.lucky_players') AS players, to_regclass('public.lucky_rooms') AS rooms, to_regclass('public.lucky_score_events') AS scores");if(!r.rows[0]?.players||!r.rows[0]?.rooms||!r.rows[0]?.scores)throw Error('Run 001_postgres.sql migration before starting server');},
     async player(uid,name){
       if(typeof uid!=='string'||uid.length>128)throw Error('Bad player identity');
       const cleaned=String(name||'Player').trim().slice(0,50)||'Player';
