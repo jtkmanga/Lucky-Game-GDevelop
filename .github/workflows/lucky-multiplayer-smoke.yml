@@ -1,0 +1,32 @@
+name: Lucky Multiplayer Local Smoke
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/lucky-multiplayer-smoke.yml'
+      - 'qa/multiplayer-live-smoke.cjs'
+      - 'Lucky_Game_Multiplayer_Test_v1.zip'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Unpack test server
+        run: |
+          mkdir -p multiplayer-test
+          unzip -oq Lucky_Game_Multiplayer_Test_v1.zip -d multiplayer-test
+          test -f multiplayer-test/package.json
+      - name: Install temporary test dependencies
+        working-directory: multiplayer-test
+        run: npm install --no-audit --no-fund
+      - name: Rules unit tests
+        working-directory: multiplayer-test
+        run: npm test
+      - name: Local multi-client websocket smoke
+        run: node qa/multiplayer-live-smoke.cjs
