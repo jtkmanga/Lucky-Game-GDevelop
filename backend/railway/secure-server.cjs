@@ -237,7 +237,12 @@ wss.on('connection',ws=>{
   }
  });
 });
-server.listen(PORT,'0.0.0.0',()=>console.log('Lucky Game secured draft listening on '+PORT));
+store.health().then(()=>server.listen(PORT,'0.0.0.0',()=>
+ console.log('Lucky Game Firebase-auth draft listening on '+PORT)
+)).catch(err=>{
+ console.error('Database preflight failed; server will NOT listen:',err.code||err.message);
+ process.exitCode=1;store.close().catch(()=>{}).finally(()=>process.exit(1));
+});
 process.on('SIGTERM',()=>{
  for(const room of rooms.values())clearTimeout(room.timer);
  wss.close();server.close(()=>store.close().finally(()=>process.exit(0)));
