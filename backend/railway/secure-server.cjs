@@ -1,8 +1,8 @@
 'use strict';
 /**
  * Draft Railway single-instance authoritative multiplayer listener.
- * Requires DATABASE_URL and FIREBASE_PROJECT_ID; no unauthenticated fallback.
- * NOT tested, deployed, or production-ready. Web UI must send Firebase ID Token.
+ * Requires DATABASE_URL, SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY; no unauthenticated fallback.
+ * NOT tested, deployed, or production-ready. Web UI must send Supabase Auth access token.
  *
  * This server cannot safely scale to multiple replicas without a shared
  * room coordinator / routing strategy; reconnect across restarts is not yet
@@ -14,11 +14,11 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const {WebSocket,WebSocketServer}=require('ws');
 const Rules=require('./rules.js');
-const {requirePlayerIdentity}=require('../auth/firebase-id-token.cjs');
+const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
 const {requireRoomAccess}=require('../auth/room-access.cjs');
-const {createRailwayStore}=require('./postgres-store.cjs');
+const {createRailwayStore}=require('../supabase/game-store.cjs');
 
-if(!process.env.FIREBASE_PROJECT_ID)throw Error('FIREBASE_PROJECT_ID required');
+const supabaseConfig=readConfig();
 const store=createRailwayStore(process.env.DATABASE_URL);
 const PORT=Number(process.env.PORT||8080);
 const WEB=path.resolve(__dirname,'public');
@@ -137,8 +137,8 @@ async function handle(ws,msg){
   if(ws.session)return send(ws,{type:'error',message:'อยู่ในคิวหรือห้องแล้ว'});
   const mode=msg.mode;
   if(mode!=='free'&&mode!=='vip')return send(ws,{type:'error',message:'โหมดไม่ถูกต้อง'});
-  // Every join and resume must supply a fresh Firebase ID token.
-  const auth=await requirePlayerIdentity(msg,{projectId:process.env.FIREBASE_PROJECT_ID});
+  // Every join and resume must supply a valid Supabase access token.
+  const auth=await requirePlayerIdentity(msg);
   await requireRoomAccess(auth,mode,store);
   const uid=auth.uid;
   let existing=sessions.get(uid);
@@ -186,13 +186,13 @@ async function handle(ws,msg){
 }
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
- if(u.pathname==='/api/firebase-config'){
+ if(u.pathname==='/api/supabase-config'){
   const config={
-   apiKey:process.env.FIREBASE_API_KEY||'',
-   authDomain:process.env.FIREBASE_AUTH_DOMAIN||'',
-   projectId:process.env.FIREBASE_PROJECT_ID
+   url:supabaseConfig.origin,
+   publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY
+   mode:'supabase'
   };
-  if(!config.apiKey||!config.authDomain){res.writeHead(503);res.end('Firebase web config missing');return;}
+  if(!config.publishableKey){res.writeHead(503);res.end('Supabase web config missing');return;}
   res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});
   res.end(JSON.stringify(config));return;
  }
@@ -238,7 +238,7 @@ wss.on('connection',ws=>{
  });
 });
 store.health().then(()=>server.listen(PORT,'0.0.0.0',()=>
- console.log('Lucky Game Firebase-auth draft listening on '+PORT)
+ console.log('Lucky Game Supabase-auth draft listening on '+PORT)
 )).catch(err=>{
  console.error('Database preflight failed; server will NOT listen:',err.code||err.message);
  process.exitCode=1;store.close().catch(()=>{}).finally(()=>process.exit(1));
