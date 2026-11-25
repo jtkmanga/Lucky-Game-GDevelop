@@ -50,3 +50,9 @@ CREATE TABLE IF NOT EXISTS score_award_outbox (
 
 CREATE INDEX IF NOT EXISTS idx_score_award_outbox_pending
   ON score_award_outbox(status,created_at_ms,event_id);
+
+-- At most one winner and one Lucky Box award per game, even with retries.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_score_outbox_one_win
+  ON score_award_outbox(game_id) WHERE kind='game_win';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_score_outbox_one_box
+  ON score_award_outbox(game_id) WHERE kind='lucky_box';
