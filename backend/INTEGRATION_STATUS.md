@@ -60,3 +60,14 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - **Critical:** `backend/storage/score-period-service.cjs` has a previous-period archive function, but no scheduled invocation, missed-run catch-up, or closed-period event fence. Leaderboard resets are not operational.
 - **Product fit:** This SQL backend is a provisional independent server architecture, NOT native GDevelop Multiplayer/Cloud. If GDevelop-managed multiplayer is required, design the service boundaries and compatibility separately rather than claim automatic integration.
 - **Security:** the original project repository is public. Do not commit Firebase credentials, private keys or service-account JSON. Do not deploy the prototype with unrestricted VIP rooms.
+
+
+## Transactional room transition + score outbox (2026-11-25; UNTESTED)
+- `backend/storage/migrations/003_turn_award_outbox.sql`: room revision receipts via SQLite trigger, FK-constrained transition marker, durable score award outbox, one winner + one Lucky Box event constraint per game.
+- `backend/storage/turn-outbox.cjs`: a D1 `db.batch` attempts checkpoint revision update, required transition marker insertion and award intents in one transaction. Missing revision receipts cause the marker FK to fail, rolling back an unsuccessful version update. Must run with foreign keys enforced.
+- `backend/storage/award-outbox-drain.cjs`: processes pending trusted events into score_ledger and game_results using transactional, idempotent inserts, then marks outbox applied; can be invoked again after failures.
+- **Neither module is integrated with the ZIP game's event engine or any scheduler, nor tested.** The server still uses in-memory state. This is scaffolding, NOT a working durable-game release.
+- **Before deploying:** remove or replace earlier `persistGameState` + separate scoring calls in `persistence-gateway.cjs`; route all server-authored turns through `commitRoomTurn`, ensure event identifiers and award values are derived from authoritative rules, and drain outbox through a trusted process.
+- **Before deploying:** enforce that historical score snapshots are never finalized while pending outbox awards exist for that score period. Any late-drained event must not silently change an already archived ranking.
+- **Before deploying:** review consistency under concurrently executing outbox drains, prevent duplicate/conflicting event IDs, verify strict timestamp boundaries, enforce one coordinator per room and restore interrupted turn deadlines.
+- **No tests performed** as requested. No migrations, scheduled tasks, external hosting or costs introduced.
