@@ -19,6 +19,7 @@ const {currentLeaderboard,currentScore,archivePreviousPeriod}=require('../storag
 const {commitRoomTurn}=require('../storage/turn-outbox.cjs');
 const {drainPendingAwards}=require('../storage/award-outbox-drain.cjs');
 const {getRecoveryPlans}=require('./recovery-planner.cjs');
+const {createTurnCoordinator}=require('./turn-coordinator.cjs');
 
 function createPersistenceGateway({db,firebaseProjectId}) {
   if(!db || typeof db.prepare!=='function' || typeof db.batch!=='function')
@@ -132,7 +133,17 @@ function createPersistenceGateway({db,firebaseProjectId}) {
     return getRecoveryPlans(roomStore,limit,nowMs);
   }
 
+  // Host injects the known server-owned game rules. This is not itself a
+  // network listener or multiplayer host.
+  function makeTurnCoordinator(rules) {
+    return createTurnCoordinator({
+      gateway: {loadRoom:roomStore.loadRoom,commitServerTurn},
+      rules
+    });
+  }
+
   return {
+    makeTurnCoordinator,
     authenticateAndMatch,createStartedRoom,commitServerTurn,resumeVerifiedSeat,
     drainScoreOutbox,getLeaderboard,getCurrentScore,
     archivePrevious,planInterruptedRooms,loadRoom:roomStore.loadRoom,
