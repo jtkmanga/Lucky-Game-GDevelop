@@ -30,9 +30,9 @@
 | Free room 4 / VIP room 2, queue, server dice, snake/ladder, 20s skip, 1 Lucky Box, win+10 | Legacy ZIP `server.js` and `rules.js` | Historical 7/7 smoke checks on **guest-only in-memory prototype**; NOT authenticated/persistent |
 | Five different random maps | Old design request | **NOT PRESENT in new original engine**; current `map:1` |
 | Resume | Legacy guest token and in-memory seat | Not durable or UID-secure across restart |
-| Google login on real WS | `backend/auth/firebase-id-token.cjs` + Firebase-based draft Railway bridge | Supabase source replacement drafted; NOT TESTED |
+| Google login on real WS | `backend/auth/supabase-access-token.cjs` + Supabase OAuth browser builder | Source-only draft; provider not configured and NOT TESTED |
 | VIP verification | `backend/auth/room-access.cjs` checks trusted storage; PostgreSQL draft `getVipEntitlement` | Source draft only; not live and no grants/payments |
-| Persistent rooms/scores | `backend/railway/001_postgres.sql`, `postgres-store.cjs`; older D1 drafts | Unapplied SQL draft; **no app tables yet established** in Supabase |
+| Persistent rooms/scores | `backend/supabase/001_game_private_schema.sql` + `game-store.cjs` | Unapplied private-schema UUID draft; **no app tables yet established** in Supabase |
 | WebSocket with secure joining + DB turns | `backend/railway/secure-server.cjs`; `tools/prepare_railway_secure.py`; `railway.json` | Draft now targets Supabase Auth/private PostgreSQL; single-process limit 500; **NOT tested/deployed** |
 | Free weekly/VIP daily rankings | D1 period service draft | Not wired to Supabase, no active schedule |
 | Admin, price editing, real payment/VIP entitlement | Old game requirements | Not integrated into new app |
@@ -55,8 +55,8 @@
 **P1.1/P1.2 — Supabase Auth/PostgreSQL migration preparation**
 1. Read `AGENTS.md`, this status, `PROJECT_MASTER_PLAN_TH.md`, `DECISIONS_TH.md`, `NEW_CHAT_HANDOFF_TH.md`.
 2. Inspect the actual Supabase project schema/auth provider settings using connected Supabase tools (read-only) and related GitHub code. Do **not** create another Supabase/Railway project, deploy or test.
-3. Produce a **Supabase-native, RLS-safe schema migration draft** using Supabase `auth.users.id` UUID and private `game` schema; resolve mismatch with text-UID Railway draft. Commit draft in GitHub; **do not apply migration** during documentation-only/testing pause without proper scoped approval.
-4. Draft/implement Supabase token verification and browser Google OAuth bridge replacing Firebase in active Railway source while keeping the UI visually untouched; no claims of test success.
+3. **Source complete; migration NOT applied:** private game schema UUID/RLS SQL draft has been committed. A scoped review/authorization is required before applying.
+4. **Source drafted, NOT tested:** Supabase token verification, public browser OAuth redirect, private Postgres store and selected Railway source references updated. Remaining work includes provider configuration and actual integration verification once tests are authorized.
 5. Update docs with exact source commits, remaining blockers and next step.
 
 ## Progress / gates (accurate, not guessed percentages)
