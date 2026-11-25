@@ -18,6 +18,7 @@ const {createGameStorage}=require('../storage/d1-store.cjs');
 const {currentLeaderboard,currentScore,archivePreviousPeriod}=require('../storage/score-period-service.cjs');
 const {commitRoomTurn}=require('../storage/turn-outbox.cjs');
 const {drainPendingAwards}=require('../storage/award-outbox-drain.cjs');
+const {getRecoveryPlans}=require('./recovery-planner.cjs');
 
 function createPersistenceGateway({db,firebaseProjectId}) {
   if(!db || typeof db.prepare!=='function' || typeof db.batch!=='function')
@@ -125,10 +126,16 @@ function createPersistenceGateway({db,firebaseProjectId}) {
     return archivePreviousPeriod(db,mode,nowMs);
   }
 
+  // Returns recovery decisions only. A future single-writer coordinator must
+  // execute them after revision checks and authoritative game logic.
+  async function planInterruptedRooms(limit=50,nowMs=Date.now()){
+    return getRecoveryPlans(roomStore,limit,nowMs);
+  }
+
   return {
     authenticateAndMatch,createStartedRoom,commitServerTurn,resumeVerifiedSeat,
     drainScoreOutbox,getLeaderboard,getCurrentScore,
-    archivePrevious,loadRoom:roomStore.loadRoom,
+    archivePrevious,planInterruptedRooms,loadRoom:roomStore.loadRoom,
     listRecoverableRooms:roomStore.listRecoverableRooms
   };
 }
