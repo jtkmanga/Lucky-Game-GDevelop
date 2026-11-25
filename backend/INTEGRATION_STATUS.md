@@ -91,3 +91,12 @@ Skip all system testing for now. Do not run GitHub Actions manually, Codespaces 
 - **Required before deployment:** connect all incoming joins to verified Firebase identity + VIP entitlement, configure real provider/storage, ensure one globally authoritative coordinator per room, maintain timers through restarts, and use transactional outbox drain before scoreboard archival.
 - **Concurrency caveat:** the coordinator's in-memory lock prevents simultaneous turns only within a single process. In multi-process/multi-instance environments it is NOT sufficient. Versioned database commits reject conflicting updates, but an architectural single-writer coordinator is still required.
 - **No execution/tests/deploy:** owner requested to skip all tests; no workflows were intentionally triggered by these backend-only commits. No production readiness or real Google/VIP enforcement is claimed.
+
+
+## GDevelop import handoff prepared (2026-11-25; no deployment/testing)
+- Reproducible packager `tools/build_gdevelop_import.py` (commit `73ec4b23b970ef4b98f857ee3e5017339d039d61`) combines the two existing repository ZIP archives into a new GDevelop `.json` project, retains the v12 Multiplayer HTML in the `OriginalUIv12` scene using the existing JavaScript + iframe bridge and packages scene images/assets and the standalone test WebSocket source.
+- A matching downloadable archive `Lucky_Game_GDevelop_Multiplayer_Import_v2.zip` was created as a conversation artifact, not committed as a binary to GitHub. It is a **GDevelop Desktop import candidate**, not a Cloud-saved game and not a native GDevelop multiplayer game.
+- Optional preview URL query parameter `lucky_ws` allows an explicitly configured test WebSocket endpoint. The bundled server still accepts unauthenticated Free/VIP joins; it is NOT the authenticated/persistent backend modules under `backend/`. Do not publish or monetize this build.
+- The connected tool catalog does not expose GDevelop account/editor automation. No GDevelop Cloud import, GDevelop runtime execution, tests, publishing or production deployment have taken place. Import requires an authorized editor session using GDevelop Desktop/open project.
+- Owner requested notification at the GDevelop import point. This checkpoint is **ready for import**, not **import completed**.
+- All testing remains on hold per owner instruction; no new costs.
