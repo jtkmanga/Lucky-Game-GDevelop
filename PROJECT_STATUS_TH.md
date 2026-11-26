@@ -422,3 +422,14 @@ PASS map 5: 11 server turns and SVG endpoints
 - Existing prepared test source commit: `8e334094c7dbc4147f0792cacb5e72780e388f9a`; source contract commit `76e23b0ab56571889adce351535507eb69d8e2fa`. No source modification or test results obtained in this checkpoint. No Railway/Supabase change, deploy, spending action or UI v12 modification. Provider costs unmeasured.
 - Overall estimated completion **20%** (unchanged).
 - **NEXT SINGLE ACTION:** run the exact narrowly authorized Node suite on the existing Codespace once an actual terminal-capable route is connected; capture full output, commit SHA and VM status, then evaluate the bounded WebSocket reconnect fixture without Deploy. Do not mark PASS without logs.
+
+
+## 2026-11-26 (Asia/Bangkok) — Owner-executed Codespaces Node Reconnect suites: 20/20 PASS
+- Owner supplied screenshot of the **existing** Codespace `fantastic succotash`, terminal at `/workspaces/Lucky-Game-GDevelop` on branch `main`, showing `git fetch origin main`, `git status --short`, `git pull --ff-only origin main`, then targeted `node --test` on three suites. Screenshot evidence remains in current chat; no log file committed.
+- **Checked-out source HEAD shown in terminal:** `9f8677efad78646e0915d1836819fc4140bc0175`. **Node version:** `v24.22.2`.
+- Command: `node --test qa/room-board-reconnect-contract.test.cjs qa/railway-board-sync-source-contract.test.cjs qa/railway-room-snapshot-runtime.test.cjs`.
+- **Observed Node runner summary:** tests **20**, suites **0**, pass **20**, fail **0**, cancelled **0**, skipped **0**, todo **0**, duration_ms **280.735812**. The screenshot includes checks for five-board catalog, source bridge, state snapshot normalization, invalid/legacy checkpoints and halted room. This supersedes earlier “not run” for these **specific three suites only**.
+- **Still unverified:** actual WebSocket message flow, UID authentication/authorization and rejoin, database/process restart persistence, Google OAuth, browser/client integration and Railway staging. The 20/20 tests comprise source contracts and isolated production-function execution, not live end-to-end multiplayer.
+- No Deploy, SQL migration, Railway/Supabase mutation, new Codespace or GitHub Actions run evidenced. Codespace was active for owner-run test; actual compute cost not measured. Original UI v12 unchanged.
+- Overall estimated progress stays **20%**, pending stronger integration evidence.
+- **NEXT SINGLE ACTION:** prepare/run *only* a bounded local WebSocket reconnect fixture (legacy map-one resume emits canonical versioned board; malformed board fails closed), using existing Codespace with no deployment or unrelated tests, then record its exact log and source SHA.
