@@ -91,7 +91,7 @@ function createRoomLeaseStore(pool) {
     kinds.add(award.kind);
    }
    const client=await pool.connect();
-   let begun=false;
+   let begun=false,commitIssued=false,destroyClient=false;
    try{
     await client.query('BEGIN');begun=true;
     const row=await client.query(
@@ -120,16 +120,30 @@ function createRoomLeaseStore(pool) {
      );
      if(result.rowCount!==1)throw Error('DUPLICATE_AWARD_EVENT');
     }
+    // After COMMIT is issued, a thrown transport error cannot distinguish
+    // "committed but response lost" from "not committed". Do not retry the
+    // turn, roll a second die, or return this client to the pool.
+    commitIssued=true;
     await client.query('COMMIT');begun=false;
     return Number(row.rows[0].revision);
    }catch(error){
+    if(commitIssued){
+     destroyClient=true;
+     const ambiguous=new Error('AMBIGUOUS_COMMIT_REQUIRES_RECONCILIATION');
+     ambiguous.code='AMBIGUOUS_COMMIT';
+     ambiguous.cause=error;
+     throw ambiguous;
+    }
     if(begun)try{await client.query('ROLLBACK');}catch(rollbackError){
+     destroyClient=true;
      error.rollbackErrorCode=rollbackError.code||'ROLLBACK_FAILED';
     }
-    // A commit transport failure is ambiguous: caller must halt the room
-    // and read the authoritative DB state, NEVER replay a random roll.
+    // No replay of random dice or awards on any failed transaction.
     throw error;
-   }finally{client.release();}
+   }finally{
+    // pg client.release(true) discards a potentially broken connection.
+    client.release(destroyClient);
+   }
   }
  };
 }
