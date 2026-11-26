@@ -122,3 +122,21 @@ test('commit with a live non-final game must retain an explicit turn deadline',a
   game:{over:false},deadlineMs:null,awards:[]
  })),/Invalid game deadline/);
 });
+
+
+test('a timeout never records a reward in the same game transaction',async()=>{
+ const db=mockPg();
+ await assert.rejects(db.store.commitFencedTurn(args({
+  game:{over:false,players:[]},deadlineMs:Date.now()+20000,
+  receipt:{type:'timeout',actorIndex:0,dice:null,outcome:{}},
+  awards:[award('lucky_box')]
+ })),/Timeout cannot grant awards/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+});
+test('turn receipt cannot refer to a seat outside the persisted room',async()=>{
+ const db=mockPg();
+ await assert.rejects(db.store.commitFencedTurn(args({
+  receipt:{type:'roll',actorIndex:50,dice:3,outcome:{}}
+ })),/Turn receipt actor index exceeds room seat count/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+});
