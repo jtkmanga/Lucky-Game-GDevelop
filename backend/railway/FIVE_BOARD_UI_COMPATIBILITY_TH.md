@@ -25,3 +25,12 @@ Updated: 2026-11-26 (Asia/Bangkok)
 
 ## Remaining blocked gates
 UI v12 frozen; no SQL 001–003 installed, no tests permitted, no Railway deployed, no live Google auth, no Admin/payments, no 10K CCU evidence. Overall reported estimate remains **18%** according to `PROJECT_PROGRESS_METHOD_TH.md`.
+
+
+## 2026-11-26 — Five-board server adapter wired, random selection intentionally OFF
+- Added `backend/railway/multi-board-rules.cjs` in `df5081d51099555f01832cf810137cd809ea0895`. It retains original `Legacy.turn` for map 1, computes snake/ladder movements with the selected immutable map for IDs 2–5, chooses gift candidates based on the selected map, and persists `game.map` and versioned `game.board`. `create()` **defaults explicitly to map 1**. `selectRandomBoard()` is only a helper and is NOT called from matchmaking.
+- Updated `backend/railway/rule-transition-guard.cjs` to validate against the room's selected and canonical map, not legacy map-1 constants, commit `08945c7bcf6d77df3795de0115b5b51581ab2ae9`.
+- Railway `secure-server.cjs` now imports the adapter but keeps map 1 because dispatch invokes create without an alternate map ID (`14152907a85257f9f19016395cedcc1b9a026a22`).
+- Build `tools/prepare_railway_secure.py` includes the board map catalog, adapter and guard (`6fac2d02225e96be9e76381f330f67afab74cace`).
+- Created `qa/multi-board-rules.test.cjs` to cover all five board layouts, map-1 compatibility, movement, timeout, and invalid map checkpoints (commit `119ea5aa2fe15867633d94e60c83bed6472bd23c`). **NOT EXECUTED**.
+- **Still blocked:** Original ZIP's `public/index.html` hardcodes snake and ladder rendering. A reviewed JS-only client bridge must consume `game.board` for `renderBoard()` and `animateTurn()`, and be validated before random selection can be enabled. Existing HTML/CSS layout remains unchanged, no tests/deploy/migrations or new spending.
