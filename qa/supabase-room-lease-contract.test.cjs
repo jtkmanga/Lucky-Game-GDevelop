@@ -25,7 +25,7 @@ function args(extra={}){
   game:{over:true,current:0,players:[]},deadlineMs:null,awards:[award()],
   receipt:{type:'roll',actorIndex:0,dice:4,outcome:{}},...extra};
 }
-function mockPg({claim=true,failAt=null,duplicate=false}={}){
+function mockPg({claim=true,failAt=null,duplicate=false,receiptDuplicate=false}={}){
  const calls=[];
  let roomVersion=0,points=0;
  let pendingVersion=0,pendingPoints=0;
@@ -41,7 +41,8 @@ function mockPg({claim=true,failAt=null,duplicate=false}={}){
    return {rowCount:1,rows:[{revision:pendingVersion,mode,seats:[{uid:PLAYER}]}]};
   }
   if(q.includes('INSERT INTO game.turn_receipts'))
-   return {rowCount:1,rows:[{revision:pendingVersion}]};
+   return receiptDuplicate?{rowCount:0,rows:[]}:
+     {rowCount:1,rows:[{revision:pendingVersion}]};
   if(q.includes('INSERT INTO game.score_events')){
    if(duplicate)return {rowCount:0,rows:[]};
    pendingPoints+=Number(params[5]);
@@ -154,7 +155,9 @@ test('receipt INSERT failure rolls back room revision AND prepared winner points
  assert.equal(commands.includes('COMMIT'),false);
 });
 test('receipt revision conflict rolls back the whole room and award transaction',async()=>{
- const db=mockPg({failAt:'INSERT INTO game.turn_receipts'});
- await assert.rejects(db.store.commitFencedTurn(args()),/SIMULATED_SQL_FAILURE/);
+ const db=mockPg({receiptDuplicate:true});
+ await assert.rejects(db.store.commitFencedTurn(args()),/DUPLICATE_TURN_RECEIPT/);
  assert.deepEqual(db.state(),{roomVersion:0,points:0});
+ assert(db.calls.some(x=>x.sql==='ROLLBACK'));
+ assert.equal(db.calls.some(x=>x.sql==='COMMIT'),false);
 });
