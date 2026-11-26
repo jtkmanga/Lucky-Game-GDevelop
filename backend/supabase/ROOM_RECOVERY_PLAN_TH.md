@@ -44,3 +44,13 @@ Source commit `d12ac0bc86a8ffae81fd0fc439078b9b6c257912` replaces the old state-
 - **Danger: this code is not yet wired into `secure-server.cjs`, and that server still calls the original unfenced `game-store.cjs.commitTurn`. Do not claim multi-replica safety.** A complete integration must: acquire lease on room creation/recovery, renew and stop when lost, replace all turn commit paths with this method, release lease, and provide shared routing/sharding.
 - No SQL migration applied, no tests or CI run, no Railway service or deployment and no new bills.
 - Next single action: source-level design and wiring of lease-aware room creation/renewal/recovery into the server, then wait for scoped permission to migrate and test.
+
+
+## 2026-11-26 — Lease wiring into the selected Railway source (UNTESTED)
+Source commits:
+- `2c6126284c5cac271714548d83cb252f94da1c5e` — the Supabase game store exposes lease methods and ONLY `commitFencedTurn`, removes the former unfenced `commitTurn` entry point, and inserts new rooms with an initial owned lease and epoch 1; startup health requires migration 002 columns.
+- `4306ea3198890b16667ae51558bec46f4ac39eb2` — Railway server sets an instance-owner UUID, acquires a lease before restoring a room, holds an in-memory epoch, renews the 30-second lease every 10 seconds, halts the room if renewal fails, and calls `commitFencedTurn` instead of `commitTurn` on every roll/timeout. A rejected claim does not start a local coordinator.
+- `0702c1553fc611bc2f486346112be027313fa411` — bounded startup recovery scan of at most 10 expired/unowned rooms, with conditional lease claims, before server listens.
+- `7155b730331bb0d3904e41513926b8bd3f63a9b1` — no WebSocket event broadcast if heartbeat loss halts a room concurrently with a database turn COMMIT.
+
+**Important limitations:** Code has **NOT been executed**, so this is NOT a correctness/pass claim. A DB connection outage can cause a room to halt; the current process deliberately does not auto-resume a halted room. No cross-replica WebSocket routing, no global distributed matchmaking ownership/unique active UID fencing, and no bounded periodic sweep beyond the startup scan. Startup recovers at most ten rooms; others require verified player reconnect or future scheduled reconciliation. Long-offline timeout behavior, Google OAuth credentials, and release rules remain unverified. The deploy build cannot start until migrations 001 and 002 are safely reviewed and applied, which has NOT occurred. Do not deploy or run tests without separate owner authorization.
