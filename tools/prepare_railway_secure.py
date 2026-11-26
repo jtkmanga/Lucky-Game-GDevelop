@@ -154,7 +154,9 @@ if html.count(old_animation)!=1:
 html=html.replace(old_animation,new_animation,1)
 old_state="  localGame=msg.game;"
 new_state="""  // Never show a board different from the authoritative room snapshot.
-  const acceptedBoard=msg.game&&luckyBoardLayout(msg.game);
+  // Online room snapshots must include a canonical versioned board even
+  // for map 1. The map-one no-board exception is LOCAL legacy play only.
+  const acceptedBoard=msg.game?.board&&luckyBoardLayout(msg.game);
   if(!acceptedBoard||
      (luckySeenRoomBoard?.roomId===msg.roomId &&
       luckySeenRoomBoard.mapId!==acceptedBoard.id)){
