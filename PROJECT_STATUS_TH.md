@@ -349,3 +349,8 @@ PASS 6 post-game local / rematch
 All six passed against the local WebSocket fixture. The four views used the server rules module's deterministic map 2 snapshot. Local mode restored map 1. The fixture provided identities and seat assignments; durable reconnect, Google OAuth, live matchmaking and DB writes still require integration evidence. No game source, UI, SQL or infrastructure deployment changed. Stopped the Codespace and verified it left Active. Per-run compute charge not measured.
 - Overall estimate **19%**. P2 estimate increased from 10% to 15% within its 20% weight. Method update `4449fb4bd50401c2d92767b290348ebb615ac8e1`.
 - **Next single action:** prepare targeted local acceptance for the remaining catalog maps (3–5), including transport endpoints versus actual server rules; obtain scoped test authorization before execution. Random matchmaking remains disabled.
+
+## 2026-11-26 — เตรียมตรวจเส้นทางของแผนที่ 3–5
+- เพิ่ม `qa/v12_map_transport_acceptance.py` ใน commit `097de0bdd81e91311437317fea145bdbbe5c382c` สำหรับงู 15 เส้นและบันได 18 จุด รวม 33 กรณี ให้กติกา Node ทอยลงต้นทาง ตรวจผลกับแค็ตตาล็อก แล้วให้หน้า v12 รับ snapshot ตรวจตำแหน่งผู้เล่นกับปลายทางและอ่านพิกัดจริงจาก SVG เทียบหมายเลขเซลล์
+- ชุดนี้เตรียมไว้ ยังไม่ได้รัน ไม่เปิด Codespace หรือเปลี่ยนเกม/บริการในรอบนี้ ผลเดิม 6/6 คงใช้เป็นหลักฐานเฉพาะการสลับโหมด ความคืบหน้ารวมประมาณ 19%
+- งานถัดไป: ขออนุมัติรันเฉพาะ 33 กรณีใน Codespace เดิมด้วยหน้า v12 ที่สร้างจากซอร์สตรงกัน คำสั่งหลังเตรียม environment: `python3 qa/v12_map_transport_acceptance.py` ยังไม่เปิดสุ่มแผนที่หรือ deploy
