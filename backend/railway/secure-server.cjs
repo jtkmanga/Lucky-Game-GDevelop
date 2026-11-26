@@ -5,8 +5,9 @@
  * NOT tested, deployed, or production-ready. Web UI must send Supabase Auth access token.
  *
  * This server cannot safely scale to multiple replicas without a shared
- * room coordinator / routing strategy; reconnect across restarts is not yet
- * implemented. Payment/VIP grants and admin API are deliberately absent.
+ * room coordinator / routing strategy. Restart recovery and fencing are
+ * untested drafts, not a multi-replica solution. Payment/VIP grants and
+ * admin API are deliberately absent.
  */
 const http=require('node:http');
 const fs=require('node:fs');
@@ -402,9 +403,21 @@ wss.on('connection',ws=>{
   }
  });
 });
-store.health().then(()=>server.listen(PORT,'0.0.0.0',()=>
- console.log('Lucky Game Supabase-auth draft listening on '+PORT)
-)).catch(err=>{
+// Bounded startup sweep: at most 10 candidate rooms. A lease claim is
+// mandatory; rooms owned by another live worker are never started here.
+// No periodic global scan yet: defer to authenticated reconnect and avoid
+// unexpected database costs while capacity remains untested.
+async function recoverOrphanedRoomsAtStartup(){
+ const candidates=await store.listRecoverableRooms(10);
+ for(const item of candidates){
+  try{await restoreRoom(item.room_id);}
+  catch(error){console.error('Room recovery deferred:',item.room_id,error.code||error.message);}
+ }
+}
+store.health().then(recoverOrphanedRoomsAtStartup)
+ .then(()=>server.listen(PORT,'0.0.0.0',()=>
+  console.log('Lucky Game Supabase-auth leased draft listening on '+PORT)
+ )).catch(err=>{
  console.error('Database preflight failed; server will NOT listen:',err.code||err.message);
  process.exitCode=1;store.close().catch(()=>{}).finally(()=>process.exit(1));
 });
