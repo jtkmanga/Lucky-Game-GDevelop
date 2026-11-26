@@ -17,7 +17,7 @@ AUTH=API/'auth'
 APP.mkdir(parents=True, exist_ok=True)
 AUTH.mkdir(parents=True, exist_ok=True)
 
-for name in ('secure-server.cjs','health-readiness.cjs','health-http-handler.cjs','postgres-store.cjs','rules.js',
+for name in ('secure-server.cjs','health-readiness.cjs','health-http-handler.cjs','startup-lifecycle.cjs','postgres-store.cjs','rules.js',
              'board-maps.cjs','board-definitions.json','multi-board-rules.cjs',
              'rule-transition-guard.cjs'):
     shutil.copy2(ROOT/'backend/railway'/name,APP/name)
