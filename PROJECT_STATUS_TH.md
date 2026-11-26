@@ -383,3 +383,14 @@ PASS map 5: 11 server turns and SVG endpoints
 - ไม่มี Codespaces start, GitHub Actions, deploy, Supabase SQL/migration, Railway change, Google OAuth, เปิดสุ่มแผนที่, หรือจ่ายเงินรอบนี้; ค่าใช้จ่ายใหม่จากงานรอบนี้ไม่มี แต่ยอดผู้ให้บริการไม่ได้วัด
 - **ความคืบหน้ารวมประมาณ 20% คงเดิม** (งานนี้เพิ่มเพียง QA source ไม่ใช่ PASS)
 - **งานถัดไปเพียงงานเดียว:** เมื่อได้รับอนุมัติขอบเขตการทดสอบเฉพาะจุด ให้รันเฉพาะ `node --test qa/room-board-reconnect-contract.test.cjs` ในสภาพแวดล้อมที่มีอยู่ แล้วตรวจการส่ง `verifiedRoomSnapshot` ผ่าน WebSocket fixture สำหรับ legacy map 1 และ checkpoint เสีย โดยไม่ Deploy; หากยังไม่อนุมัติ ให้เตรียม source fixture เท่านั้น
+
+
+## 2026-11-26 — Reconnect contract source harness 9/9; Codespaces Node/WebSocket ยังไม่ยืนยัน
+- ได้รับคำสั่งดำเนินงานต่อภายหลังระบุ next gate ของ Reconnect จึงตรวจเฉพาะ QA suite `qa/room-board-reconnect-contract.test.cjs` โดยไม่ทดสอบ 6/6 mode หรือ 33/33 map transport ซ้ำ
+- GitHub plugin อ่านซอร์สจริง `rules.js`, `board-definitions.json`, `board-maps.cjs`, `multi-board-rules.cjs` และ QA suite; ไม่มี connector สำหรับเรียก Codespaces Terminal ในรอบนี้ จึงเรียก CommonJS test source ด้วย **V8 JS compatibility harness** ที่แทน `node:test` / `node:assert/strict` เฉพาะ assert ที่ใช้ในไฟล์ นี่ไม่ใช่คำสั่ง `node --test`, ไม่ใช่ browser/WS/DB acceptance
+- Harness รอบแรก **8/9** พบ fixture ที่เพิ่งเพิ่มสร้าง Free room สองคนซึ่งกติกาปฏิเสธ `invalid players`; แก้เป็น VIP 2 คนตาม capacity เดิม โดยไม่เปลี่ยน production code ที่ commit `e62cc657bfd2fbf50f116851b9c18abe3e9cfe6e`
+- หลังแก้และอ่าน source จาก main ใหม่ Harness ผ่าน **9/9**: catalog identity; persisted maps 1–5; swapped id; corrupted snake; gift tile validation; legacy missing-board map 1; nonmutating map-one normalization; explicit invalid board rejection; serialized reconnect board identity
+- **Verification scope:** 9/9 เป็นผล harness ความเข้ากันได้ใน JavaScript ไม่ใช่ Node official runner; ยังไม่ได้พิสูจน์ `verifiedRoomSnapshot` ผ่าน WSS actual messages, OAuth, real UID reconnect, PostgreSQL recovery หรือ browser rendering. ห้ามถือว่า P2/P3 gate ผ่าน
+- ไม่มี Codespace start, CI/Actions, SQL, migration, Railway deployment, Supabase mutation, service creation, random board activation หรือทรัพยากรจ่ายเงินใหม่; เครดิต/ค่าใช้จ่ายผู้ให้บริการไม่ได้วัด รอบนี้ทำ source-only + in-process harness
+- ความคืบหน้ารวมยังประเมิน **20%** ตามวิธีเดิม ไม่เพิ่มจาก harness แทน integration acceptance
+- **NEXT SINGLE ACTION:** ใช้ Codespaces เดิมที่เข้าถึง Terminal ได้เพื่อรัน `node --test qa/room-board-reconnect-contract.test.cjs` เฉพาะ suite นี้ และเพิ่ม/รัน local WebSocket fixture สำหรับการส่ง `verifiedRoomSnapshot` (legacy map 1 และ bad checkpoint) ภายในขอบเขตที่ได้รับอนุญาตแล้ว; หากการใช้ Codespace อาจมีค่าใช้จ่ายใหม่ ให้ตรวจ/ขออนุมัติค่าคอมพิวต์ก่อนเปิดเครื่อง ไม่ Deploy
