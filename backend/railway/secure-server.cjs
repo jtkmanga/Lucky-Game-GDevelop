@@ -18,6 +18,7 @@ const Rules=require('./rules.js');
 const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
 const {requireRoomAccess}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
+const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 
 const supabaseConfig=readConfig();
 const store=createRailwayStore(process.env.DATABASE_URL);
@@ -167,21 +168,21 @@ function haltRoom(room,reason){
 // be lost after the database commits. Read the authoritative checkpoint from
 // a fresh pool query for operator diagnostics ONLY. Never mutate the local
 // state, release or reacquire a lease, reschedule, or broadcast a guessed turn.
-async function inspectAmbiguousCommit(room,expectedRevision){
+async function inspectAmbiguousCommit(room,expectedRevision,expectedGame,awards){
  try{
-  const checkpoint=await store.loadRoom(room.id);
-  if(!checkpoint){
-   console.error('AMBIGUOUS_COMMIT_UNRESOLVED',room.id,'ROOM_NOT_FOUND');
-   return;
-  }
-  const revision=Number(checkpoint.revision);
-  const sameLease=checkpoint.lease_owner===OWNER_ID &&
-    Number(checkpoint.lease_epoch)===room.leaseEpoch;
-  const result=revision===expectedRevision+1?'POSSIBLY_COMMITTED':
-    revision===expectedRevision?'POSSIBLY_NOT_COMMITTED':'REVISION_CHANGED';
+  const evidence=await store.readRoomAndAwards(room.id);
+  const assessment=classifyRoomReconciliation({
+   ...evidence,expectedRevision,expectedGame,awards,
+   ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch
+  });
+  // Log category and counts only: no tokens, emails or user identifiers.
   console.error('AMBIGUOUS_COMMIT_RECONCILIATION',JSON.stringify({
-   roomId:room.id,expectedRevision,storedRevision:revision,
-   leaseStillOwned:sameLease,roomStatus:checkpoint.status,outcome:result,
+   roomId:room.id,classification:assessment.classification,
+   storedRevision:assessment.storedRevision,
+   expectedRevision,ownerMatches:assessment.ownerMatches,
+   missingKinds:assessment.missingKinds,
+   conflictingKinds:assessment.conflictingKinds,
+   duplicateKinds:assessment.duplicateKinds,
    nextAction:'HALTED_REQUIRES_REVIEW'
   }));
  }catch(error){
@@ -273,7 +274,7 @@ async function advance(room,roll){
   // may be lost even when the new state and award rows are persisted.
   haltRoom(room,e.code==='AMBIGUOUS_COMMIT'?'AMBIGUOUS_COMMIT':'UNCONFIRMED_TURN_COMMIT');
   if(e.code==='AMBIGUOUS_COMMIT')
-   await inspectAmbiguousCommit(room,room.revision);
+   await inspectAmbiguousCommit(room,expectedRevision,next,awards);
   // Do not replay dice, write scores, renew a halted room or broadcast state.
  }finally{room.busy=false;}
 }
