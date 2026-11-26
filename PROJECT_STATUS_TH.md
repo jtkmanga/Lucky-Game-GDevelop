@@ -126,3 +126,11 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - **Important:** lease helper is NOT connected to the runtime; `secure-server.cjs` remains single-process and cannot safely operate multiple Railway replicas. The helper's `guardedCheckpoint` is NOT an atomic award workflow and must not be used to replace `commitTurn`.
 - This session did NOT apply Supabase SQL, run tests/CI, configure Google OAuth, deploy Railway, run bots, or create paid resources. No evidence of live recovery or 10K performance.
 - **NEXT SINGLE ACTION:** implement the full fenced room+score atomic transaction in source and only then connect the lease protocol to the Railway runtime; respect the current testing/deploy pause. Separately Google OAuth and migration remain gated on scoped approval.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), atomic fenced turn + score draft
+- Read the authoritative GitHub handoff files and actual Supabase PostgreSQL game store, room lease helper, lease schema draft, and room recovery plan. No new repo or service.
+- Changed `backend/supabase/room-lease-store.cjs`: `commitFencedTurn` performs conditional room update guarded by `room_id`, verified server `owner_id`, `lease_epoch`, active lease and expected `revision`; it inserts at most one winner and one Lucky Box event in the **same PostgreSQL transaction**. Award UID must be in stored room seats; duplicate event aborts the transaction. Source commit `d12ac0bc86a8ffae81fd0fc439078b9b6c257912`.
+- Updated `backend/supabase/ROOM_RECOVERY_PLAN_TH.md` to document this method, its preconditions, ambiguous COMMIT errors and incomplete wiring (commit `d8d76396489235fd7c1a72f263cba8518d546e1f`).
+- **UNTESTED and NOT ACTIVE.** The actual `backend/railway/secure-server.cjs` still uses an unfenced `game-store.cjs.commitTurn`. Do not deploy multiple Railway replicas or claim durable single-writer correctness. SQL migration 001/002 remains unapplied; Supabase Google OAuth still unconfigured. All tests/CI/load/Deploy remain paused, no paid resources or credit consumed through tool operations this session.
+- **NEXT SINGLE ACTION:** design and source-wire lease ownership through room INSERT, recovery, heartbeat and the sole server turn commit path; do not activate/deploy without verifying the atomic transaction, migration and owner testing permission.
