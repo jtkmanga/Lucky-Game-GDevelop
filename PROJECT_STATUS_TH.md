@@ -1189,3 +1189,10 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - ห้อง Staging จริง 4 บัญชียัง NOT RUN; ยังไม่มีหลักฐานว่าบัญชีทดสอบที่ได้รับอนุญาตครบ 4 ให้ใช้ isolated fixtures เป็นทางเลือก ไม่ใช้ผู้เล่นจริง และไม่อ้างว่า Google OAuth ผ่านด้วย fixture
 - เอกสารนี้และ backlog เป็นการปรับแผนงาน/สิทธิ์ ไม่ใช่ runtime change ไม่มี Deploy, schema/config mutation, Actions หรือการเปิด Codespace; `main` ยังไม่เปลี่ยน
 - **NEXT:** ทำงาน authoritative item rules แบบ dormant บนสาขาแยก ตรวจผลที่ขอบเขต rules/receipt ก่อนต่อเข้าห้องจริง ตรวจ main vs Draft PR #1 ต่อสำหรับห้าแผนที่โดยไม่เปลี่ยน UI v12
+
+## 2026-11-27 (Asia/Bangkok) — Item rules kernel และ baseline ของ transition receipt
+- Commit source `8e22e5da1f4be5b37d268d7a91d3c6354c3be856` บน `feature/lucky-v12-item-effects`: เพิ่ม `backend/railway/match-item-effects.cjs`, `qa/match-item-effects.test.cjs`, `ITEM_PARITY_V12_TH.md`. ตรวจ Git blob ทั้ง 3 เทียบกับไฟล์ที่ review และที่ใช้รันทดสอบตรงกัน
+- เทสต์ใหม่ `node --test qa/match-item-effects.test.cjs` บน Node v24.22.3 แบบแยก **5 PASS / 0 FAIL**: legacy default, shield หนึ่งครั้ง/แผนที่, restore ไม่เติมใหม่, คะแนนชนะ ×2 และ snapshot ผิดรูปถูกปฏิเสธ. เป็น pure kernel **ยังไม่มี caller ใน runtime**, ไม่มี grant/DB/UI/payment
+- เริ่มงานถัดไป: รัน baseline ที่เกี่ยวกับ guard/receipt ที่ `main` `20a0a76a1bebcf63e41e23a0b081d7848672aaf4`: `node --test qa/rule-transition-receipt.test.cjs` **9 PASS / 0 FAIL**. แยกจากผล item kernel; ไม่ยืนยันทั้ง flow จาก Google, DB จริง, browser หรือ Staging
+- ไม่ Deploy, ไม่ merge, ไม่ใช้ Codespace/Actions, ไม่แก้ service/DB และไม่เปิดจ่ายเงินจริง. เก็บ feature branch ไว้โดยยังไม่เปิด PR เพราะยังยืนยันไม่ได้ว่า Railway PR environments ปิดอยู่. การทำงาน CLI ของ Codex ใน session นี้ติด filesystem/sandbox initialization; ใช้ coding worker ใน Cloud สำหรับ candidate และตรวจ diff/หลักฐานก่อนบันทึก
+- **NEXT SINGLE ACTION:** ทำ fixture ใน process แยกเพื่อเชื่อมกติกา map 1/2–5, transition guard, fenced award และ receipt พร้อมตรวจ replay/timeout โดยไม่เปิดสิทธิ์ runtime; ใช้ baseline 9/9 เป็นเกณฑ์เดิม ไม่อ้างว่า E2E ผ่าน
