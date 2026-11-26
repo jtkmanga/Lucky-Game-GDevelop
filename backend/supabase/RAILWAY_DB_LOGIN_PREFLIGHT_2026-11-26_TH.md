@@ -56,3 +56,13 @@ These are **general Supabase platform modes**, not a verified Lucky-Game connect
 **Current finding:** architecture choices documented; custom user/pooler compatibility and target-specific TLS are **NOT VERIFIED**. No credential, test, provider setting, role membership or deployment was changed.
 
 **NEXT SINGLE ACTION:** inspect the authenticated Supabase `Connect` panel for project-specific direct/session connection modes and verify support for a custom non-owner LOGIN identity **read-only**; then review the exact scoped SQL LOGIN/membership proposal before requesting separate approval.
+
+
+## 2026-11-26 19:39 Asia/Bangkok — Project Connect panel (owner screenshot, read-only)
+
+- Authenticated owner screenshot: Supabase → Lucky-Game → Connect → Direct / Connection string → **Session pooler** selected (the tab label is Direct, but the selected connection method is Session pooler).
+- **Project-specific parameters visible without password:** host `aws-1-ap-southeast-1.pooler.supabase.com`; port `5432`; database `postgres`; displayed default user `postgres.llbkxnazkliskzcureec`.
+- Dashboard identifies Session Pooler as an IPv4-compatible alternative to Direct, and shows a placeholder for database password. **The visible default username is the privileged `postgres` account, NOT authorization to connect the game with that account.** No full connection URI or secret is copied to GitHub.
+- This screenshot confirms the project's available Session Pooler endpoint and default account display; it **does not verify** that a custom restricted PostgreSQL LOGIN can authenticate via the pooler, the custom username syntax, TLS handshake, role membership, credential security or a successful Railway connection.
+- **Do not** create Login, set Railway variables, select a paid IPv4 add-on, Deploy, or test live traffic under this read-only step.
+- **NEXT SINGLE ACTION:** review source-only restricted LOGIN/membership plan and verify provider support for custom usernames in Supavisor session pooling before requesting a separately scoped authorization for identity provisioning.
