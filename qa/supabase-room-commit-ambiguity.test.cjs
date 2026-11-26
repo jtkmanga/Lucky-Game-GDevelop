@@ -14,6 +14,7 @@ const PLAYER='44444444-4444-4444-8444-444444444444';
 const input={
  roomId:ROOM,ownerId:OWNER,leaseEpoch:1,expectedRevision:0,
  game:{over:true,players:[]},deadlineMs:null,
+ receipt:{type:'roll',actorIndex:0,dice:6,outcome:{}},
  awards:[{eventId:ROOM+':win',uid:PLAYER,gameId:ROOM,mode:'free',kind:'win',points:10}]
 };
 function fakePool({failCommit=false,failInsert=false,failRollback=false}){
@@ -32,6 +33,8 @@ function fakePool({failCommit=false,failInsert=false,failRollback=false}){
   }
   if(sql.includes('UPDATE game.rooms'))
    return {rowCount:1,rows:[{revision:1,mode:'free',seats:[{uid:PLAYER}]}]};
+  if(sql.includes('INSERT INTO game.turn_receipts'))
+   return {rowCount:1,rows:[{revision:1}]};
   if(sql.includes('INSERT INTO game.score_events')){
    if(failInsert)throw Error('INSERT_FAILED');
    return {rowCount:1,rows:[{event_id:ROOM+':win'}]};
