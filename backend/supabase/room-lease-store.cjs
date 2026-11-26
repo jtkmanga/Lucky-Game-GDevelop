@@ -120,6 +120,10 @@ function createRoomLeaseStore(pool) {
     if(row.rowCount!==1)throw Error('LEASE_LOST_OR_STALE_REVISION');
     const {mode,seats}=row.rows[0];
     if(!Array.isArray(seats))throw Error('Invalid persisted seat list');
+    if(receipt.actorIndex>=seats.length)
+     throw Error('Turn receipt actor index exceeds room seat count');
+    if(receipt.type==='timeout'&&awards.length!==0)
+     throw Error('Timeout cannot grant awards');
     const seatUids=new Set(seats.map(x=>x?.uid));
     for(const award of awards){
      if(award.mode!==mode||!seatUids.has(award.uid))
