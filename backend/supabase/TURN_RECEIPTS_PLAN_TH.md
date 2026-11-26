@@ -20,3 +20,11 @@
 
 ## Next single action
 Static-review receipt payload invariants and mock assertions for missing/duplicate receipts; plan an authorized migration 001→002→003 and isolated, bounded SQL acceptance once owner separately unpauses tests and deploy.
+
+
+## 2026-11-26 static hardening checkpoint (NOT TESTED)
+- Receipt actor is now compared with the DB-stored seat count inside `commitFencedTurn`; an invalid actor index aborts the transaction.
+- A timeout with any positive reward events now aborts the transaction; timeout is skip-only, never auto-roll or award. Commit `f5a54932f17681fa42b961aee873d894321e9a87`.
+- Added unexecuted mock cases in `qa/supabase-room-lease-contract.test.cjs`, commit `00dad43f932ecd0929f2bab3a479fa82fcb00cdc`.
+- New consolidated preflight `backend/supabase/MIGRATION_001_003_REVIEW_TH.md`, commit `030b51b6c8f371747493be88cd1f7cca4ce9bdc0`.
+- No actual test execution, PostgreSQL schema mutation, Railway deployment or billable resource launch. All outcomes are assumptions until approved verification.
