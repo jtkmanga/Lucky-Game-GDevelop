@@ -25,3 +25,12 @@ Updated: 2026-11-26 (Asia/Bangkok) — **SOURCE REVIEW ONLY, NO TESTS EXECUTED**
 
 ## Next single action
 Author a focused server-only outcome/state consistency guard (actor, `position`, `gameOver`, `lastRoll`, winner) and corresponding **unexecuted** test cases. Keep UI frozen and honor the testing pause.
+
+
+## 2026-11-26 — Source-level transition guard (UNTESTED)
+
+- Added `backend/railway/rule-transition-guard.cjs` to statically validate a server-authored transition against the tracked original `rules.js`. Checks authoritative actor, from/landing/dice, snake/ladder mapping, resulting position, `lastRoll`, turn counter, active seat rotation, winner/finished game, score deltas, Lucky Box and absence of other player changes. It also enforces timeout=skip-only (no dice, score or movement). Commits `be5869f9983c6b29471c523315f663e73c47ccf1`, `b396738de1cd5dd9f1586b031e2ff0ac0ef70290`.
+- `backend/railway/secure-server.cjs` invokes `requireRuleTransition(old,next,receipt,awards)` before calling `commitFencedTurn`. Failed validation halts room without writing/broadcasting a guessed state. Commit `c463c81328a756726dec15839aaf8967a58a3498`.
+- `backend/supabase/room-lease-store.cjs` now binds award UID to the **acting seat**, not just any member of the room, within the fenced SQL transaction. Commit `76acd70bfabc82c675d19fe9b67869a41fc7227e`.
+- New unexecuted `qa/rule-transition-receipt.test.cjs` includes normal, snake, ladder, overshoot, Lucky Box, timeout and tampering scenarios (commit `66fcaf6ab81b894095cc029ab80a7c51ea81efef`). Extended the unexecuted lease suite to reject awards paid to a different valid seat in the room (commit `c5369cc812160ef04ccfb0896f8674754ee4e355`).
+- **No tests run, no migration applied, no deploy, no measured PASS.** Source still has only one board map. Multi-replica routing, SQL 001–003, Google provider, live Admin and purchases remain incomplete.
