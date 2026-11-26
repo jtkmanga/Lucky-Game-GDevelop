@@ -724,3 +724,11 @@ PASS map 5: 11 server turns and SVG endpoints
 - **No** Railway service, deployment, secret variable, plan upgrade, card addition, Supabase mutation or UI v12 change. Retain prior restricted SQL write→rollback PASS; do not rerun.
 - Overall estimated project progress **22%** unchanged.
 - **NEXT SINGLE ACTION:** inspect the Railway workspace Usage / consumption view to establish actual utilization and current remaining Trial credit, then prepare a one-replica staging cost/time cap for explicit owner approval. Do NOT provision or deploy until that scope and server-side TLS/auth readiness are reviewed.
+
+
+## 2026-11-26 20:28 Asia/Bangkok — Railway Trial actual Usage/credit confirmed from owner dashboard
+- Owner Railway workspace Usage screenshot for Nov 25–Nov 27: **Current Usage $0.00, Discounts $0.00, Credits Used $0.00, Estimated Month's Cost $0.00, Credits Available $5.00, Estimated Credits Required $0.00**, no project usage recorded. Trial plan advertises 1 GB RAM / 2 vCPU / 1 GB disk, one-time $5 credit, top banner `30 days or $5.00 left`. Previous billing screenshot shows no payment method.
+- This establishes displayed **current** Trial credit and zero workspace usage, not future service price, an independent hard spending cap, or an approved deployment. Existing Railway project staging still showed 0 services/deployments at last connector check.
+- Updated `backend/RAILWAY_STAGING_RESOURCE_COST_REVIEW_2026-11-26_TH.md` commit `78d85eb8b5a15a9f8c321a7852d443185f6056f7` with direct evidence and constraints: one replica/no duplicate Postgres proposed, verify actual burn and stop mechanism, receive specific owner budget/time and deploy approval.
+- **No** service/secret/Deploy/plan changes, PostgreSQL mutations, Codespaces reruns, UI v12 changes. Estimated project completion remains **22%**.
+- **NEXT SINGLE ACTION:** source-only inspect and prepare fail-closed server PostgreSQL TLS/CA and startup readiness contract before creating Railway service; then obtain explicit cost/time/deploy approval.
