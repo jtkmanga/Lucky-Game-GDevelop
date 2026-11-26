@@ -116,3 +116,13 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - All changes remain **UNTESTED SOURCE ONLY**. No Supabase migration was applied; no Google OAuth configured, no Railway service created/deployed, no tests/CI/bots/load run, no new charge-incurring resources.
 - Known blockers: Google provider credentials, database migration approval, restart sweeping of orphaned rooms, distributed room coordinator for multiple replicas, full game parity and 10K evidence.
 - **NEXT SINGLE ACTION:** prepare durable room ownership/lease and restart reconciliation design (source only), then identify scoped permissions required to apply Supabase schema when owner explicitly authorizes it.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), room lease / restart sweep groundwork
+- Resumed from canonical handoff files and the existing matching persistence code; no duplicate project/repository created.
+- Added **UNAPPLIED** SQL lease/fencing schema extension `backend/supabase/002_room_lease_draft.sql` (commit `38dcf0d19e1b4609978de24924296f7905344e8c`).
+- Added **UNUSED/UNTESTED** `backend/supabase/room-lease-store.cjs` helper with acquire/renew/release/recoverable-room scan and a fenced update example (commit `82c2794e5bd826c2ae90a9aaef43ffc4cbe30c73`).
+- Authored protocol document `backend/supabase/ROOM_RECOVERY_PLAN_TH.md` (commit `292e55d33897887d7faec10335b853a01a3b27b2`) showing how to safely integrate ownership checks into **the same DB transaction** as scores and room changes, and handle crash/ambiguous writes.
+- **Important:** lease helper is NOT connected to the runtime; `secure-server.cjs` remains single-process and cannot safely operate multiple Railway replicas. The helper's `guardedCheckpoint` is NOT an atomic award workflow and must not be used to replace `commitTurn`.
+- This session did NOT apply Supabase SQL, run tests/CI, configure Google OAuth, deploy Railway, run bots, or create paid resources. No evidence of live recovery or 10K performance.
+- **NEXT SINGLE ACTION:** implement the full fenced room+score atomic transaction in source and only then connect the lease protocol to the Railway runtime; respect the current testing/deploy pause. Separately Google OAuth and migration remain gated on scoped approval.
