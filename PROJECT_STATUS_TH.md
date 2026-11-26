@@ -534,3 +534,12 @@ PASS map 5: 11 server turns and SVG endpoints
 - **No modifications** to Supabase schema/roles/Authentication/Data API settings, Railway, UI v12, Codespaces, tests/CI, or deployment. No new charge-incurring resource. Cost delta not measured. Existing Node 20/20, local WS 2/2 and authenticated fixture 2/2 (as recorded by Work) are historical scoped evidence, not rerun.
 - Overall project estimate **22%** (unchanged from Work's verified migration checkpoint).
 - **NEXT SINGLE ACTION:** inspect Supabase Dashboard → Integrations → Data API → Exposed schemas **read-only** and record whether `game` is absent before considering any Railway runtime-role or staging service changes. Do not expose credential values.
+
+
+## 2026-11-26 19:28 Asia/Bangkok — Data API exposed schema gate verified; runtime-role source plan
+- Owner supplied the authenticated Supabase Dashboard screenshot: **Exposed schemas 2/3**, with `graphql_public` and `public` checked; **`game` unchecked**. UI also shows 0/8 exposed tables. This closes the outstanding **Data API `game` exclusion check** for the current settings snapshot. No Dashboard Save/change was performed.
+- Earlier live SQL access checks independently confirmed all eight `game` tables RLS enabled, zero policies, no anon/authenticated table SELECT or schema USAGE/CREATE. `Automatically expose new tables` is currently toggled on in Dashboard; no change made, guard future exposed-schema migrations.
+- Updated evidence doc `backend/supabase/DATA_API_BOUNDARY_REVIEW_2026-11-26_TH.md` commit `b94b90652d83d0c35bc2f03d266056ed2116047c`. Authored source-only `backend/supabase/RAILWAY_RUNTIME_ROLE_CONTRACT_TH.md` commit `b626f460080b9e5917a7fa35499b73b64c9991d2`: current server's required table operations, dedicated least-privilege role, RLS policy requirements, no BYPASSRLS, no client grants or secrets.
+- **Not applied:** no new role/password/SQL policy, no Railway service/config/deploy, no Google OAuth changes, no Codespaces work or tests. No provider cost measured; no new billable resource created. UI v12 unchanged.
+- **Progress remains 22% estimated**. Verified exclusion strengthens the security preflight but does not prove live server DB/Auth integration.
+- **NEXT SINGLE ACTION:** source-review concrete role-specific SQL GRANT + RLS migration and rollback/forward-fix plan against the eight installed tables; request scoped permission before applying anything to Supabase.
