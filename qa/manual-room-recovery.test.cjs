@@ -9,7 +9,7 @@ const room={revision:6,status:'playing',lease_owner:'owner',lease_epoch:3};
 const game={over:false,players:[]};
 const base={
  assessment:{classification:'COMMIT_EVIDENCE_CONSISTENT',
-  ownerMatches:true,gameStateMatches:true,matchingAwardEvents:0,
+  ownerMatches:true,gameStateMatches:true,receiptStatus:'MATCHED',matchingAwardEvents:0,
   missingKinds:[],conflictingKinds:[],duplicateKinds:[]},
  room,expectedRevision:5,expectedGame:game,expectedAwards:[]
 };
