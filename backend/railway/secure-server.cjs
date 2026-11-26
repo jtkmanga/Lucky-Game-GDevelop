@@ -21,6 +21,7 @@ const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.
 const {requireRoomAccess}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
 const {respondHealth}=require('./health-http-handler.cjs');
+const {beginListening}=require('./startup-lifecycle.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
@@ -499,27 +500,16 @@ async function recoverOrphanedRoomsAtStartup(){
   catch(error){console.error('Room recovery deferred:',item.room_id,error.code||error.message);}
  }
 }
-store.health().then(recoverOrphanedRoomsAtStartup)
- .then(()=>{
-  if(shuttingDown)return;
-  return new Promise((resolve,reject)=>{
-   const onError=error=>{
-    server.off('listening',onListening);
-    reject(error);
-   };
-   const onListening=()=>{
-    server.off('error',onError);
-    startupReady=true;
-    console.log('Lucky Game Supabase-auth leased draft listening on '+PORT);
-    resolve();
-   };
-   server.once('error',onError);
-   server.once('listening',onListening);
-   server.listen(PORT,'0.0.0.0');
-  });
- }).catch(err=>{
+beginListening({
+ health:()=>store.health(),
+ recover:recoverOrphanedRoomsAtStartup,
+ server,port:PORT,shouldStop:()=>shuttingDown,
+ onReady:()=>{
+  startupReady=true;
+  console.log('Lucky Game Supabase-auth leased draft listening on '+PORT);
+ }
+}).catch(err=>{
  startupReady=false;
- // Avoid emitting full driver error objects; they may contain connection data.
  console.error('Database/startup preflight failed; server will NOT be ready:',err.code||'STARTUP_FAILED');
  process.exitCode=1;
  store.close().catch(()=>{}).finally(()=>process.exit(1));
