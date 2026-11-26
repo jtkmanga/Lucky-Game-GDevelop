@@ -47,18 +47,18 @@
 
   
   <section id="screen-lobby" class="screen" aria-label="หน้า Lobby">
-    <div class="lobby-welcome"><div><div class="welcome-kicker">🌸 ยินดีต้อนรับสู่กระดานมหาสนุก</div><h1>พร้อมแข่งหรือยัง <span id="welcome-name">ผู้เล่นของฉัน</span>?</h1><div class="lobby-subtitle">เลือกตัวละครคู่ใจ แล้วหาห้องแข่งกับเพื่อนอีก 2 คน</div></div><div class="welcome-mascot" id="welcome-mascot">🐱</div></div>
+    <div class="lobby-welcome"><div><div class="welcome-kicker">🌸 ยินดีต้อนรับสู่กระดานมหาสนุก</div><h1>พร้อมแข่งหรือยัง <span id="welcome-name">ผู้เล่นของฉัน</span>?</h1><div class="lobby-subtitle">เลือกตัวละครคู่ใจ แล้วหาห้องแข่งกับเพื่อนอีก 3 คน</div></div><div class="welcome-mascot" id="welcome-mascot">🐱</div></div>
     <div class="lobby-metrics">
       <div class="metric"><span>🌿 เซิร์ฟเวอร์</span><strong id="lobby-server">FREE</strong></div>
       <div class="metric"><span>🏆 คะแนนออนไลน์</span><strong id="lobby-score">0</strong></div>
-      <div class="metric"><span>🎮 จับคู่ออนไลน์</span><strong id="lobby-room-size">3 คน</strong></div>
+      <div class="metric"><span>🎮 จับคู่ออนไลน์</span><strong id="lobby-room-size">4 คน</strong></div>
     </div>
     <div class="online-strip" id="lobby-online-status" role="status">🟢 Free — คน · VIP — คน</div>
     <div class="lobby-grid">
       <div class="lobby-main">
         <section class="panel lobby-section match-box">
           <div class="lobby-heading"><div><div class="section-eyebrow">ARENA</div><h2>🎲 เริ่มเล่นกันเลย!</h2></div><span class="room-chip">ชนะ +10 • ไอเทม ×2 = +20</span></div>
-          <div class="match-art">🐱 <span>VS</span> 🐰 <span>VS</span> 🦊</div>
+          <div class="match-art">🐱 <span>VS</span> 🐰 <span>VS</span> 🦊 <span>VS</span> 🐼</div>
           <button id="online-btn" class="primary-button match-online" type="button">🌐 เริ่มจับคู่หาห้องออนไลน์ <span>➜</span></button>
           
           <div id="mode-status" class="mode-status" role="status">กำลังเชื่อมระบบ Multiplayer ใหม่บน Railway</div>
@@ -93,7 +93,7 @@
   </section>
 
   <section id="screen-game" class="screen" aria-label="หน้ากระดานแข่งขัน">
-    <div class="game-toolbar"><button id="back-lobby" class="toolbar-back" type="button">‹ กลับ Lobby</button><div><b>🏁 สนามแข่งขัน</b><span id="room-label" class="room-chip">ห้องออนไลน์</span></div><button id="game-menu" type="button" class="toolbar-menu">☰ เมนู</button></div>
+    <div class="game-toolbar"><button id="back-lobby" class="toolbar-back" type="button">‹ กลับ Lobby</button><div><b>🏁 สนามแข่งขัน</b><span id="room-label" class="room-chip">ห้อง Free 4 คน</span></div><button id="game-menu" type="button" class="toolbar-menu">☰ เมนู</button></div>
     <div class="online-strip game-online-strip" id="game-online-status" role="status">🟢 Free — คน · VIP — คน</div>
     <div class="stage-card">
       <div class="players" id="players" aria-label="ผู้เล่นในห้องแข่งขัน"></div>
@@ -115,6 +115,7 @@
  <div class="side-menu" id="side-menu" role="dialog" aria-modal="true" aria-label="เมนูเกม" hidden><div class="menu-head"><b>🐍 Snakes & Ladders</b><button type="button" id="close-menu" aria-label="ปิดเมนู">✕</button></div><button type="button" data-nav="lobby">🏡 หน้า Lobby</button><button type="button" data-nav="shop">🛍️ ร้านค้าไอเทม</button><button type="button" data-nav="rank">🏆 ตารางอันดับ</button><button type="button" data-nav="rules">📜 วิธีเล่น</button><button type="button" data-nav="auth">🚪 ออกจากเกม</button></div>
  <div class="modal-backdrop" id="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-x" type="button" id="modal-x" aria-label="ปิด">✕</button><span id="modal-illustration">🌿</span><h2 id="modal-title">ข้อความ</h2><p id="modal-text"></p><button type="button" id="modal-close" class="primary-button">เข้าใจแล้ว</button></div></div>
  <div class="toast" id="toast" role="status" aria-live="polite"></div>
- <!-- The Cloudflare/Firebase game.js is deliberately NOT included. Railway/Supabase adapter pending. -->
+ <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.1/dist/umd/supabase.min.js"></script>
+ <script defer src="./railway-app.js"></script>
 </body>
 </html>
