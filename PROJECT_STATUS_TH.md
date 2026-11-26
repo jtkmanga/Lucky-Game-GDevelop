@@ -324,3 +324,9 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - สถานะทั้ง 6 กรณี (รอ Auth, เล่นบนเครื่อง→Free 4, ยกเลิกคิว, หลุด→กลับห้อง, กระดานผิด, จบเกม→เริ่มใหม่): BLOCKED ก่อนเข้าเคสทั้งหก Local Chromium launcher พบแต่ executable ปลายทางขาด ส่วน Cloud Browser เข้า loopback fixture ไม่ได้ (connection refused) จึงไม่มี runtime PASS หรือ FAIL ของเกม
 - ประเมินรวม 18% ไม่มีการ deploy, apply SQL, เปิดสุ่มแผนที่, เริ่ม Codespace หรือปรับ Railway/Supabase
 - งานถัดไปเดียว: รันชุดที่อนุมัติแล้วใน Codespace ที่เชื่อมต่อได้และมี Chromium/Playwright/aiohttp พร้อม จาก root: `python3 tools/prepare_railway_secure.py && python3 qa/v12_mode_acceptance.py` บันทึกผลรายกรณี ไม่ต้องขออนุมัติซ้ำในขอบเขตเดิม การเปิดใช้บริการและการทดสอบอื่นยังพักอยู่
+
+## 2026-11-26 — ตรวจทางเข้า Codespaces และเงื่อนไขค่าใช้จ่าย
+- เปิด GitHub Codespaces ผ่านบัญชีที่เชื่อมต่อและพบเครื่องเดิมของ repository บน main สองเครื่อง ขณะตรวจทั้งสองไม่ได้แสดงสถานะ Active หนึ่งเครื่องมีการเปลี่ยนแปลงที่ยังไม่ได้ commit
+- Billing ยืนยันว่า compute แบบ 2-core ของบัญชีมีการคิดเงินจริงแล้วในเดือนนี้ จึงยังไม่เปิดเครื่อง ไม่มีการสร้าง Codespace, deploy หรือเปลี่ยนบริการในรอบตรวจนี้
+- หลักฐานเดิม: build สำเร็จและ syntax 3/3 ผ่าน ชุด browser/WebSocket 6 กรณียังไม่ได้รัน ความคืบหน้ารวมประมาณ 18%
+- งานถัดไป: เมื่อมีโควต้า compute ฟรีที่ยืนยันได้ หรือได้รับอนุมัติค่า compute เฉพาะรอบ ให้ใช้เครื่องเดิมที่ไม่มีงานค้างและรันชุดเดิมจาก main โดยรักษางานเดิมไว้
