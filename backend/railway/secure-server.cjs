@@ -19,6 +19,7 @@ const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.
 const {requireRoomAccess}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
+const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
 const supabaseConfig=readConfig();
 const store=createRailwayStore(process.env.DATABASE_URL);
@@ -175,6 +176,13 @@ async function inspectAmbiguousCommit(room,expectedRevision,expectedGame,awards)
    ...evidence,expectedRevision,expectedGame,awards,
    ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch
   });
+  // This is advisory ONLY: it never clears the room halt flag and is not
+  // an operator-controlled endpoint. A future explicit recovery workflow
+  // must acquire/check a fresh lease and re-read canonical state.
+  const recovery=prepareManualRecoveryDecision({
+   assessment,room:evidence.room,expectedRevision,expectedGame,
+   expectedAwards:awards
+  });
   // Log category and counts only: no tokens, emails or user identifiers.
   console.error('AMBIGUOUS_COMMIT_RECONCILIATION',JSON.stringify({
    roomId:room.id,classification:assessment.classification,
@@ -183,6 +191,8 @@ async function inspectAmbiguousCommit(room,expectedRevision,expectedGame,awards)
    missingKinds:assessment.missingKinds,
    conflictingKinds:assessment.conflictingKinds,
    duplicateKinds:assessment.duplicateKinds,
+   recoveryDecision:recovery.decision,
+   recoveryBlockingReasons:recovery.blockingReasons,
    nextAction:'HALTED_REQUIRES_REVIEW'
   }));
  }catch(error){
