@@ -234,6 +234,10 @@ async function advance(room,roll){
     roomId:room.id,ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch,
     expectedRevision:room.revision,game:next,deadlineMs:nextDeadline,awards
   });
+  // A concurrent heartbeat failure may halt this worker while COMMIT is in
+  // flight. Never broadcast or schedule from a locally halted coordinator;
+  // persisted state will be reconciled by a future valid lease owner.
+  if(room.halted)return;
   room.game=next;room.deadline=nextDeadline;room.revision=revision;
   if(next.over&&room.leaseTimer)clearTimeout(room.leaseTimer);
   schedule(room);transmit(room,event);
