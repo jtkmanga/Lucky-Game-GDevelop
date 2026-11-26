@@ -3,7 +3,8 @@
 // Authoring only: do not run until owner explicitly lifts the testing pause.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const Rules = require('../render-web/rules.js');
+// Tracked verbatim original ZIP rules; no generated runtime or UI changes.
+const Rules = require('../backend/railway/rules.js');
 
 test('Free requires exactly four seats; VIP requires exactly two', () => {
   assert.equal(Rules.create(['a','b','c','d'],'free').players.length,4);
