@@ -183,3 +183,13 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - Updated `backend/supabase/MIGRATION_PREFLIGHT_TH.md` with exact limitations and revised guard status, commit `2397ff93ec76ccac386468feac6fbfba340a196b`.
 - No tests/CI/bots, Supabase SQL execution/migration, real OAuth configuration, Railway deploy, production launch or extra costs in this session. **All new functionality is unverified source code.**
 - **NEXT SINGLE ACTION:** static-review the end-to-end reconciliation invariants and draft a safe explicit manual-resume/recovery decision protocol; before any real SQL migration or tests, request scoped owner authorization as required by AGENTS and DECISIONS. Do not broaden test plan or repeat historical checks.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), manual recovery readiness (SOURCE ONLY)
+- Read required five repo handoff/decision/plan files and current room-reconciliation, DB store, Railway secure server and room-recovery plan before changes.
+- Added `backend/supabase/manual-room-recovery.cjs`, a fail-closed **advisory** decision helper. Outcomes are `BLOCK` or `REVIEW_FOR_OPERATOR_APPROVAL`; both require operator action and never automatically unhalt a room. It checks revision, observed lease ownership, score ledger counts/conflicts, game/room status and transaction classification (commit `c765388c598f6f094c46158faac1844dd559dbdc`).
+- Updated `backend/railway/secure-server.cjs` to add advisory recovery assessment to logs after read-only ambiguous-commit reconciliation; no new admin endpoint, automatic retry/replay or DB mutation (commit `7a235774c5fcd8b6331b4277026885db0b8b881f`).
+- Augmented `backend/supabase/room-reconciliation.cjs` to surface other reward kinds for context, without treating older valid awards as corruption (commit `e572abe89ef16e96f4a22460cc60867aece5efcb`).
+- Authored but **DID NOT EXECUTE** `qa/manual-room-recovery.test.cjs` (commit `86b69968440782068a95e87e1ac0582ab6a45770`). Expanded `backend/supabase/ROOM_RECOVERY_PLAN_TH.md` with operator verification, lease fencing, audit and no-automatic-resume policy (commit `2b7787b41fa7260d53bb844a6612afa3fdd8beb5`).
+- **NOT COMPLETE / NOT VERIFIED:** no per-turn durable receipt/outbox, no privileged admin recovery workflow, no automatic resumption or cross-replica routing. No tests/CI, SQL migrations, Railway deployment, Google OAuth setup or new spend this session.
+- **NEXT SINGLE ACTION:** prepare a private per-turn receipt/outbox schema extension and source integration plan for unambiguous reconciliation, preserving one atomic transaction and no live schema changes; no tests or deployment until explicit scoped approval.
