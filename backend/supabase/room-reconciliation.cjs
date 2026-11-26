@@ -6,7 +6,7 @@
  * command and NEVER authorizes rerolling dice or awarding points.
  */
 const {isDeepStrictEqual}=require('node:util');
-function classifyRoomReconciliation({room,ledger,expectedRevision,expectedGame,awards,ownerId,leaseEpoch}){
+function classifyRoomReconciliation({room,ledger,receipts,expectedRevision,expectedGame,awards,ownerId,leaseEpoch}){
  if(!room)return {classification:'ROOM_MISSING',manualReview:true};
  if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0||
     !Array.isArray(ledger)||!Array.isArray(awards)||
@@ -30,6 +30,19 @@ function classifyRoomReconciliation({room,ledger,expectedRevision,expectedGame,a
       Number(row.points)!==a.points);
  }).map(a=>a.kind);
  const sameState=isDeepStrictEqual(room.game_state,expectedGame);
+ const committedRevision=expectedRevision+1;
+ const receipt=Array.isArray(receipts)?
+   receipts.find(r=>Number(r.revision)===committedRevision):null;
+ const receiptMatches=!!receipt&&
+   Number(receipt.previous_revision)===expectedRevision&&
+   Number(receipt.lease_epoch)===leaseEpoch&&
+   isDeepStrictEqual(receipt.game_state,expectedGame)&&
+   Array.isArray(receipt.award_events)&&
+   isDeepStrictEqual(receipt.award_events,awards.map(a=>({
+    eventId:a.eventId,uid:a.uid,mode:a.mode,kind:a.kind,points:a.points
+   })));
+ const receiptStatus=!Array.isArray(receipts)?'UNAVAILABLE':
+   !receipt?'MISSING':receiptMatches?'MATCHED':'MISMATCH';
  const matchedExpected=missingEvents.length===0&&mismatchedEvents.length===0;
  let classification='UNRESOLVED';
  if(duplicateKinds.length||mismatchedEvents.length)classification='LEDGER_CONFLICT';
@@ -46,6 +59,6 @@ function classifyRoomReconciliation({room,ledger,expectedRevision,expectedGame,a
    expectedAwards:awards.length,matchingAwardEvents:awards.length-missingEvents.length-mismatchedEvents.length,
    missingKinds:missingEvents,conflictingKinds:mismatchedEvents,
    duplicateKinds,unexpectedKinds:unexpectedEvents,
-   gameStateMatches:sameState};
+   gameStateMatches:sameState,receiptStatus};
 }
 module.exports={classifyRoomReconciliation};
