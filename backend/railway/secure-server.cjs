@@ -63,6 +63,9 @@ async function restoreRoom(roomId){
     sourceSeats.length!==capacity(row.mode)||!Number.isSafeInteger(Number(row.revision))||
     !row.game_state||typeof row.game_state!=='object'||!Number.isFinite(Number(row.deadline_ms)))
     throw Error('Invalid persisted room checkpoint');
+  // A stored room can have been edited or corrupted while offline.
+  // Refuse restoration before registering sessions or scheduling any turns.
+  Rules.assertRoomBoard(row.game_state);
   // Validate ALL persisted seats before writing anything to the session map.
   const uids=sourceSeats.map(seat=>seat?.uid);
   if(uids.some(uid=>typeof uid!=='string'||!uid)||
@@ -99,6 +102,8 @@ const send=(ws,obj)=>{
 };
 function capacity(mode){return mode==='vip'?2:4;}
 function transmit(room,event){
+ try{Rules.assertRoomBoard(room.game);}
+ catch(error){haltRoom(room,'INVALID_ROOM_BOARD');return;}
  for(let i=0;i<room.seats.length;i++){
   const s=room.seats[i];
   send(s.ws,{type:'state',roomId:room.id,seat:i,game:room.game,
