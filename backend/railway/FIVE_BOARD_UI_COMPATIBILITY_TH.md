@@ -62,3 +62,19 @@ UI v12 frozen; no SQL 001–003 installed, no tests permitted, no Railway deploy
 - Added `qa/railway-board-sync-source-contract.test.cjs` (commit `1a386d10c13b4761c2c3346f5c4117710e6f68db`) with prepared static regression checks. **NOT EXECUTED**.
 - No actual generated HTML/browser visual or WebSocket test, SQL migration, deploy, charges or staging load performed. Random map selection remains disabled. Do not claim synchronization PASS without an authorized real run.
 - NEXT: static-review browser bridge ordering and error handling when a client switches between local and online modes; prepare bounded runtime/browser acceptance checks for owner authorization, then decide when random maps may be enabled.
+
+
+## 26 พฤศจิกายน 2026 — กรณีตรวจรับการสลับโหมด (เตรียมไว้ ยังไม่ได้รัน)
+
+ใช้เมื่อได้รับอนุมัติให้ทดสอบเท่านั้น ใช้ห้องและข้อมูลทดสอบชั่วคราว บันทึก revision, roomId, map id และข้อมูลบันได/งูจาก snapshot เทียบกับหน้าเกม โดยไม่เก็บ access token กำหนดแผนที่ใน fixture เพื่อให้ทำซ้ำได้
+
+| กรณี | การกระทำ | ผลที่ต้องเห็น |
+|---|---|---|
+| รอ Auth → เล่นบนเครื่อง | หน่วงคำตอบ Auth ของการกดจับคู่ กดจับคู่อีกครั้ง แล้วเริ่มเกมบนเครื่องก่อนปล่อยคำตอบ | ไม่มี socket จากคำขอเก่า เกมบนเครื่องใช้กระดาน 1 และนาฬิกาของตัวเอง |
+| เกมบนเครื่อง → Free | เริ่มเล่นบนเครื่อง แล้วจับคู่ Free ให้ครบ 4 ที่นั่ง ตรวจ client สองหน้าในห้องเดียวกันข้าม deadline เดิม | แผนที่ จุดงู/บันได ตาและสถานะตรงกับ snapshot ของเซิร์ฟเวอร์ ไม่มีการข้ามตาจากนาฬิกาเดิม |
+| ยกเลิกคิว → เล่นบนเครื่อง | ให้เซิร์ฟเวอร์ส่ง cancelled แล้วส่ง callback ที่ค้างอยู่จาก socket เดิมผ่าน fixture | ปุ่มจับคู่กลับมาพร้อมใช้ ข้อความเดิมเปลี่ยนเกมบนเครื่องไม่ได้ |
+| หลุด → กลับห้อง | ตัด socket ขณะถึงตา รอเกินหนึ่งรอบนาฬิกา UI แล้วเชื่อมด้วย UID เดิม | กลับ Lobby ทอยไม่ได้จนได้ snapshot ใหม่ ผู้เล่นกลับที่นั่งและแผนที่เดิม เกิด roll เฉพาะเมื่อผู้เล่นกด |
+| ข้อมูลกระดานหรือภาพใช้ไม่ได้ | ส่ง snapshot ห้องเดิมโดยเปลี่ยน map หรือทำ SVG group ที่จำเป็นหายใน fixture | แสดงข้อความผิดพลาด กลับ Lobby ปิด socket และไม่รับคำสั่งจากห้องนั้นอีก เมื่อใช้ fixture ปกติเริ่มเกมใหม่ได้ |
+| จบเกม → เริ่มใหม่ | จบเกมออนไลน์บนกระดาน fixture ที่ไม่ใช่ 1 แล้วเริ่มเกมบนเครื่อง และแยกตรวจปุ่มจับคู่อีกครั้งหลังจบ | เกมบนเครื่องคืนภาพกระดาน 1 และนาฬิกาเดิมของโหมดนั้น การจับคู่ใหม่เปิดเพียงหนึ่ง socket |
+
+หลักฐานรอบนี้เป็นการอ่านซอร์ส ZIP และแก้ตัวสร้างหน้าเว็บเท่านั้น การแสดงผลและพฤติกรรมจริงยังรออนุมัติทดสอบ
