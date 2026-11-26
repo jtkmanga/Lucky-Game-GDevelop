@@ -2,15 +2,24 @@
 // Supabase PostgreSQL private "game" schema adapter for Railway Node.js.
 // No schema was applied; no database credentials here. Draft, untested.
 const {Pool}=require('pg');
+const {poolConnectionOptions}=require('./pg-tls-config.cjs');
 const {createRoomLeaseStore}=require('./room-lease-store.cjs');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function mustUid(uid){if(typeof uid!=='string'||!UUID.test(uid))throw Error('Invalid Supabase UID');return uid;}
 function createRailwayStore(connectionString){
  if(!connectionString)throw Error('DATABASE_URL required');
- const pool=new Pool({connectionString,max:8,connectionTimeoutMillis:5000,idleTimeoutMillis:30000});
+ const pool=new Pool(poolConnectionOptions(connectionString));
  const leases=createRoomLeaseStore(pool);
  return {
   async health(){
+   // Startup must confirm the actual session uses the restricted DB role;
+   // no fallback to postgres even when schema checks would otherwise pass.
+   const identity=await pool.query("SELECT current_user AS role_name, session_user AS session_name, has_schema_privilege(current_user,'game','USAGE') AS schema_ok, has_table_privilege(current_user,'game.orders','SELECT') AS orders_read");
+   const row=identity.rows[0];
+   if(!row||row.role_name!=='lucky_game_server_login'||
+      row.session_name!=='lucky_game_server_login'||
+      row.schema_ok!==true||row.orders_read!==false)
+     throw Error('Restricted PostgreSQL identity or grants invalid; refuse startup');
    const r=await pool.query("SELECT to_regclass('game.players') AS players,to_regclass('game.vip_entitlements') AS vip,to_regclass('game.rooms') AS rooms,to_regclass('game.score_events') AS score");
    if(Object.values(r.rows[0]||{}).some(x=>x===null))throw Error('Supabase game schema missing; do not start');
    const columns=await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='game' AND table_name='rooms' AND column_name IN ('lease_owner','lease_epoch','lease_until')");
