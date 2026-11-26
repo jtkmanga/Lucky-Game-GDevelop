@@ -1,6 +1,6 @@
 'use strict';
 // Railway + Supabase browser client for the original V99 visual shell.
-// No Cloudflare/Firebase, guest multiplayer, bot demo or payment calls.
+// Uses only the selected Supabase Auth and Railway WebSocket flow; no guest, demo or payment calls.
 (function(){
 const byId=id=>document.getElementById(id);
 const text=(id,value)=>{const n=byId(id);if(n)n.textContent=String(value);};
