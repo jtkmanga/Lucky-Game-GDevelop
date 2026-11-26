@@ -124,6 +124,19 @@ function createRoomLeaseStore(pool) {
      throw Error('Turn receipt actor index exceeds room seat count');
     if(receipt.type==='timeout'&&awards.length!==0)
      throw Error('Timeout cannot grant awards');
+    // Server rules yield the authoritative actor, die and reward. A receipt
+    // must not claim one amount while the ledger credits a different one.
+    // Validate before award inserts; any mismatch rolls back room revision.
+    if(receipt.type==='roll'){
+     const reward=receipt.outcome.reward;
+     if(!Number.isSafeInteger(reward)||reward<0)
+      throw Error('Invalid authoritative roll reward');
+     const lucky=awards.find(a=>a.kind==='lucky_box');
+     if((reward>0)!==!!lucky || (lucky&&lucky.points!==reward))
+      throw Error('Lucky Box reward and receipt mismatch');
+    }
+    if(receipt.type==='timeout'&&Object.keys(receipt.outcome).length!==0)
+     throw Error('Timeout receipt must not contain roll outcome');
     const seatUids=new Set(seats.map(x=>x?.uid));
     for(const award of awards){
      if(award.mode!==mode||!seatUids.has(award.uid))
