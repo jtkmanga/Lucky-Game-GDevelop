@@ -95,73 +95,81 @@ window.luckyGetAccessToken=async ()=>{
  if(result.error)throw result.error;
  throw Error('OAuth redirect started; connect again after returning');
 };
-// Authentication controls are mounted inside the existing welcome status panel.
-// Keep the original v12 HTML/CSS, game buttons and matchmaking logic unchanged.
+// Welcome card Google auth controls: match owner's existing Workers UI reference.
+// Preserve the v12 HTML layout, server selection, game logic and payment restrictions.
 function luckyMountGoogleControls(){
  const leaf=[...document.querySelectorAll('body *')].find(el=>
    el.children.length===0 &&
    el.textContent?.includes('ระบบเข้าสู่ระบบ Google ยังไม่เปิดใช้งาน'));
  if(!leaf)return;
- const panel=leaf.parentElement||leaf;
+ const strip=leaf.parentElement||leaf;
+ if(strip.dataset.luckyAuthMounted)return;
+ strip.dataset.luckyAuthMounted='1';
+ strip.style.cssText+=';display:block;width:100%;box-sizing:border-box;border-radius:10px;background:#fff1d5;color:#885f23;padding:9px 12px;margin:8px 0 12px';
  leaf.textContent='กำลังตรวจสอบบัญชี Google...';
- const controls=document.createElement('span');
- controls.style.cssText='display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:8px';
- const account=document.createElement('span');
- account.setAttribute('role','status');
- account.setAttribute('aria-live','polite');
- account.style.cssText='font-size:0.85em;overflow-wrap:anywhere';
+ leaf.setAttribute('role','status');
+ leaf.setAttribute('aria-live','polite');
+ const parent=strip.parentElement;
+ if(!parent)return;
+ const accountBar=document.createElement('div');
+ accountBar.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;background:#fff;border:1px solid #e8ddc9;border-radius:12px;box-shadow:0 3px 0 rgba(122,90,60,.12);padding:9px 12px;margin:8px 0;min-width:0';
+ accountBar.hidden=true;
+ const identity=document.createElement('span');
+ identity.style.cssText='min-width:0;overflow-wrap:anywhere;font-weight:700;color:#4c3a2e';
+ accountBar.appendChild(identity);
  const login=document.createElement('button');
  login.type='button';
  login.textContent='G เข้าสู่ระบบด้วย Google';
- login.style.cssText='width:100%;box-sizing:border-box;border:2px solid #e3d8c2;border-radius:18px;padding:16px 12px;margin:12px 0;background:#fff;color:#59483d;font:inherit;font-weight:800;font-size:1.03em;box-shadow:0 3px 0 rgba(122,90,60,.14);cursor:pointer';
+ login.style.cssText='display:block;width:100%;box-sizing:border-box;border:2px solid #e4d8c5;border-radius:17px;background:#fff;padding:15px 12px;margin:12px 0 10px;box-shadow:0 4px 0 rgba(122,90,60,.14);color:#4d3b31;font:inherit;font-size:1.07em;font-weight:800;cursor:pointer';
  const logout=document.createElement('button');
  logout.type='button';
  logout.textContent='ออกจากระบบ';
- logout.hidden=true;
- logout.style.cssText='border:1px solid #b8aa8a;border-radius:12px;padding:8px 12px;background:#fff9e9;color:#5c6941;font:inherit;font-weight:700;cursor:pointer';
- controls.append(account,logout);
- panel.appendChild(controls);
- // As in the owner screenshot: prominent full-width white Google button
- // directly ABOVE the existing yellow login status strip.
- panel.parentNode.insertBefore(login,panel);
- const show=(user)=>{
-   const authenticated=!!user;
-   leaf.textContent=authenticated?'🔓 เข้าสู่ระบบ Google แล้ว':'🔒 ยังไม่ได้เข้าสู่ระบบ Google';
-   account.textContent=authenticated?(user.user_metadata?.full_name||user.email||'บัญชี Google'):'';
-   login.hidden=authenticated;
-   logout.hidden=!authenticated;
- };
- login.addEventListener('click',async ()=>{
-   login.disabled=true;
-   account.textContent='กำลังเปิด Google...';
-   try{
-     const client=await luckyClientPromise;
-     const result=await client.auth.signInWithOAuth({
-       provider:'google',options:{redirectTo:location.origin+location.pathname}
-     });
-     if(result.error)throw result.error;
-   }catch(error){
-     account.textContent='ไม่สามารถเปิด Google Login ได้ กรุณาลองใหม่';
-   }finally{login.disabled=false;}
+ logout.style.cssText='flex:none;border:0;background:transparent;color:#5c493c;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer';
+ accountBar.appendChild(logout);
+ parent.insertBefore(login,strip);
+ parent.insertBefore(accountBar,strip);
+ function show(user){
+  const signed=!!user;
+  login.hidden=signed;
+  accountBar.hidden=!signed;
+  if(signed){
+   identity.textContent='✅ '+(user.email||user.user_metadata?.full_name||'บัญชี Google');
+   leaf.textContent='✅ เข้าสู่ระบบ Google สำเร็จ';
+  }else{
+   identity.textContent='';
+   leaf.textContent='🔐 กรุณาเข้าสู่ระบบด้วย Google เพื่อเล่นออนไลน์';
+  }
+ }
+ login.addEventListener('click',async()=>{
+  login.disabled=true;
+  leaf.textContent='กำลังเปิดหน้าล็อกอิน Google...';
+  try{
+   const client=await luckyClientPromise;
+   const {error}=await client.auth.signInWithOAuth({
+    provider:'google',options:{redirectTo:location.origin+location.pathname}
+   });
+   if(error)throw error;
+  }catch{
+   leaf.textContent='ไม่สามารถเข้าสู่ระบบ Google ได้ กรุณาลองใหม่';
+  }finally{login.disabled=false;}
  });
- logout.addEventListener('click',async ()=>{
-   logout.disabled=true;
-   try{
-     const client=await luckyClientPromise;
-     const result=await client.auth.signOut();
-     if(result.error)throw result.error;
-     show(null);
-   }catch{account.textContent='ออกจากระบบไม่สำเร็จ';}
-   finally{logout.disabled=false;}
+ logout.addEventListener('click',async()=>{
+  logout.disabled=true;
+  try{
+   const client=await luckyClientPromise;
+   const {error}=await client.auth.signOut();
+   if(error)throw error;
+   show(null);
+  }catch{leaf.textContent='ออกจากระบบไม่สำเร็จ กรุณาลองใหม่';}
+  finally{logout.disabled=false;}
  });
  luckyClientPromise.then(async client=>{
-   client.auth.onAuthStateChange((_event,session)=>show(session?.user||null));
-   const {data,error}=await client.auth.getUser();
-   if(error && error.name!=='AuthSessionMissingError')throw error;
-   show(data?.user||null);
+  client.auth.onAuthStateChange((_event,session)=>show(session?.user||null));
+  const {data,error}=await client.auth.getUser();
+  if(error && error.name!=='AuthSessionMissingError')throw error;
+  show(data?.user||null);
  }).catch(()=>{
-   leaf.textContent='ไม่สามารถตรวจสอบ Google Login ได้';
-   account.textContent='กรุณารีเฟรชหน้าเกม';
+  leaf.textContent='ไม่สามารถตรวจสอบ Google Login ได้ กรุณารีเฟรชหน้า';
  });
 }
 if(document.readyState==='loading'){
