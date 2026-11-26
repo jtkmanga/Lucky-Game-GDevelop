@@ -231,8 +231,8 @@ async function handle(ws,msg){
    existing=sessions.get(uid);
   }
   if(existing){
-   if(existing.mode!==mode && existing.roomId)
-     return send(ws,{type:'error',message:'กำลังอยู่ในห้องอื่น'});
+   if(existing.mode!==mode && (existing.roomId||existing.pendingRoomId))
+     return send(ws,{type:'error',message:'กำลังอยู่ในห้องอื่นหรืออยู่ระหว่างสร้างห้อง'});
    if(existing.mode!==mode){
      takeOut(waiting[existing.mode],existing);existing=null;
    }
