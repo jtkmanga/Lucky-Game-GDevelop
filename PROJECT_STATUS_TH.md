@@ -87,3 +87,13 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - No new paid resources or charge-incurring operations.
 - Detailed latest engineering checkpoint: backend/supabase/P1_STATUS_TH.md.
 - NEXT SINGLE ACTION: Review Supabase Google OAuth provider configuration and migration prerequisites read-only. Improve UID reconnect implementation in source; do not apply schema or deploy without scoped permission.
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok); P1 source-only
+- Read canonical AGENTS/STATUS/PLAN/DECISIONS/HANDOFF before editing. Resumed from last documented Supabase source checkpoint, not the old game.
+- Fixed the *unapplied* Supabase score ledger draft: remove overbroad UNIQUE(game_id,kind) while retaining the partial unique index for win/Lucky Box. Commit `3b853e4c5cd1eaf8ee8e037fbf888dd6a7292970`.
+- Drafted `backend/supabase/game-store.cjs` method `findResumableRoomForUid(uid)` scoped to playing rooms and verified UID in persisted seats; commit `6ded17a1954460745795a911cf35abb47992e8ba`.
+- Drafted Railway WebSocket `restoreRoom` for verified Supabase UID: load authoritative game, seats, deadline, revision from DB; deduplicate in-process restorations; reconstruct timers and bound seat identity. Commits `c6b05ee916330271dcb3209decf99171cc68058c`, `84a43ff3f84ccdc417712f6aab1b0b8c63c1ef1b`.
+- Detailed checkpoint in `backend/supabase/P1_STATUS_TH.md`, commit `c582db239bcb12b2ec7e31accd5b095a4e537968`.
+- **Source-only, UNTESTED:** no unit/browser/bot/Google login tests, no migrations, no Railway service/deploy, no paid resources or external load. Supabase game schema and Google provider setup are still incomplete.
+- Known recovery limitations: one in-process coordinator; not safe across Railway replicas, long outages, or all startup recovery cases. No 10K proof.
+- **NEXT SINGLE ACTION:** Review/fix concurrency around restored room/repeated join and timeout failure paths as source work; separately request scoped authorization before applying the Supabase migration or deploying.
