@@ -922,3 +922,13 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 ```
 - Require owner sanitized terminal result with 4/4, 0 fail and tested full SHA before accepting PASS; stop on failure without blind rerun. This tests simulated close order and timeout, **not actual SIGTERM/WebSocket process shutdown**. Estimated overall progress **22%** unchanged.
 - **NEXT SINGLE ACTION:** owner runs the approved one-shot command in the existing Codespace, then assistant records actual PASS/FAIL and tested commit SHA in GitHub.
+
+
+## 2026-11-26 21:00 Asia/Bangkok — Railway WebSocket Shutdown INJECTED OFFLINE 4/4 PASS
+- Owner provided Codespaces terminal screenshot (existing `fantastic succotash`, `main`) showing `git pull --ff-only origin main` from `abb0e1d` to **tested commit `5db6cfa3fd07c5c2a76b5109b768186c2da06f94`**.
+- `node --test qa/railway-socket-shutdown-injected.test.cjs`: **tests 4, pass 4, fail 0, skipped 0**, duration approximately 150.8128 ms; cases: (1) drains upgraded sockets before HTTP close, (2) does not wait for HTTP close when listener never opened, (3) hung server close triggers bounded termination, (4) invalid timeout fails closed before touching sockets.
+- `python3 tools/prepare_railway_secure.py` generated the draft Railway runtime. Required generated `railway-runtime/backend/railway/socket-shutdown.cjs` presence check and Node syntax checks of generated `socket-shutdown.cjs` and `secure-server.cjs` completed without visible error. Final marker **`RAILWAY_SHUTDOWN_INJECTED_OFFLINE_PASS`** and return to shell prompt observed.
+- **VERIFIED PASS SCOPE:** mock WebSocket close ordering / timeout and offline runtime generation / syntax only, as executed by owner in Codespaces. **NOT VERIFIED:** live SIGTERM, real HTTP/WebSocket process shutdown, database pool close/write completion, reconnect behavior, Railway-hosted service, Google login, production or 10K capacity.
+- Earlier injected startup **5/5 PASS**, HTTP loopback **3/3 PASS**, pure health **4/4 PASS**, restricted Node `pg` TLS/Auth, and RLS rollback remain independently PASS and were not rerun for this new scoped test.
+- No Supabase queries/writes, new service, Railway staging/production deployment, UI v12 change, or new paid resources from this test. Existing Codespaces consumption not separately measured.
+- **NEXT SINGLE ACTION:** source-only review production shutdown race conditions and prepare a bounded local live-WebSocket process test design, requiring separate scoped owner authorization before execution. Do not repeat this 4-case suite without cause. Overall progress remains **22% estimated** pending end-to-end readiness.
