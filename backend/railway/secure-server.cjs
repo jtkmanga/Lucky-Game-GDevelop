@@ -101,12 +101,18 @@ const send=(ws,obj)=>{
    ws.send(JSON.stringify(obj));
 };
 function capacity(mode){return mode==='vip'?2:4;}
+function verifiedRoomSnapshot(room){
+ if(!room||room.halted)throw Error('ROOM_UNAVAILABLE');
+ Rules.assertRoomBoard(room.game);
+ return room.game;
+}
 function transmit(room,event){
- try{Rules.assertRoomBoard(room.game);}
+ let game;
+ try{game=verifiedRoomSnapshot(room);}
  catch(error){haltRoom(room,'INVALID_ROOM_BOARD');return;}
  for(let i=0;i<room.seats.length;i++){
   const s=room.seats[i];
-  send(s.ws,{type:'state',roomId:room.id,seat:i,game:room.game,
+  send(s.ws,{type:'state',roomId:room.id,seat:i,game,
     deadline:room.deadline,event});
  }
 }
@@ -241,6 +247,9 @@ function schedule(room){
 async function advance(room,roll){
  if(room.busy||room.game.over||room.halted)return;
  room.busy=true;
+ // Evidence must be visible to the catch handler after an ambiguous COMMIT.
+ // Do not attempt forensic inspection with block-scoped values from try.
+ let expectedRevision=null,expectedGame=null,expectedAwards=[];
  try{
   const now=Date.now();
   if(roll===null && now<room.deadline)return;
@@ -274,7 +283,9 @@ async function advance(room,roll){
    });
   }
   const nextDeadline=next.over?null:Date.now()+TURN_MS;
-  const expectedRevision=room.revision;
+  expectedRevision=room.revision;
+  expectedGame=next;
+  expectedAwards=awards;
   const receipt={
    type:roll===null?'timeout':'roll',actorIndex:actor,
    dice:roll,outcome:roll===null?{}:{...event.outcome}
@@ -298,8 +309,9 @@ async function advance(room,roll){
   // Halt before any read or client-visible action; a COMMIT acknowledgement
   // may be lost even when the new state and award rows are persisted.
   haltRoom(room,e.code==='AMBIGUOUS_COMMIT'?'AMBIGUOUS_COMMIT':'UNCONFIRMED_TURN_COMMIT');
-  if(e.code==='AMBIGUOUS_COMMIT')
-   await inspectAmbiguousCommit(room,expectedRevision,next,awards);
+  if(e.code==='AMBIGUOUS_COMMIT' &&
+     expectedRevision!==null && expectedGame!==null)
+   await inspectAmbiguousCommit(room,expectedRevision,expectedGame,expectedAwards);
   // Do not replay dice, write scores, renew a halted room or broadcast state.
  }finally{room.busy=false;}
 }
@@ -370,8 +382,14 @@ async function handle(ws,msg){
    const room=rooms.get(existing.roomId);
    if(room){
      if(room.halted)return send(ws,{type:'error',message:'ห้องถูกพักเพราะข้อมูลไม่ตรงกัน'});
+     let resumedGame;
+     try{resumedGame=verifiedRoomSnapshot(room);}
+     catch(error){
+      haltRoom(room,'INVALID_RESUME_BOARD');
+      return send(ws,{type:'error',message:'ข้อมูลกระดานห้องเดิมไม่ถูกต้อง'});
+     }
      send(ws,{type:'state',roomId:room.id,seat:existing.index,
-       game:room.game,deadline:room.deadline,event:{type:'resume'}});
+       game:resumedGame,deadline:room.deadline,event:{type:'resume'}});
    }else if(!existing.roomId){
      if(!waiting[mode].includes(existing))waiting[mode].push(existing);
      reportWaiting(mode);await dispatch(mode);
