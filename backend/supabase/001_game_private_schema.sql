@@ -38,8 +38,7 @@ CREATE TABLE IF NOT EXISTS game.score_events (
  game_id UUID NOT NULL REFERENCES game.rooms(room_id),
  kind TEXT NOT NULL CHECK(kind IN ('win','lucky_box','admin')),
  points INTEGER NOT NULL CHECK (points BETWEEN -1000000 AND 1000000),
- created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
- UNIQUE (game_id,kind) -- a winner and a Lucky Box at most once per room; admin events must use different scheme in later migration
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS score_events_one_award_per_game
  ON game.score_events(game_id,kind) WHERE kind IN ('win','lucky_box');
