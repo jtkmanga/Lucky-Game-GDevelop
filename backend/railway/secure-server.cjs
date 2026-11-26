@@ -15,6 +15,7 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const {WebSocket,WebSocketServer}=require('ws');
 const Rules=require('./rules.js');
+const {requireRuleTransition}=require('./rule-transition-guard.cjs');
 const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
 const {requireRoomAccess}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
@@ -272,6 +273,9 @@ async function advance(room,roll){
    type:roll===null?'timeout':'roll',actorIndex:actor,
    dice:roll,outcome:roll===null?{}:{...event.outcome}
   };
+  // Reject a corrupted/mismatched receipt BEFORE any PostgreSQL mutation.
+  // This also prevents an invalid state from being broadcast to the room.
+  requireRuleTransition(old,next,receipt,awards);
   const revision=await store.commitFencedTurn({
     roomId:room.id,ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch,
     expectedRevision,game:next,deadlineMs:nextDeadline,awards,receipt
