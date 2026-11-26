@@ -17,17 +17,21 @@ AUTH=API/'auth'
 APP.mkdir(parents=True, exist_ok=True)
 AUTH.mkdir(parents=True, exist_ok=True)
 
-for name in ('secure-server.cjs','postgres-store.cjs'):
+for name in ('secure-server.cjs','postgres-store.cjs','rules.js'):
     shutil.copy2(ROOT/'backend/railway'/name,APP/name)
 for name in ('supabase-access-token.cjs','room-access.cjs'):
     shutil.copy2(ROOT/'backend/auth'/name,AUTH/name)
 shutil.copytree(ROOT/'backend/supabase',API/'supabase',dirs_exist_ok=True)
 
 with zipfile.ZipFile(SOURCE) as z:
-    for name in ('rules.js','public/index.html'):
-        path=APP/name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(z.read(name))
+    # Fail closed on source drift. The tracked rules.js was copied unchanged
+    # from the original archive; future rules edits need an explicit review
+    # rather than silently overwriting or splitting game logic.
+    if z.read('rules.js') != (ROOT/'backend/railway/rules.js').read_bytes():
+        raise RuntimeError('Tracked rules differ from original ZIP; review rules migration explicitly')
+    path=APP/'public/index.html'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(z.read('public/index.html'))
 
 page=APP/'public/index.html'
 html=page.read_text(encoding='utf8')
