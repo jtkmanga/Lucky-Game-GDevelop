@@ -117,6 +117,46 @@ function cancelWaiting(){
  leaving=true;socket.close();socket=null;setWaiting('🌐 เริ่มจับคู่หาห้องออนไลน์ ➜');
 }
 function boardLocation(tile){const row=Math.floor((tile-1)/10),col=(tile-1)%10;return {x:(row%2===0?col:9-col),y:9-row};}
+// V99 board coordinates and hand-drawn snake/ladder paths, using the authoritative room snapshot.
+const v99MapNames=['','🌿 สวนมรกต','🎋 ป่าไผ่','🏯 วิหารโบราณ','🐚 อ่าวปะการัง','☁️ เมืองเมฆ'];
+function v99XY(tile){
+ const n=Math.max(1,tile),row=Math.floor((n-1)/10),idx=(n-1)%10;
+ return {x:((row%2===0?idx:9-idx)+.5)*10,y:(9-row+.5)*10};
+}
+function svgPart(tag,attrs){
+ const node=document.createElementNS('http://www.w3.org/2000/svg',tag);
+ for(const [k,v] of Object.entries(attrs))node.setAttribute(k,String(v));
+ return node;
+}
+function drawV99Paths(svg,snakes,ladders){
+ for(const [from,to] of Object.entries(snakes)){
+  const a=v99XY(Number(from)),b=v99XY(Number(to));
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),nx=-dy/len,ny=dx/len;
+  const points=[];
+  for(let t=0;t<=1.001;t+=.035){const swing=Math.sin(t*Math.PI*5)*3.3*Math.sin(Math.PI*t);
+   points.push([a.x+dx*t+nx*swing,a.y+dy*t+ny*swing]);}
+  const d=points.map(([x,y],i)=>(i?'L':'M')+(x*10)+' '+(y*10)).join(' ');
+  svg.append(svgPart('path',{d,fill:'none',stroke:'#fff0ce','stroke-width':35,'stroke-linecap':'round',opacity:'.95'}));
+  svg.append(svgPart('path',{d,fill:'none',stroke:'#75b7a0','stroke-width':25,'stroke-linecap':'round',opacity:'.95'}));
+  svg.append(svgPart('circle',{cx:a.x*10,cy:a.y*10,r:22,fill:'#61ab9e',stroke:'#f0e6cf','stroke-width':6}));
+  for(const offset of [-7,7])svg.append(svgPart('circle',{cx:a.x*10+offset,cy:a.y*10-7,r:3.5,fill:'#334734'}));
+ }
+ for(const [from,to] of Object.entries(ladders)){
+  const a=v99XY(Number(from)),b=v99XY(Number(to));
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),nx=-dy/len*1.45,ny=dx/len*1.45;
+  for(const sign of [-1,1]){
+   const attrs={x1:(a.x+nx*sign)*10,y1:(a.y+ny*sign)*10,x2:(b.x+nx*sign)*10,y2:(b.y+ny*sign)*10,'stroke-linecap':'round'};
+   svg.append(svgPart('line',{...attrs,stroke:'#aa713b','stroke-width':17}));
+   svg.append(svgPart('line',{...attrs,stroke:'#f6cc78','stroke-width':11}));
+  }
+  for(let t=.12;t<.94;t+=.125){
+   const x=a.x+dx*t,y=a.y+dy*t;
+   const attrs={x1:(x+nx)*10,y1:(y+ny)*10,x2:(x-nx)*10,y2:(y-ny)*10,'stroke-linecap':'round'};
+   svg.append(svgPart('line',{...attrs,stroke:'#af7134','stroke-width':13}));
+   svg.append(svgPart('line',{...attrs,stroke:'#f6cd78','stroke-width':8}));
+  }
+ }
+}
 function renderBoard(game){
  const wrap=byId('board');if(!wrap)return;wrap.replaceChildren();
  const snakes=game.board?.snakes||{},ladders=game.board?.ladders||{};
@@ -130,6 +170,9 @@ function renderBoard(game){
   }
   wrap.append(el);
  }
+ const effects=svgPart('svg',{class:'effects',viewBox:'0 0 1000 1000',preserveAspectRatio:'none','aria-hidden':'true'});
+ wrap.append(effects);
+ drawV99Paths(effects,snakes,ladders);
  const layer=document.createElement('div');layer.className='token-layer';wrap.append(layer);
  (game.players||[]).forEach((p,i)=>{
   if(!p.pos)return;
@@ -151,7 +194,7 @@ function renderGame(game){
  text('current-player',game.over?'🏆 ผู้ชนะ: '+(game.players?.[game.winner]?.name||''):(p?.name||'รอผู้เล่น'));
  text('dice',game.lastRoll?['','⚀','⚁','⚂','⚃','⚄','⚅'][game.lastRoll]:'🎲');
  text('roll-value',game.lastRoll?'ทอยได้ '+game.lastRoll:game.over?'จบเกม':'รอทอยลูกเต๋า');
- text('board-map-name','🗺️ แผนที่ '+(game.board?.id||game.map||1));
+ const mapId=game.board?.id||game.map||1;text('board-map-name','🗺️ แมพ '+mapId+'/5 • '+(v99MapNames[mapId]||'กระดานงูบันได'));
  text('chest-label',game.giftUsed?'🎁 เปิดแล้ว':'🎁 กล่องสุ่ม 1 กล่อง');
  const events=byId('events');if(events){events.replaceChildren();(game.events||[]).slice(-12).reverse().forEach(s=>{
   const el=document.createElement('div');el.className='event';el.textContent=s;events.append(el);
