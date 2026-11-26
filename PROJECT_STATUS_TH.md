@@ -97,3 +97,12 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - **Source-only, UNTESTED:** no unit/browser/bot/Google login tests, no migrations, no Railway service/deploy, no paid resources or external load. Supabase game schema and Google provider setup are still incomplete.
 - Known recovery limitations: one in-process coordinator; not safe across Railway replicas, long outages, or all startup recovery cases. No 10K proof.
 - **NEXT SINGLE ACTION:** Review/fix concurrency around restored room/repeated join and timeout failure paths as source work; separately request scoped authorization before applying the Supabase migration or deploying.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), WS concurrency source fixes
+- Followed AGENTS/STATUS/PLAN/DECISIONS/HANDOFF before editing and inspected the then-current secure-server source, which already contained UID join locks.
+- Source-only fixes in `backend/railway/secure-server.cjs`: recheck deferred turn deadline when a commit is in-flight; late roll triggers timeout processing instead of relying solely on a possibly consumed timer; reject turns in halted rooms; avoid ghost matchmaking sessions after socket closes during DB player upsert; guard replacement socket before disconnecting the old verified session.
+- Commits: `7af27cbed389117086ebc5bfd2ed5c9b110cf188`, `0c58ca5ce14fa8e3a46083fbc7b440c28c4ec5e2`. Detailed notes in `backend/supabase/P1_STATUS_TH.md` commit `b88fc7bbf7a9a393ed319efeb7e84162e1921daa`.
+- **No unit tests, browser tests, GitHub Actions, bots, migrations, Google OAuth setup, Railway service/deploy or paid resource use in this session. No PASS asserted.**
+- Known open risks: players disconnecting during room insertion; server restart and timer catch-up under long outage; multi-replica room ownership; all Supabase Google OAuth/provider credential and schema migration gates.
+- **NEXT SINGLE ACTION:** safeguard matchmaking if a seat disconnects while room creation is awaiting DB persistence, then document DB reconciliation implications. Continue source-only until owner explicitly lifts testing/deploy pause.
