@@ -750,3 +750,15 @@ PASS map 5: 11 server turns and SVG endpoints
 - Updated `backend/RAILWAY_TLS_SOURCE_CHECKPOINT_2026-11-26_TH.md` commit `b680e3c9a1a811b9276f9411036bef6858e901b8` with bounded existing-Codespaces command to run just the offline guard, generate the Railway draft runtime and check Node syntax/file paths, not install dependencies or connect database.
 - **NOT RUN:** the new test, generator, syntax check, Node pg authentication, GitHub Actions, Railway creation/Deploy, Google OAuth or actual game integration. No provider/environment mutations and no UI v12 changes. Trial current usage not remeasured; **22%** estimated unchanged.
 - **NEXT SINGLE ACTION:** obtain explicit scoped authorization for this one local-only Codespaces Node TLS config + build generation preflight; then owner runs provided command and shares sanitized terminal outcome. Do not deploy or spend Railway credit under this approval.
+
+
+## 2026-11-26 20:33 Asia/Bangkok — Owner APPROVED Codespaces-only offline Node TLS/build/syntax check; awaiting owner terminal
+- Owner explicitly authorized ONLY `node --test qa/railway-tls-config.test.cjs`, `python3 tools/prepare_railway_secure.py`, required generated output file-presence checks, and `node --check` for generated server/game-store using the **existing** Codespace. No Supabase connection, DB mutations, dependency installation, new service, Deploy, spend on Railway, or UI v12 edits.
+- Re-read canonical `AGENTS.md`, `PROJECT_STATUS_TH.md`, `PROJECT_MASTER_PLAN_TH.md`, `DECISIONS_TH.md`, `NEW_CHAT_HANDOFF_TH.md` in order and inspected exact test/plan source on GitHub `main`; existing offline test uses dummy URL and never creates a DB Pool.
+- Tool capability check: currently connected GitHub integration exposes source/commit and Actions APIs, **not existing Codespaces terminal execution**. Railway sandbox/agent execution is a different environment and would violate the owner-scoped Codespaces-only boundary. **No command executed**, no test PASS claimed.
+- Exact approved single-shell command to run once in existing Codespace:
+```bash
+cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --test qa/railway-tls-config.test.cjs && python3 tools/prepare_railway_secure.py && test -f railway-runtime/backend/supabase/pg-tls-config.cjs && test -f railway-runtime/backend/supabase/prod-ca-2021.crt && node --check railway-runtime/backend/railway/secure-server.cjs && node --check railway-runtime/backend/supabase/game-store.cjs && echo "OFFLINE_TLS_BUILD_SYNTAX_PASS"
+```
+- If command fails, capture the error without rerun or adding tools/services until reviewed. `OFFLINE_TLS_BUILD_SYNTAX_PASS` is expected only if all checks exit 0. Source HEAD referenced by latest status commit in GitHub; actual checked-out SHA/exit/output must be captured after owner execution.
+- Existing successful PostgreSQL SSL/RLS rollback acceptance evidence reused; progress estimate **22%** unchanged. **NEXT SINGLE ACTION:** owner runs the one approved Codespaces command and shares sanitized terminal output; verify before marking PASS, then record tested SHA and results to GitHub.
