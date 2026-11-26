@@ -469,3 +469,11 @@ PASS map 5: 11 server turns and SVG endpoints
 - กรณีที่สองส่ง UID ที่ยอมรับแต่พบ board=null ในข้อมูลห้อง ต้องได้ error พร้อมสาเหตุ BOARD_CHECKPOINT_MISMATCH ใน log ภายใน
 - สถานะ: เตรียมซอร์สแล้ว ยังไม่ได้รัน 2 กรณีใหม่นี้ ไม่มีผล PASS ใหม่ คงหลักฐานเดิม Node 20/20, outbound WebSocket 2/2, UI 6/6 และแผนที่ 33/33 ความคืบหน้าประเมิน 20% ไม่มีการเปิด Codespace, Deploy, เปลี่ยน UI หรือแตะ Railway/Supabase
 - งานถัดไป: รันเฉพาะ fixture ใหม่นี้บน existing Codespace ภายในขอบเขต Node.js/WebSocket reconnect ที่ได้รับอนุมัติ โดยใช้ ws เดิมถ้ายังมี: `NODE_PATH=/tmp/lucky-ws-qa/node_modules node --test qa/railway-authenticated-resume.test.cjs` บันทึก HEAD, exit และผลจริงทั้งสองกรณี ขอบเขตจริงของ Google/DB และการ Deploy ยังแยกต่างหาก
+
+## 2026-11-26 — ผลทดสอบ join/resume ผ่านตัวรับ WebSocket 2/2
+- Codespace เดิม fantastic succotash, Node v24.22.2, สำเนา origin/main SHA `f68f2af61ee35dee704f757ae11c4f6d8f87d3f1` แยกจาก working tree; ติดตั้ง ws@8.18.3 ใน /tmp/lucky-ws-qa แล้วรันเฉพาะ `NODE_PATH=/tmp/lucky-ws-qa/node_modules node --test qa/railway-authenticated-resume.test.cjs` หนึ่งครั้ง
+- PASS restored seat belongs to the verified identity across two connections: token ที่ตัวตรวจจำลองปฏิเสธไม่ถึงขั้นค้นหาห้อง ส่วน UID ที่ผ่านได้ roomId, seat index 2 และ game snapshot แผนที่ 3 เดิมบนสองการเชื่อมต่อ
+- PASS verified join rejects a corrupt stored map before restoring the seat: ข้อมูล board=null ทำให้ส่ง error พร้อมสาเหตุ BOARD_CHECKPOINT_MISMATCH ใน log ภายใน
+- Terminal: tests 2, pass 2, fail 0, cancelled 0, skipped 0, todo 0, duration_ms 265.600837, FIXTURE_EXIT=0. ใช้ตัวรับข้อความของเกมจริงบน loopback กับ identity/store จำลอง ขอบเขตยังไม่รวม Google OAuth จริง, PostgreSQL จริง หรือการกู้หลัง process restart ด้วยฐานข้อมูลจริง
+- GitHub ยืนยันว่า Codespace stopped หลังจบทดสอบ ไม่ได้วัดค่า Compute รายรอบ ไม่ได้เปลี่ยน UI, Deploy หรือแก้ Railway/Supabase
+- ความคืบหน้ารวมยังประมาณ 20% ตามวิธีประเมินเดิม งานถัดไป: ตรวจความพร้อม Supabase แบบอ่านอย่างเดียว เทียบ schema และการตั้งค่า Auth ที่ตรวจได้กับข้อกำหนดการกู้ห้องจาก PostgreSQL จริง ก่อนเสนอขอบเขต staging
