@@ -354,3 +354,15 @@ All six passed against the local WebSocket fixture. The four views used the serv
 - เพิ่ม `qa/v12_map_transport_acceptance.py` ใน commit `097de0bdd81e91311437317fea145bdbbe5c382c` สำหรับงู 15 เส้นและบันได 18 จุด รวม 33 กรณี ให้กติกา Node ทอยลงต้นทาง ตรวจผลกับแค็ตตาล็อก แล้วให้หน้า v12 รับ snapshot ตรวจตำแหน่งผู้เล่นกับปลายทางและอ่านพิกัดจริงจาก SVG เทียบหมายเลขเซลล์
 - ชุดนี้เตรียมไว้ ยังไม่ได้รัน ไม่เปิด Codespace หรือเปลี่ยนเกม/บริการในรอบนี้ ผลเดิม 6/6 คงใช้เป็นหลักฐานเฉพาะการสลับโหมด ความคืบหน้ารวมประมาณ 19%
 - งานถัดไป: ขออนุมัติรันเฉพาะ 33 กรณีใน Codespace เดิมด้วยหน้า v12 ที่สร้างจากซอร์สตรงกัน คำสั่งหลังเตรียม environment: `python3 qa/v12_map_transport_acceptance.py` ยังไม่เปิดสุ่มแผนที่หรือ deploy
+
+## 2026-11-26 — แผนที่ 3–5 ผ่านการตรวจ 33/33 กรณี
+- รันครั้งเดียวในสำเนา origin/main `fbf8c3c8257f3d557a3976de357334a6ecffd5a9` บน Codespace เดิม fantastic succotash ด้วย `python3 tools/prepare_railway_secure.py` และ `python -u qa/v12_map_transport_acceptance.py` ผ่าน Chromium/Playwright
+```text
+PASS map 3: 11 server turns and SVG endpoints
+PASS map 4: 11 server turns and SVG endpoints
+PASS map 5: 11 server turns and SVG endpoints
+```
+- ทุกแผนที่ตรวจงู 5 เส้น บันได 6 จุด รวม 33 เส้นทาง ตรวจผลทอยของกติกา Node กับช่องปลายทาง ชื่อช่องบนตัวผู้เล่นหลังรับ snapshot และพิกัดปลายเส้น SVG เทียบช่องกระดานจริงใน DOM
+- ยังไม่ได้เปิดสุ่มแผนที่ในห้องออนไลน์ ไม่มี Deploy หรือเปลี่ยน Railway/Supabase ยอดค่าใช้จ่ายรายรอบยังไม่ได้วัด GitHub ยืนยัน Codespace stopped หลังจบ
+- ประเมินรวม 20% ตาม `62a32721f7b1d53cf33e737656c8c87d25bb731d` เก็บผลเดิม 6/6 โดยไม่ได้รันซ้ำ
+- งานถัดไป: ตรวจซอร์สเส้นทางสร้างห้องและการกู้ห้องว่าเลือกแผนที่เพียงครั้งเดียวและใช้ snapshot เดิมเมื่อ reconnect ก่อนพิจารณาเปิดสุ่มจริง
