@@ -50,3 +50,16 @@ No rollback of migrations 001–003 is proposed. Do not delete user accounts, ga
 - No Codespaces started, no database mutations, no deploy, no new paid resources. Project progress unchanged at 22%.
 
 **NEXT SINGLE ACTION:** obtain explicit scoped approval for applying SQL 004 **after** role/policy review; if not approved, keep SQL as source-only draft while continuing other independent source work.
+
+
+## 2026-11-26 — Owner-approved migration 004 APPLIED, live inspection
+
+- Owner explicitly approved **only NOLOGIN role + GRANT + RLS** on the existing Lucky-Game Supabase project, excluding login, deployment, new spending and services. The exact SQL proposal was fetched from GitHub `main`; the migration runner handled the transaction, with only standalone outer `BEGIN;`/`COMMIT;` removed. `apply_migration` returned `success:true`.
+- Supabase migration history now contains **`20261126123243 lucky_004_railway_runtime_access`** after 001–003. GitHub source header annotated after the fact in commit `7d94b377c32f34debecf8c708cf0aeb5fce11661`, without changing the executed role/policy body.
+- **Role flags verified**: `lucky_game_runtime` has `rolcanlogin=false`, `rolsuper=false`, `rolcreatedb=false`, `rolcreaterole=false`, `rolreplication=false`, `rolbypassrls=false`, `rolinherit=true`. No Login/password created in this scope.
+- **Policies verified**: exactly 11 `pg_policies` under `game`, all `TO lucky_game_runtime`, none to public/anon/authenticated. All eight game tables have RLS enabled. Runtime per-table privileges match the pre-approved matrix; no `DELETE` anywhere, and none of SELECT/INSERT/UPDATE/DELETE on `orders`, `admin_audit`, `leaderboard_archives`.
+- **Client denial preserved**: `anon`/`authenticated` `SELECT=false` for all game tables and `USAGE=false` on `game` schema; runtime has `USAGE=true`, `CREATE=false`.
+- **Unexpected-but-visible membership**: `pg_auth_members` shows `postgres` as a member of `lucky_game_runtime`, granted by `supabase_admin`, with `admin_option=true`, `inherit_option=false`, `set_option=false`. This relationship was **not written in migration 004**. Do not infer malicious activity or alter provider-managed membership without separate review; record for next security preflight.
+- **NOT VERIFIED**: actual login as role (NOLOGIN), RLS CRUD execution with limited login, real PostgreSQL transactions for game, provider Auth/Google, Railway staging, service connection, future Data API changes. Owner-provided Dashboard exposed-schemas screenshot previously confirmed `game` unchecked; no setting changed in this session.
+- **No Codespaces, GitHub Actions, Railway service, deploy, login credentials, billing plan or payment changes**. New provider cost not measured.
+- **NEXT SINGLE ACTION:** prepare secure and separately approved **LOGIN identity / role membership / Railway secret provisioning** plan and connection validation, after assessing provider membership semantics; do not create it under this SQL 004 approval.
