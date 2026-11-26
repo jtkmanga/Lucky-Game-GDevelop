@@ -138,3 +138,10 @@ body.payment-open{overflow:hidden!important;}
 @media(max-width:420px){
  .token .token-name{max-width:min(72px,22vw);padding:2px 4px;font-size:10px}
 }
+
+/* Free Server is four real players, including on narrow mobile screens. */
+.players{grid-template-columns:repeat(4,minmax(0,1fr))}
+.lucky-railway-account{display:none;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;margin:10px 0 8px;background:#fff;border:1px solid #e9dac7;border-radius:13px;box-shadow:0 3px 0 #e4d2b9}
+.lucky-railway-account b{overflow-wrap:anywhere;font-size:13px}
+.lucky-railway-account button{flex-shrink:0}
+@media(max-width:690px){.players{grid-template-columns:repeat(2,minmax(0,1fr))}.lucky-railway-account b{font-size:11px}}
