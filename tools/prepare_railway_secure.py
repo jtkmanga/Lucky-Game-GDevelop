@@ -129,12 +129,14 @@ board_helper="""function luckyBoardLayout(game){
 render_marker="function renderBoard(){"
 if html.count(render_marker)!=1:
     raise RuntimeError('Original v12 renderBoard hook drifted; review manually')
-html=html.replace(render_marker,board_helper+render_marker,1)
+visual_helper=(ROOT/'backend/railway/board-visual-bridge.js').read_text(encoding='utf8')
+html=html.replace(render_marker,board_helper+'\n'+visual_helper+'\n'+render_marker,1)
 old_special="const snakeStart=[98,94,80,59,37], ladderStart=[4,11,28,43,62,71];"
 new_special="""const board=luckyBoardLayout(localGame);
   if(!board)throw Error('Invalid server board; refuse to render');
   const snakeStart=Object.keys(board.snakes).map(Number);
-  const ladderStart=Object.keys(board.ladders).map(Number);"""
+  const ladderStart=Object.keys(board.ladders).map(Number);
+  luckyRenderBoardArt(board);"""
 if html.count(old_special)!=1:
     raise RuntimeError('Original v12 board marker hook drifted')
 html=html.replace(old_special,new_special,1)
