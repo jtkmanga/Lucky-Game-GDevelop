@@ -204,3 +204,12 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - Detailed design and remaining gaps in `backend/supabase/TURN_RECEIPTS_PLAN_TH.md`, commit `ea57a3a73ec4cd1046a8760c277cbe69ec8d05a9`.
 - **UNTESTED, NOT DEPLOYED:** no real Supabase SQL/migrations, no tests/CI/actions, Google OAuth, Railway service/deploy, production, bots, charges or extra paid resources this session. No PASS or 10K evidence. Outbox delivery mechanism is NOT implemented; this is turn receipt persistence only.
 - **NEXT SINGLE ACTION:** static-review turn receipt invariants, inspect remaining mock fixture gaps, and stage a scoped 001→002→003 migration review checklist without executing SQL or tests. Any real DB change/deployment/testing requires explicit scoped owner approval.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), P1 static receipt and migration review
+- Continued in `jtkmanga/Lucky-Game-GDevelop` main using canonical AGENTS/STATUS/PLAN/DECISIONS/HANDOFF. Reviewed the current SQL 003, receipt transaction/reconciliation, and existing prepared tests.
+- Static review found the turn receipt actor was checked for nonnegative but not for actual persisted seat count; timeout receipt previously allowed awards. Fixed both inside `backend/supabase/room-lease-store.cjs.commitFencedTurn` with transactional failure before COMMIT. Commit `f5a54932f17681fa42b961aee873d894321e9a87`.
+- Authored two mock test cases (**NOT RUN**) for invalid actor index and a timeout attempting a Lucky Box award in `qa/supabase-room-lease-contract.test.cjs`. Commit `00dad43f932ecd0929f2bab3a479fa82fcb00cdc`.
+- Wrote `backend/supabase/MIGRATION_001_003_REVIEW_TH.md` with SQL 001→002→003 order, security/RLS/index/FK checks and bounded acceptance gates, commit `030b51b6c8f371747493be88cd1f7cca4ce9bdc0`. Updated `backend/supabase/TURN_RECEIPTS_PLAN_TH.md` (commit `2521c245523a9fc534cbbbde5eda1b2fb745de86`).
+- **NOT TESTED / NOT APPLIED:** no Node test run, GitHub Actions/CI, Supabase SQL or migrations, Google OAuth, Railway deployment, staging load, production service or new paid resources. No PASS assertion, no confirmed 10K capacity.
+- **NEXT SINGLE ACTION:** source-review receipt matching when later revisions exist and prepare the receipt-insert failure mock so the entire room+award transaction is verified after owner lifts testing pause. No live DB mutation/deployment without scoped permission.
