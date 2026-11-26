@@ -16,6 +16,7 @@ function prepareManualRecoveryDecision({assessment,room,expectedRevision,expecte
   blocking.push('TRANSACTION_NOT_CONSISTENT');
  if(assessment.ownerMatches!==true)blocking.push('LEASE_OWNERSHIP_CHANGED');
  if(assessment.gameStateMatches!==true)blocking.push('GAME_STATE_MISMATCH');
+ if(assessment.receiptStatus!=='MATCHED')blocking.push('TURN_RECEIPT_UNVERIFIED');
  if(Number(room.revision)!==expectedRevision+1)
   blocking.push('ROOM_REVISION_NOT_EXPECTED');
  if(!['playing','finished'].includes(room.status))blocking.push('ROOM_STATUS_NOT_REUSABLE');
