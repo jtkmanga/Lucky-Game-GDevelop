@@ -18,7 +18,8 @@ APP.mkdir(parents=True, exist_ok=True)
 AUTH.mkdir(parents=True, exist_ok=True)
 
 for name in ('secure-server.cjs','postgres-store.cjs','rules.js',
-             'board-maps.cjs','multi-board-rules.cjs','rule-transition-guard.cjs'):
+             'board-maps.cjs','board-definitions.json','multi-board-rules.cjs',
+             'rule-transition-guard.cjs'):
     shutil.copy2(ROOT/'backend/railway'/name,APP/name)
 for name in ('supabase-access-token.cjs','room-access.cjs'):
     shutil.copy2(ROOT/'backend/auth'/name,AUTH/name)
@@ -95,37 +96,42 @@ html=html.replace(anchor,bootstrap+anchor,1)
 # JS-only board bridge, based on exact inspected original ZIP v12 hooks.
 # Preserve all visible HTML/CSS/DOM positions, tile classes and color rules.
 # Only the source of snake/ladder data changes.
-board_helper="""function luckyBoardLayout(game){
- const originalSnakes={98:77,94:68,80:49,59:30,37:15};
- const originalLadders={4:25,11:50,28:53,43:63,62:85,71:91};
- if(!game || game.map===1 && !game.board)
-  return {snakes:originalSnakes,ladders:originalLadders};
- const board=game.board;
- if(!board || board.version!==1 || board.id!==game.map ||
-    !Number.isInteger(board.id) || board.id<1 || board.id>5 ||
-    !board.snakes || !board.ladders ||
-    typeof board.snakes!=='object' || Array.isArray(board.snakes) ||
-    typeof board.ladders!=='object' || Array.isArray(board.ladders))
+catalog=json.loads((ROOT/'backend/railway/board-definitions.json').read_text(encoding='utf8'))
+if catalog.get('version')!=1 or [b.get('id') for b in catalog['boards']]!=[1,2,3,4,5]:
+    raise RuntimeError('Invalid versioned board catalog')
+# Inject the SAME source definitions used by Node into the generated client.
+board_helper='const luckyKnownBoards='+json.dumps(
+ catalog,ensure_ascii=False,separators=(',',':'))+';\\n'
+board_helper+="""function luckyBoardLayout(game){
+ const catalog=luckyKnownBoards;
+ const id=game?.map??1;
+ if(!Number.isInteger(id)||id<1||id>5||catalog.version!==1)
   return null;
- const seen=new Set();
- for(const [kind,links] of [['snake',board.snakes],['ladder',board.ladders]]){
-  for(const [rawStart,destination] of Object.entries(links)){
-   const start=Number(rawStart);
-   if(!Number.isSafeInteger(start)||String(start)!==rawStart ||
-      !Number.isSafeInteger(destination)||start<2||start>99 ||
-      destination<2||destination>99||seen.has(start)||
-      (kind==='snake'?destination>=start:destination<=start))
-    return null;
-   seen.add(start);
-  }
+ const expected=catalog.boards[id-1];
+ if(!expected||expected.id!==id)return null;
+ if(!game?.board){
+  // Only map one supports legacy local play without a board snapshot.
+  return id===1?{id:1,version:1,snakes:expected.snakes,
+   ladders:expected.ladders}:null;
  }
- if(board.id===1 &&
-    (JSON.stringify(board.snakes)!==JSON.stringify(originalSnakes) ||
-     JSON.stringify(board.ladders)!==JSON.stringify(originalLadders)))
+ const board=game.board;
+ if(!board||board.version!==1||board.id!==id||
+    !board.snakes||!board.ladders||
+    typeof board.snakes!=='object'||Array.isArray(board.snakes)||
+    typeof board.ladders!=='object'||Array.isArray(board.ladders))
   return null;
- return board;
+ const sameLinks=(actual,canonical)=>{
+  const keys=Object.keys(actual),expectedKeys=Object.keys(canonical);
+  return keys.length===expectedKeys.length&&
+   expectedKeys.every(k=>Object.hasOwn(actual,k)&&actual[k]===canonical[k]);
+ };
+ if(!sameLinks(board.snakes,expected.snakes)||
+    !sameLinks(board.ladders,expected.ladders))
+  return null;
+ return expected;
 }
 """
+
 render_marker="function renderBoard(){"
 if html.count(render_marker)!=1:
     raise RuntimeError('Original v12 renderBoard hook drifted; review manually')
