@@ -62,6 +62,11 @@ run_step "Generate existing Railway runtime source and overlay original V99 fron
   test -s "$dest/index.html" && test -s "$dest/railway-app.js"
   node --check "$dest/railway-app.js"
 '
+if node -e "require.resolve('ws')" >/dev/null 2>&1 || test -f railway-runtime/node_modules/ws/package.json; then
+ run_step "Local WebSocket multi-board snapshot/reconnect frames (no Google/DB)" node --test qa/railway-room-reconnect-websocket.test.cjs
+else
+ blocked "Local WebSocket frame test: existing ws dependency not installed (no new package installed)"
+fi
 if node -e "require.resolve('playwright')" >/dev/null 2>&1; then
  run_step "Real Chromium localhost browser render (mock Google/WS; NOT E2E)" node qa/legacy-ui-browser-smoke.cjs
 else
@@ -90,7 +95,7 @@ echo "REPORT=$REPORT LOG=$LOG"
 echo "NO DEPLOY; NO GENUINE GOOGLE 4-PLAYER CLAIM."
 # Upload only generated report/log; never stage source changes or secrets.
 if git diff --cached --quiet && [[ -z "$(git status --porcelain --untracked-files=normal | grep -v "^?? qa/reports/legacy-migration/" || true)" ]]; then
- git add -- "$REPORT" "$LOG"
+ git add -f -- "$REPORT" "$LOG"
  if git diff --cached --quiet; then
   echo "REPORT_NOT_COMMITTED: ignored or unchanged"; exit 0
  fi
