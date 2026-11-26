@@ -1181,3 +1181,11 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - Railway (read-only): staging `lucky-game-staging` ยังใช้ deployment `ec4df7e7-10fe-4b7c-89e5-be984c0b141a` **SUCCESS** จาก SHA `56e41aa8b6d70fc024e59d97bcad47de6a558f88` และ source ผูก `main`; ปลั๊กอินไม่แสดงว่า auto-deploy ปิดอยู่ จึงบันทึกเอกสารบน branch `docs/lucky-targeted-qa-20261127` ที่ตัดจาก `main` โดยไม่ merge หรือ push เข้า branch ที่ Railway ติดตาม
 - Supabase (read-only): project `llbkxnazkliskzcureec` **ACTIVE_HEALTHY**; ไม่ได้รัน SQL หรือตรวจ OAuth ซ้ำ ไม่มี Deploy, GitHub Actions, การแก้ config/schema, การเปิด Codespace หรือการสร้างทรัพยากรใหม่จากรอบนี้ ไม่ได้วัดค่าใช้จ่ายของบริการที่รันอยู่
 - **NEXT SINGLE ACTION:** ตรวจข้อกำหนดและจุดเชื่อมฝั่งเซิร์ฟเวอร์สำหรับไอเท็มโล่และคะแนนชนะ ×2 จาก V99 เพื่อวางงาน source-only ที่คง UI v12; ไม่รวม Draft PR #1 หรือเปิดใช้ไอเท็มบนบริการจริงโดยพลการ
+
+## 2026-11-27 (Asia/Bangkok) — เริ่มโหมดพัฒนาต่อเนื่องตาม D14
+- อ่านไฟล์หลักจาก main และยืนยัน checkpoint SHA `4669ae14b482c3aad7f3dd08e151985c118cd313` ที่บันทึกเทสต์ V99 เฉพาะไฟล์ 5/5; ไม่รันซ้ำ ไม่รวม V99 UI
+- GitHub read/write แยกสาขาใช้ได้; existing Railway v12 live deployment `ec4df7e7-10fe-4b7c-89e5-be984c0b141a` SUCCESS, ไม่มี pending operation ณ เวลาที่ตรวจ; Supabase ACTIVE_HEALTHY และ connector ยืนยัน migration 001–005 ไม่อาศัยข้อความเก่าเรื่อง schema ว่าง
+- อัปเดต D14 ตาม standing approval และตั้งงานติดตามทุกวัน 10:00 Asia/Bangkok เริ่ม 2026-11-27 ใช้งานตามสิทธิ์ ไม่ถือว่ารันตลอดเวลา
+- ห้อง Staging จริง 4 บัญชียัง NOT RUN; ยังไม่มีหลักฐานว่าบัญชีทดสอบที่ได้รับอนุญาตครบ 4 ให้ใช้ isolated fixtures เป็นทางเลือก ไม่ใช้ผู้เล่นจริง และไม่อ้างว่า Google OAuth ผ่านด้วย fixture
+- เอกสารนี้และ backlog เป็นการปรับแผนงาน/สิทธิ์ ไม่ใช่ runtime change ไม่มี Deploy, schema/config mutation, Actions หรือการเปิด Codespace; `main` ยังไม่เปลี่ยน
+- **NEXT:** ทำงาน authoritative item rules แบบ dormant บนสาขาแยก ตรวจผลที่ขอบเขต rules/receipt ก่อนต่อเข้าห้องจริง ตรวจ main vs Draft PR #1 ต่อสำหรับห้าแผนที่โดยไม่เปลี่ยน UI v12

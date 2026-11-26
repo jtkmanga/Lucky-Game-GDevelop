@@ -31,3 +31,11 @@
 - **Scope gate retained:** this is a strategy authorization, NOT blanket approval for new Railway service, paid deployment, persistent DB fixture writes, public exposure, real payments, Google-account automation, or large-scale load. Explicit owner cost ceiling, duration, test accounts/retention and staging deployment approval remain required before those mutations.
 - **Stop rule:** report real PASS/FAIL against defined acceptance; never mark as passing if Google Auth, runtime, room synchronization or persistence is untested. Preserve UI v12 and single existing project architecture.
 - **Next:** check actual Google OAuth/provider and real staging runtime blockers via available read-only connectors, prepare one concrete scoped end-to-end pilot proposal and seek one combined approval when deploy/spend is needed. Do not restart the previous mock-test escalation.
+
+## 2026-11-27 (Asia/Bangkok) — D14: Standing approval สำหรับการพัฒนาและทดสอบ Lucky Game
+1. ให้ Codex พัฒนา/แก้บั๊ก และรันเทสต์ที่จำเป็นใน Codex Cloud แบบแยกจากบริการจริง ไม่มีค่าใช้จ่ายเพิ่ม ผู้จัดการโครงการตรวจ diff และหลักฐานทุกครั้ง แก้และรันซ้ำเฉพาะส่วนที่กระทบ
+2. อนุญาตทดสอบเกมกับ Railway Staging เดิมเฉพาะบัญชีทดสอบที่ได้รับอนุญาต ไม่ใช้บัญชีผู้เล่นจริง ไม่เปิดเงินจริง ไม่สร้างค่าใช้จ่ายเพิ่ม ไม่เปิด Codespaces หรือ CI ที่เสี่ยงมีค่าใช้จ่าย ถ้ายังไม่ครบ 4 Google identities ให้ใช้ mock Auth หรือ test fixtures **ในสภาพแวดล้อมแยกเท่านั้น** ไม่ลดความปลอดภัยระบบจริง และไม่ถือเป็นหลักฐาน Google OAuth จริง
+3. อนุญาต Feature Branch, Commit และ Pull Request ตามความจำเป็น ทำงานถัดไปโดยไม่รออนุมัติซ้ำเมื่ออยู่ในขอบเขต หากติดเงื่อนไขให้ทำงานที่ไม่ติดก่อน บันทึกผลจริง, Commit SHA, ตัวค้างและงานถัดไปบน GitHub และใช้ scheduled checks ที่ระบบรองรับ
+4. **ไม่อนุญาต Deploy ใหม่, Merge เข้า main หากอาจ trigger Auto-deploy, ค่าใช้จ่ายเพิ่ม หรือการแก้/ลบข้อมูล Production** ไม่เผย secrets ไม่เพิ่ม/เปิดช่องทางรับเงินจริง และไม่ถือว่าการทดสอบเป็นสิทธิ์สร้างบริการใหม่
+5. คง UI v12 และเป้าหมายเดิมทั้งหมด V99 เป็นแหล่งอ้างอิงพฤติกรรมเท่านั้น ไม่ใช้ V99 UI แทน v12 ไม่เปิดใช้งาน Draft PR #1 บนบริการจริง
+D14 แทนการพักเทสต์ใน D06 เฉพาะขอบเขตนี้; เงื่อนไขความปลอดภัยและการอนุมัติ deploy/ค่าใช้จ่ายตาม D07/D13 ยังอยู่ ไม่รับรองผลที่ยังไม่ทดสอบ
