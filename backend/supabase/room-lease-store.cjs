@@ -4,13 +4,13 @@
  * the active secure-server. Requires the unapplied 002_room_lease_draft.sql.
  * Callers must use the returned leaseEpoch with every game-state transition;
  * acquiring a lease alone is NOT sufficient to prevent a stale server write.
+ * commitFencedTurn() is not wired into the runtime; do not deploy it yet.
  */
-const crypto=require('node:crypto');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function checkUuid(value){if(typeof value!=='string'||!UUID.test(value))throw Error('Invalid UUID');return value;}
 function checkEpoch(value){if(!Number.isSafeInteger(value)||value<1)throw Error('Invalid lease epoch');return value;}
 function createRoomLeaseStore(pool) {
- if(!pool||typeof pool.query!=='function')throw Error('Database pool required');
+ if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')throw Error('PostgreSQL connection pool required');
  return {
   // Contention is decided by the database clock, not the Railway host clock.
   async acquire(roomId,ownerId,ttlSeconds=30){
@@ -63,26 +63,74 @@ function createRoomLeaseStore(pool) {
    return r.rows;
   },
   /**
-   * Safe fencing example. Any future score-award transaction MUST use same
-   * WHERE conditions and transaction as its room-state UPDATE.
-   * This method intentionally does NOT write scores; don't swap into runtime
-   * until full atomic award/turn code is updated and reviewed.
+   * Source-only draft: atomic fenced game transition + award ledger.
+   * Database is authoritative: a lost lease, stale revision or duplicate
+   * reward aborts the entire transaction. No websocket broadcast here.
+   * Must only be called with game/awards computed by trusted server rules.
    */
-  async guardedCheckpoint({roomId,ownerId,leaseEpoch,revision,nextGame,deadlineMs}){
+  async commitFencedTurn({
+   roomId,ownerId,leaseEpoch,expectedRevision,game,deadlineMs,awards=[]
+  }){
    checkUuid(roomId);checkUuid(ownerId);checkEpoch(leaseEpoch);
-   if(!Number.isSafeInteger(revision)||revision<0)throw Error('Invalid revision');
-   const r=await pool.query(
-    `UPDATE game.rooms
-       SET game_state=$5::jsonb,deadline_ms=$6,revision=revision+1,
-           status=CASE WHEN ($5::jsonb->>'over')::boolean THEN 'finished' ELSE 'playing' END,
-           updated_at=clock_timestamp()
-       WHERE room_id=$1::uuid AND lease_owner=$2::uuid AND lease_epoch=$3::bigint
-         AND lease_until>clock_timestamp() AND revision=$4::bigint AND status='playing'
-       RETURNING revision`,
-    [roomId,ownerId,leaseEpoch,revision,JSON.stringify(nextGame),deadlineMs]
-   );
-   if(r.rowCount!==1)throw Error('LEASE_LOST_OR_STALE_REVISION');
-   return Number(r.rows[0].revision);
+   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw Error('Invalid expected revision');
+   if(!game||typeof game!=='object'||Array.isArray(game)||typeof game.over!=='boolean')
+     throw Error('Invalid authoritative game state');
+   if(game.over ? deadlineMs!==null : (!Number.isSafeInteger(deadlineMs)||deadlineMs<=0))
+     throw Error('Invalid game deadline');
+   if(!Array.isArray(awards)||awards.length>2)throw Error('Invalid award list');
+   const kinds=new Set();
+   for(const award of awards){
+    if(!award||typeof award!=='object'||Array.isArray(award)||
+       typeof award.eventId!=='string'||award.eventId.length>140||
+       !checkUuid(award.uid)||award.gameId!==roomId||
+       !['win','lucky_box'].includes(award.kind)||
+       !['free','vip'].includes(award.mode)||
+       !Number.isSafeInteger(award.points)||award.points<=0||
+       kinds.has(award.kind))throw Error('Invalid or duplicate game award');
+    if(award.kind==='win'&&(!game.over||award.points!==10))
+      throw Error('Winner award requires a completed game (+10)');
+    kinds.add(award.kind);
+   }
+   const client=await pool.connect();
+   let begun=false;
+   try{
+    await client.query('BEGIN');begun=true;
+    const row=await client.query(
+     `UPDATE game.rooms
+        SET game_state=$5::jsonb,deadline_ms=$6,
+            revision=revision+1,status=$7,updated_at=clock_timestamp()
+       WHERE room_id=$1::uuid AND lease_owner=$2::uuid
+         AND lease_epoch=$3::bigint AND lease_until>clock_timestamp()
+         AND revision=$4::bigint AND status='playing'
+       RETURNING revision,mode,seats`,
+     [roomId,ownerId,leaseEpoch,expectedRevision,JSON.stringify(game),
+       deadlineMs,game.over?'finished':'playing']
+    );
+    if(row.rowCount!==1)throw Error('LEASE_LOST_OR_STALE_REVISION');
+    const {mode,seats}=row.rows[0];
+    if(!Array.isArray(seats))throw Error('Invalid persisted seat list');
+    const seatUids=new Set(seats.map(x=>x?.uid));
+    for(const award of awards){
+     if(award.mode!==mode||!seatUids.has(award.uid))
+       throw Error('Award identity not a verified member of this room');
+     const result=await client.query(
+      `INSERT INTO game.score_events(event_id,uid,mode,game_id,kind,points)
+         VALUES($1,$2::uuid,$3,$4::uuid,$5,$6)
+         ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
+      [award.eventId,award.uid,award.mode,roomId,award.kind,award.points]
+     );
+     if(result.rowCount!==1)throw Error('DUPLICATE_AWARD_EVENT');
+    }
+    await client.query('COMMIT');begun=false;
+    return Number(row.rows[0].revision);
+   }catch(error){
+    if(begun)try{await client.query('ROLLBACK');}catch(rollbackError){
+     error.rollbackErrorCode=rollbackError.code||'ROLLBACK_FAILED';
+    }
+    // A commit transport failure is ambiguous: caller must halt the room
+    // and read the authoritative DB state, NEVER replay a random roll.
+    throw error;
+   }finally{client.release();}
   }
  };
 }
