@@ -2,6 +2,8 @@
 
 **Snapshot date:** 2026-11-25 (Asia/Bangkok). **This file is the single authoritative living status.** Update it after every substantial GitHub change and after each independently verified external state change. Do not copy "100%" from older chats.
 
+**สถานะฐานข้อมูลล่าสุด 26 พ.ย. 2026:** ติดตั้ง migrations 001–003 บน staging แล้ว ดู checkpoint ท้ายไฟล์สำหรับ migration IDs และข้อจำกัด ย่อหน้าก่อนหน้านั้นเป็นสถานะตามวันที่บันทึก
+
 ## Identity / repositories
 - **ACTIVE repository:** `jtkmanga/Lucky-Game-GDevelop`, branch **`main`**, primary source for this **NEW** Lucky Game prototype. Do not create a second repo now.
 - Historical project `jtkmanga/Snakes-and-Ladders-Private` (branch `lucky-cloudflare-do-v1`) is **another project**, not this new app. Consult only for optional reference, never overwrite.
@@ -511,3 +513,13 @@ PASS map 5: 11 server turns and SVG endpoints
 - หากไฟล์หนึ่งล้มเหลว ให้ตรวจทั้ง catalog และ migration history และหยุดที่ไฟล์นั้น ไฟล์ก่อนหน้าที่ commit แล้วคงอยู่ หลีกเลี่ยงการรันซ้ำทั้งชุด
 - หลัง commit ให้ใช้การแก้ไปข้างหน้าเป็นหลัก หากต้องย้อนจริง เก็บ schema/data และ history ก่อน ตรวจ dependency และข้อมูลผู้ใช้ ขออนุมัติการลบแยก แล้วใช้ compensating migration ย้อน 003 (receipts), 002 (ดัชนี, constraint, lease columns), 001 (ตารางลูกก่อนตารางแม่ แล้วจึง schema ถ้าว่าง) เฉพาะ object ที่สร้างในรอบนั้น ห้าม DROP CASCADE และไม่ลบ auth.users หรือเขียนทับ migration history
 - ความคืบหน้าประเมิน 20% ไม่มีการเปิด Codespace, เปลี่ยนฐานข้อมูล หรือ Deploy งานถัดไปเดียว: รออนุมัติการติดตั้ง schema staging และการตรวจ catalog ตามขอบเขตข้างต้น
+
+## 2026-11-26 — Staging schema 001–003 installed and verified
+- Scope approved by owner: schema and catalog only. Target Lucky-Game / llbkxnazkliskzcureec ACTIVE_HEALTHY, PostgreSQL 17.12.0.002; preflight found no game schema, no public base tables, auth.users present and no existing migration history.
+- Applied via apply_migration, in sequence, from reviewed source `6bdae779005506e4cf9028d74c9304d93133dd57`; omitted each file's standalone outer BEGIN/COMMIT for the migration runner. Confirmed history between steps:
+  - 20261126121717 lucky_001_game_private_schema — 7 RLS tables after 001.
+  - 20261126121728 lucky_002_room_lease_draft — rooms.lease_owner/lease_epoch/lease_until, consistency CHECK and recovery index verified.
+  - 20261126121739 lucky_003_turn_receipts_draft — receipt PK (room_id,revision), roll/timeout CHECK, revision/epoch checks and created index verified.
+- Final catalog: eight game tables, all RLS enabled; zero game policies; anon/authenticated have neither schema USAGE/CREATE nor tested table privileges; no PUBLIC table ACL grants. Confirmed score event uniqueness/time indexes and room recovery and receipt indexes. No runtime role/credentials/grants created.
+- Data API exposed-schemas list remains UNVERIFIED: neither session nor applicable catalog role/database settings returned pgrst.db_schemas. This is not evidence of exclusion. Previous Dashboard attempt required sign-in. Next single action: inspect the project's Data API settings read-only to confirm game is excluded before provisioning runtime access.
+- No test player data, OAuth change, Railway deployment, new service or Codespace initiated. Billing delta not measured. Runtime reconnect to real Postgres remains untested. Estimate 22% following verified schema work; method commit a8f4cef77f0999104dd52e3450de343ae35da9b4.
