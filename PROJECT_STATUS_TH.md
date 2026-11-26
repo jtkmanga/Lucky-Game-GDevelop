@@ -262,3 +262,15 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - **Important: the five-board catalog is NOT activated in Railway gameplay.** Current server engine/transition guard and v12 board visuals still use only original map 1. Enabling server-only random selection would desynchronize the client; do NOT call the five-map feature finished or tested.
 - No tests/Actions/CI, SQL application, Railway deployment, Google OAuth setup or paid resource activity. UI layout/colors unchanged. **Overall estimated progress stays 18%**, not QA readiness.
 - **NEXT SINGLE ACTION:** build an authoritative multi-board rules adapter and make the guard consume the same room map, then prepare the minimal generated v12 JS-only bridge for rendering/animation before enabling room-wide map randomization. Testing/deploy remain paused under D06/D07.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), source-wired five-map rules adapter with v12 safety gate
+- Read mandatory AGENTS → STATUS → MASTER PLAN → DECISIONS → HANDOFF, then existing five-board catalog/legacy rules/transition guard/Railway server/build and client compatibility plan.
+- Added `backend/railway/multi-board-rules.cjs` with a five-board authoritative rules adapter, canonical selected-map checks, board-specific snakes/ladders and safe Lucky Box placement; **default remains original map 1**, no random activation. Commit `df5081d51099555f01832cf810137cd809ea0895`.
+- Updated `backend/railway/rule-transition-guard.cjs` to validate movement from the exact persisted room board, not fixed map 1. Commit `08945c7bcf6d77df3795de0115b5b51581ab2ae9`.
+- `backend/railway/secure-server.cjs` now imports the adapter but starts rooms with map 1 only; random selection remains blocked until client v12 render+animation bridge is ready, commit `14152907a85257f9f19016395cedcc1b9a026a22`.
+- Updated `tools/prepare_railway_secure.py` to package `board-maps.cjs`, `multi-board-rules.cjs`, and `rule-transition-guard.cjs` (commit `6fac2d02225e96be9e76381f330f67afab74cace`).
+- Authored **UNEXECUTED** `qa/multi-board-rules.test.cjs` covering all maps, movement, timeout, persistent map mismatch, map 1 compatibility and selection helper (commit `119ea5aa2fe15867633d94e60c83bed6472bd23c`). Expanded the existing v12 client compatibility plan (`392317480163ed5a0a2141da64c90892a3ef250b`).
+- **UNVERIFIED / NOT COMPLETE:** HTML v12 still paints original map 1 special tiles; do NOT enable randomized server boards until client renders/animates the same selected map, and approved tests verify map+resume. No tests/CI, SQL migrations, deploy, Google OAuth, payment, or spending in this turn.
+- **Overall estimate remains 18%** per `PROJECT_PROGRESS_METHOD_TH.md`; source-only additions are not milestone PASS.
+- **NEXT SINGLE ACTION:** inspect the exact v12 `renderBoard()`/`animateTurn()` original ZIP source and prepare a minimal JS-only map bridge that preserves DOM/styles, then author unexecuted client/server map coherence checks. Do not enable random boards, run tests or deploy without approval.
