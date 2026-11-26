@@ -19,10 +19,12 @@ AUTH.mkdir(parents=True, exist_ok=True)
 
 for name in ('secure-server.cjs','health-readiness.cjs','health-http-handler.cjs','startup-lifecycle.cjs','socket-shutdown.cjs','postgres-store.cjs','rules.js',
              'board-maps.cjs','board-definitions.json','multi-board-rules.cjs',
-             'rule-transition-guard.cjs'):
+             'rule-transition-guard.cjs','current-leaderboard.cjs'):
     shutil.copy2(ROOT/'backend/railway'/name,APP/name)
 for name in ('supabase-access-token.cjs','room-access.cjs'):
     shutil.copy2(ROOT/'backend/auth'/name,AUTH/name)
+(API/'storage').mkdir(exist_ok=True)
+shutil.copy2(ROOT/'backend/storage/score-periods.cjs',API/'storage'/'score-periods.cjs')
 shutil.copytree(ROOT/'backend/supabase',API/'supabase',dirs_exist_ok=True)
 # Supabase's public 2021 root CA (owner-downloaded from project dashboard).
 # Bundled only for PostgreSQL TLS trust; it is NOT a credential or private key.
