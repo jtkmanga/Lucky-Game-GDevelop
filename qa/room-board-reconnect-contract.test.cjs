@@ -49,7 +49,7 @@ test('map1 legacy state without versioned board remains recoverable',()=>{
 });
 
 test('legacy map-one checkpoint can be normalized without mutating persisted snapshot',()=>{
- const g=Rules.create(['Alice','Bob'],'free',()=>0.23,1);
+ const g=Rules.create(['Alice','Bob'],'vip',()=>0.23,1);
  delete g.board;
  const persisted=JSON.stringify(g);
  const canonicalBoard=Rules.assertRoomBoard(g);
