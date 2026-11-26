@@ -34,3 +34,10 @@ Status: **code prepared / untested / database migration NOT applied / Railway NO
 
 ## NEXT SINGLE ACTION
 Continue P1 with a focused read-only review of Supabase Auth provider config/connection options and security constraints, then submit a migration for a **scoped and authorized** schema change when owner lifts documentation-only restraint. Independently refine source-level reconnect and OAuth return logic without altering UI. Do not start testing or deploy until explicit approval.
+
+## 2026-11-26 — Source-only UID room resume work
+- Added `findResumableRoomForUid(uid)` to Supabase private PostgreSQL adapter, matching only `game.rooms.status='playing'` and the server-verified UID within persisted JSONB seats. Commit `6ded17a1954460745795a911cf35abb47992e8ba`.
+- Railway secure-server source now restores the room's authoritative `game_state`, `revision`, `deadline_ms` and seat ownership into a single in-process room coordinator after restart, validates all persisted seat ownership before rebuilding sessions, coalesces concurrent reads for the same room, and reattaches a WebSocket only after Supabase access token validation. Commits `c6b05ee916330271dcb3209decf99171cc68058c`, `84a43ff3f84ccdc417712f6aab1b0b8c63c1ef1b`.
+- Corrected SQL draft: removed blanket `UNIQUE(game_id, kind)` on score events that would have blocked multiple admin adjustments; retained partial unique index on one win and one Lucky Box per game. Commit `3b853e4c5cd1eaf8ee8e037fbf888dd6a7292970`.
+- **No tests executed, no SQL applied, no deploys, and no new paid resources.** The recovery implementation remains an untested draft; it does not solve multi-replica routing, startup recovery of rooms without reconnecting players, exact timeouts after long outages, or historical room ownership cleanup.
+- **Next:** audit the room coordinator's concurrency and failure paths before seeking scoped approval for Supabase migration and Google provider setup. Keep owner test and deploy pause in place.
