@@ -49,7 +49,7 @@ html=html.replace(connect,"async function onlineConnect(){",1)
 check=""" if(!/^https?:$/.test(location.protocol)){toast('ต้องเปิดผ่าน http หรือ https');return;}"""
 if html.count(check)!=1:
     raise RuntimeError('Online Connect guard changed; manual review required')
-html=html.replace(check,check+"""\n let authenticatedAccessToken;\n try{authenticatedAccessToken=await window.luckyGetAccessToken();}\n catch(error){toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}""",1)
+html=html.replace(check,check+"""\n if(luckyAuthPending || movementRunning)return;\n const attempt=++luckyConnectAttempt;\n luckyAuthPending=true;\n let authenticatedAccessToken;\n try{authenticatedAccessToken=await window.luckyGetAccessToken();}\n catch(error){if(attempt===luckyConnectAttempt)toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}\n finally{if(attempt===luckyConnectAttempt)luckyAuthPending=false;}\n if(attempt!==luckyConnectAttempt || movementRunning)return;""",1)
 legacy="""let token=null;try{token=localStorage.getItem('lucky-online-test-token')}catch{}
   onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],token});"""
 secure="""onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],accessToken:authenticatedAccessToken});"""
@@ -157,17 +157,84 @@ new_state="""  // Never show a board different from the authoritative room snaps
   // Online room snapshots must include a canonical versioned board even
   // for map 1. The map-one no-board exception is LOCAL legacy play only.
   const acceptedBoard=msg.game?.board&&luckyBoardLayout(msg.game);
-  if(!acceptedBoard||
+  if(typeof msg.roomId!=='string' || !msg.roomId || !acceptedBoard||
      (luckySeenRoomBoard?.roomId===msg.roomId &&
       luckySeenRoomBoard.mapId!==acceptedBoard.id)){
    toast('ข้อมูลกระดานจากเซิร์ฟเวอร์ไม่ตรงกัน');
-   onlineSocket?.close();return;
+   luckyEndOnline();return;
   }
+  luckyRenderBoardArt(acceptedBoard);
   luckySeenRoomBoard={roomId:msg.roomId,mapId:acceptedBoard.id};
   localGame=msg.game;"""
 if html.count(old_state)!=1:
     raise RuntimeError('Original v12 online state hook drifted')
 html=html.replace(old_state,new_state,1)
+
+# Patch the inspected v12 adapter only. Reject archive drift at each hook.
+def replace_hook(source, replacement):
+    global html
+    if html.count(source) != 1:
+        raise RuntimeError('Expected exactly one v12 hook: ' + source[:70])
+    html = html.replace(source, replacement, 1)
+
+replace_hook("function onlineSend(message){", """let luckyConnectAttempt=0;
+let luckyAuthPending=false;
+function luckyEndOnline(){
+ const previous=onlineSocket;
+ onlineSocket=null;
+ previous?.close();
+ onlineActive=false;
+ onlineRoomId=null;
+ onlineSeat=null;
+ onlineDeadline=null;
+ stopClock();
+ localGame=null;
+ $('gameResultOverlay').hidden=true;
+ resultVisible=false;
+ refreshLocal();
+ $('matchButton').textContent='🌐 เชื่อมต่อใหม่ / จับคู่ใหม่ ➜';
+ navigate('lobby');
+}
+function onlineSend(message){""")
+replace_hook("onlineSocket?.close();onlineSocket=null;onlineActive=false;onlineSeat=null;",
+             "luckyEndOnline();")
+replace_hook("onlineActive=false;toast('ห้องทดสอบปิดแล้ว')",
+             "luckyEndOnline();toast('ห้องทดสอบปิดแล้ว')")
+replace_hook("if(onlineSocket&&onlineSocket.readyState===WebSocket.CONNECTING)return;",
+             """if(onlineSocket && onlineSocket.readyState<=WebSocket.OPEN){
+  if(!localGame?.over)return;
+  luckyEndOnline();
+ }""")
+replace_hook("onlineActive=true;onlineSeat=null;onlineRoomId=null;", """stopClock();
+ localGame=null;
+ $('gameResultOverlay').hidden=true;
+ resultVisible=false;
+ onlineDeadline=null;
+ onlineActive=true;onlineSeat=null;onlineRoomId=null;""")
+replace_hook("else if(msg.type==='error')toast(msg.message||'เซิร์ฟเวอร์ปฏิเสธคำสั่ง');",
+             "else if(msg.type==='error'){if(!onlineRoomId)luckyEndOnline();toast(msg.message||'เซิร์ฟเวอร์ปฏิเสธคำสั่ง');}")
+replace_hook(src, """let socket;
+ try{socket=new WebSocket(protocol+'//'+location.host+'/ws');}
+ catch{luckyEndOnline();toast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');return;}
+ onlineSocket=socket;""")
+replace_hook("socket.addEventListener('open',()=>{",
+             "socket.addEventListener('open',()=>{if(onlineSocket!==socket)return;")
+replace_hook("try{onlineApplyMessage(JSON.parse(e.data))}catch(err){console.error('online message',err)}",
+             """if(onlineSocket!==socket || socket.readyState!==WebSocket.OPEN)return;
+  try{onlineApplyMessage(JSON.parse(e.data));}
+  catch{luckyEndOnline();toast('ไม่สามารถแสดงข้อมูลห้องออนไลน์ได้');}""")
+replace_hook("if(onlineActive){toast('การเชื่อมต่อหลุด กดจับคู่เพื่อเชื่อมต่อใหม่');$('rollDice').disabled=true;}",
+             "luckyEndOnline();toast('การเชื่อมต่อหลุด กดจับคู่เพื่อเชื่อมต่อใหม่');")
+replace_hook("()=>toast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้')",
+             "()=>{if(onlineSocket===socket)toast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');}")
+replace_hook("""if(!onlineActive)return;
+ e.stopImmediatePropagation();toast('กำลังอยู่ในโหมดออนไลน์ กดออก/รีเฟรชก่อนเล่นบนเครื่องเดียว');""",
+             """if(onlineActive && localGame?.over)luckyEndOnline();
+ if(onlineActive){
+  e.stopImmediatePropagation();toast('กำลังอยู่ในโหมดออนไลน์ กดออก/รีเฟรชก่อนเล่นบนเครื่องเดียว');return;
+ }
+ ++luckyConnectAttempt;
+ luckyAuthPending=false;""")
 
 page.write_text(html,encoding='utf8')
 (OUT/'package.json').write_text(json.dumps({
