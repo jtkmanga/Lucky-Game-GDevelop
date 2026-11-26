@@ -225,9 +225,9 @@ async function handle(ws,msg){
   }
   if(existing){
    // No unverified bearer-token resume; the verified UID owns this seat.
+   if(ws.readyState!==WebSocket.OPEN)return;
    const last=existing.ws;
    if(last&&last!==ws){last.session=null;last.close(4000,'duplicate session');}
-   if(ws.readyState!==WebSocket.OPEN)return;
    existing.ws=ws;ws.session=existing;
    const room=rooms.get(existing.roomId);
    if(room){
