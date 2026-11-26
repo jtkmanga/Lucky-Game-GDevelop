@@ -6,19 +6,13 @@
  * has been prepared and verified. Never select an alternate map on the server
  * without sending its complete layout to the client.
  */
-const ORIGINAL_SNAKES=Object.freeze({98:77,94:68,80:49,59:30,37:15});
-const ORIGINAL_LADDERS=Object.freeze({4:25,11:50,28:53,43:63,62:85,71:91});
-const specs=[
- {id:1,snakes:ORIGINAL_SNAKES,ladders:ORIGINAL_LADDERS},
- {id:2,snakes:{96:74,89:66,78:43,57:29,35:12},
-       ladders:{3:22,13:38,26:51,42:65,61:83,72:92}},
- {id:3,snakes:{97:79,91:60,82:54,65:36,47:19},
-       ladders:{5:28,16:41,24:48,39:62,58:81,70:93}},
- {id:4,snakes:{99:70,92:73,84:56,68:40,52:23},
-       ladders:{6:27,14:37,32:55,45:69,63:86,75:94}},
- {id:5,snakes:{95:76,88:61,79:52,64:34,41:18},
-       ladders:{2:21,17:44,31:57,46:72,60:82,74:96}}
-];
+// One canonical catalog is consumed by both Node server and the generated
+// v12 JavaScript client; never maintain two independent board tables.
+const definitions=require('./board-definitions.json');
+if(definitions.version!==1||!Array.isArray(definitions.boards)||
+   definitions.boards.length!==5||definitions.boards.some((b,i)=>b.id!==i+1))
+ throw Error('INVALID_BOARD_CATALOG');
+const specs=definitions.boards;
 function validate(spec){
  const starts=new Set(),allEntries=[];
  for(const [kind,items] of [['snake',spec.snakes],['ladder',spec.ladders]]){
