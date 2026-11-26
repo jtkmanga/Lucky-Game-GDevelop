@@ -3,4 +3,4 @@
 # Node/npm installs and starts the generated application.
 # Do not change UI or game rules here.
 [phases.setup]
-nixPkgs = ["python312", "nodejs_22"]
+nixPkgs = ["python3", "nodejs"]
