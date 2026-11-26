@@ -25,7 +25,7 @@ function args(extra={}){
   game:{over:true,current:0,players:[]},deadlineMs:null,awards:[award()],
   receipt:{type:'roll',actorIndex:0,dice:4,outcome:{reward:0}},...extra};
 }
-function mockPg({claim=true,failAt=null,duplicate=false,receiptDuplicate=false}={}){
+function mockPg({claim=true,failAt=null,duplicate=false,receiptDuplicate=false,secondSeat=false}={}){
  const calls=[];
  let roomVersion=0,points=0;
  let pendingVersion=0,pendingPoints=0;
@@ -38,7 +38,7 @@ function mockPg({claim=true,failAt=null,duplicate=false,receiptDuplicate=false}=
   if(q.includes('UPDATE game.rooms')&&q.includes('RETURNING revision,mode,seats')){
    if(!claim)return {rowCount:0,rows:[]};
    pendingVersion++;
-   return {rowCount:1,rows:[{revision:pendingVersion,mode,seats:[{uid:PLAYER}]}]};
+   return {rowCount:1,rows:[{revision:pendingVersion,mode,seats:secondSeat?[{uid:PLAYER},{uid:OTHER}]:[{uid:PLAYER}]}]};
   }
   if(q.includes('INSERT INTO game.turn_receipts'))
    return receiptDuplicate?{rowCount:0,rows:[]}:
@@ -187,4 +187,13 @@ test('timeout must not store a roll outcome',async()=>{
   awards:[],receipt:{type:'timeout',actorIndex:0,dice:null,outcome:{reward:0}}
  })),/Timeout receipt must not contain roll outcome/);
  assert.deepEqual(db.state(),{roomVersion:0,points:0});
+});
+
+test('a reward may not be paid to another verified seat in the same room',async()=>{
+ const db=mockPg({secondSeat:true});
+ await assert.rejects(db.store.commitFencedTurn(args({
+  awards:[{...award('win'),uid:OTHER}]
+ })),/Award identity differs from authoritative turn actor/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+ assert(db.calls.some(x=>x.sql==='ROLLBACK'));
 });
