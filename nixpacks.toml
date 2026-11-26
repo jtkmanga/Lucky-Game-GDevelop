@@ -1,0 +1,6 @@
+# Railway/Nixpacks build needs both runtimes:
+# Python generates the v12 Node/WebSocket runtime at build time.
+# Node/npm installs and starts the generated application.
+# Do not change UI or game rules here.
+[phases.setup]
+nixPkgs = ["python312", "nodejs_22"]
