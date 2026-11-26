@@ -53,3 +53,22 @@ test('unavailable receipt evidence blocks recovery readiness',()=>{
  assert.equal(prepareManualRecoveryDecision({assessment:a,room:e.room,
   expectedRevision:7,expectedGame:state,expectedAwards:awards}).decision,'BLOCK');
 });
+
+
+test('later room revision does not erase evidence of the earlier receipt',()=>{
+ const e=evidence({room:{...evidence().room,revision:12,
+  game_state:{over:true,players:[{position:100}],laterRevision:true}}});
+ const a=classifyRoomReconciliation(e);
+ assert.equal(a.receiptStatus,'MATCHED');
+ assert.equal(a.classification,'REVISION_DIVERGED');
+ const decision=prepareManualRecoveryDecision({assessment:a,room:e.room,
+  expectedRevision:7,expectedGame:state,expectedAwards:awards});
+ assert.equal(decision.decision,'BLOCK');
+ assert.equal(decision.automaticResume,false);
+});
+test('exact expected receipt is matched even with a newer receipt in evidence',()=>{
+ const newer={revision:9,previous_revision:8,lease_epoch:3,
+  game_state:{over:true,later:true},award_events:[]};
+ const e=evidence({receipts:[newer,...evidence().receipts]});
+ assert.equal(classifyRoomReconciliation(e).receiptStatus,'MATCHED');
+});
