@@ -27,6 +27,7 @@ const TURN_MS=20000;
 const waiting={free:[],vip:[]}, rooms=new Map(), sessions=new Map();
 const clients=new Set(), dispatchBusy={free:false,vip:false};
 const restoreTasks=new Map(); // single-process de-duplication, not cross-replica coordination
+const pendingCreates=new Set(); // DB insertion may be in-flight; never requeue these seats
 const uidJoinLocks=new Map(); // serialize joins for one verified account in this process
 async function withUidJoinLock(uid,task){
  const prior=uidJoinLocks.get(uid)||Promise.resolve();
@@ -54,7 +55,8 @@ async function restoreRoom(roomId){
      uids.some(uid=>{
        const session=sessions.get(uid);
        return session&&(session.mode!==row.mode||
-         (session.roomId&&session.roomId!==roomId));
+         (session.roomId&&session.roomId!==roomId)||
+         (session.pendingRoomId&&session.pendingRoomId!==roomId));
      }))throw Error('Invalid or conflicting persisted room seats');
   const members=sourceSeats.map((seat,i)=>{
    const existing=sessions.get(seat.uid);
@@ -65,7 +67,8 @@ async function restoreRoom(roomId){
     deadline:Number(row.deadline_ms),revision:Number(row.revision),
     timer:null,busy:false,halted:false};
   members.forEach((member,i)=>{
-    member.roomId=roomId;member.index=i;sessions.set(member.uid,member);
+    member.roomId=roomId;member.pendingRoomId=null;
+    member.index=i;sessions.set(member.uid,member);
   });
   rooms.set(roomId,room);
   schedule(room); // expired turns are skipped by authoritative timer, not auto-rolled
@@ -104,8 +107,13 @@ async function dispatch(mode){
     for(const s of seats)if(s.ws?.readyState===WebSocket.OPEN)q.unshift(s);
     continue;
    }
+   // Seats must be reserved BEFORE the DB call. A disconnect while INSERT is
+   // pending must not return a seat to matchmaking (or create two rooms).
    const id=crypto.randomUUID(), game=Rules.create(seats.map(s=>s.name),mode);
-   seats.forEach((s,i)=>{s.index=i;game.players[i].avatar=s.avatar;});
+   seats.forEach((s,i)=>{
+     s.index=i;s.pendingRoomId=id;game.players[i].avatar=s.avatar;
+   });
+   pendingCreates.add(id);
    const deadline=Date.now()+TURN_MS;
    try{
     await store.initializeRoom({
@@ -113,13 +121,19 @@ async function dispatch(mode){
       seats:seats.map(s=>({uid:s.uid,name:s.name})),deadlineMs:deadline
     });
    }catch(err){
-    console.error('Room persistence failed',err.code||err.message);
-    for(const s of seats){send(s.ws,{type:'error',message:'สร้างห้องไม่สำเร็จ'});q.push(s);}
+    // A network/transaction error does not prove the INSERT rolled back.
+    // Quarantine reservations, including offline seats, rather than
+    // automatically requeue and potentially create duplicate durable rooms.
+    console.error('Room insert uncertain; reservations quarantined',err.code||err.message);
+    for(const s of seats)send(s.ws,{type:'error',
+      message:'ไม่สามารถยืนยันการสร้างห้องได้ กรุณาเชื่อมต่อใหม่'});
     break;
+   }finally{
+    pendingCreates.delete(id);
    }
    const room={id,mode,seats,game,deadline,revision:0,timer:null,busy:false,halted:false};
    rooms.set(id,room);
-   for(const s of seats)s.roomId=id;
+   for(const s of seats){s.roomId=id;s.pendingRoomId=null;}
    schedule(room);
    transmit(room,{type:'start'});
   }
@@ -229,6 +243,29 @@ async function handle(ws,msg){
    const last=existing.ws;
    if(last&&last!==ws){last.session=null;last.close(4000,'duplicate session');}
    existing.ws=ws;ws.session=existing;
+   if(existing.pendingRoomId){
+     const pendingId=existing.pendingRoomId;
+     if(pendingCreates.has(pendingId)){
+       return send(ws,{type:'waiting',mode,preparing:true,needed:capacity(mode)});
+     }
+     // Only a successful DB read can release an uncertain reservation.
+     // DB outage => leave every seat quarantined, fail closed.
+     const persisted=await store.loadRoom(pendingId);
+     if(persisted && persisted.status==='playing'){
+       await restoreRoom(pendingId);
+     }else if(persisted){
+       return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม กรุณาติดต่อผู้ดูแล'});
+     }else{
+       // Confirmed absent: release ALL seats held by this failed room.
+       for(const member of sessions.values()){
+         if(member.pendingRoomId!==pendingId)continue;
+         member.pendingRoomId=null;member.index=null;
+         if(member.ws?.readyState===WebSocket.OPEN){
+           if(!waiting[member.mode].includes(member))waiting[member.mode].push(member);
+         }else{sessions.delete(member.uid);}
+       }
+     }
+   }
    const room=rooms.get(existing.roomId);
    if(room){
      if(room.halted)return send(ws,{type:'error',message:'ห้องถูกพักเพราะข้อมูลไม่ตรงกัน'});
@@ -249,7 +286,7 @@ async function handle(ws,msg){
   // The socket may close while the database operation is pending. Never leave
   // a ghost player in matchmaking or a stale active-session registry.
   if(ws.readyState!==WebSocket.OPEN)return;
-  const session={uid,mode,name,avatar,ws,roomId:null,index:null};
+  const session={uid,mode,name,avatar,ws,roomId:null,pendingRoomId:null,index:null};
   ws.session=session;sessions.set(uid,session);
   waiting[mode].push(session);
   await dispatch(mode);
@@ -258,7 +295,7 @@ async function handle(ws,msg){
  }
  const s=ws.session;
  if(!s||s.ws!==ws)return;
- if(msg.type==='cancel'&&!s.roomId){
+ if(msg.type==='cancel'&&!s.roomId&&!s.pendingRoomId){
   takeOut(waiting[s.mode],s);sessions.delete(s.uid);ws.session=null;
   send(ws,{type:'cancelled'});reportWaiting(s.mode);return;
  }
@@ -319,7 +356,9 @@ wss.on('connection',ws=>{
   const s=ws.session;
   if(s&&s.ws===ws){
    s.ws=null;
-   if(!s.roomId){takeOut(waiting[s.mode],s);sessions.delete(s.uid);reportWaiting(s.mode);}
+   if(!s.roomId&&!s.pendingRoomId){
+     takeOut(waiting[s.mode],s);sessions.delete(s.uid);reportWaiting(s.mode);
+   }
   }
  });
 });
