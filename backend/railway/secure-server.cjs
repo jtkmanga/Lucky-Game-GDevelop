@@ -20,6 +20,7 @@ const {requireRuleTransition}=require('./rule-transition-guard.cjs');
 const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
 const {requireRoomAccess}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
+const {healthResponse}=require('./health-readiness.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
@@ -446,16 +447,12 @@ const server=http.createServer((req,res)=>{
   res.end(JSON.stringify(config));return;
  }
  if(u.pathname==='/health'){
-  const ready=startupReady&&!shuttingDown;
-  res.writeHead(ready?200:503,{
+  const response=healthResponse(startupReady,shuttingDown);
+  res.writeHead(response.statusCode,{
    'content-type':'application/json','cache-control':'no-store',
    'x-content-type-options':'nosniff'
   });
-  res.end(JSON.stringify({
-   ok:ready,
-   status:shuttingDown?'stopping':ready?'ready':'starting',
-   mode:'draft-auth-required'
-  }));return;
+  res.end(JSON.stringify(response.body));return;
  }
  let filename;
  try{
