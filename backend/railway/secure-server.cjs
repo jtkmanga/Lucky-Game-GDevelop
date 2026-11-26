@@ -26,6 +26,39 @@ const MAX_CONNECTIONS=500; // conservative until authorized capacity validation
 const TURN_MS=20000;
 const waiting={free:[],vip:[]}, rooms=new Map(), sessions=new Map();
 const clients=new Set(), dispatchBusy={free:false,vip:false};
+const restoreTasks=new Map(); // single-process de-duplication, not cross-replica coordination
+async function restoreRoom(roomId){
+ if(rooms.has(roomId))return rooms.get(roomId);
+ if(restoreTasks.has(roomId))return restoreTasks.get(roomId);
+ const task=(async()=>{
+  const row=await store.loadRoom(roomId);
+  if(!row||row.status!=='playing')return null;
+  const sourceSeats=row.seats;
+  if(!['free','vip'].includes(row.mode)||!Array.isArray(sourceSeats)||
+    sourceSeats.length!==capacity(row.mode)||!Number.isSafeInteger(Number(row.revision))||
+    !row.game_state||typeof row.game_state!=='object'||!Number.isFinite(Number(row.deadline_ms)))
+    throw Error('Invalid persisted room checkpoint');
+  const members=sourceSeats.map((seat,i)=>{
+   if(!seat||typeof seat.uid!=='string')throw Error('Invalid persisted room seat');
+   const existing=sessions.get(seat.uid);
+   if(existing&&existing.roomId&&existing.roomId!==roomId)throw Error('Seat already assigned to another room');
+   if(existing)return existing;
+   const restored={uid:seat.uid,mode:row.mode,name:seat.name||'Player',
+     avatar:'🐱',ws:null,roomId,index:i};
+   sessions.set(restored.uid,restored);
+   return restored;
+  });
+  const room={id:roomId,mode:row.mode,seats:members,game:row.game_state,
+    deadline:Number(row.deadline_ms),revision:Number(row.revision),
+    timer:null,busy:false};
+  members.forEach((member,i)=>{member.roomId=roomId;member.index=i;});
+  rooms.set(roomId,room);
+  schedule(room); // expired turns are skipped by authoritative timer, not auto-rolled
+  return room;
+ })();
+ restoreTasks.set(roomId,task);
+ try{return await task;}finally{restoreTasks.delete(roomId);}
+}
 const send=(ws,obj)=>{
  if(ws?.readyState===WebSocket.OPEN && ws.bufferedAmount<262144)
    ws.send(JSON.stringify(obj));
@@ -142,6 +175,13 @@ async function handle(ws,msg){
   await requireRoomAccess(auth,mode,store);
   const uid=auth.uid;
   let existing=sessions.get(uid);
+  // On process restart, locate the unfinished verified UID seat in PostgreSQL.
+  // The same-process cache remains the fast path. No guest bearer-token resume.
+  if(!existing){
+   const savedRoomId=await store.findResumableRoomForUid(uid);
+   if(savedRoomId)await restoreRoom(savedRoomId);
+   existing=sessions.get(uid);
+  }
   if(existing){
    if(existing.mode!==mode && existing.roomId)
      return send(ws,{type:'error',message:'กำลังอยู่ในห้องอื่น'});
@@ -158,7 +198,13 @@ async function handle(ws,msg){
    if(room){
      send(ws,{type:'state',roomId:room.id,seat:existing.index,
        game:room.game,deadline:room.deadline,event:{type:'resume'}});
-   }else{reportWaiting(mode);}
+   }else if(!existing.roomId){
+     if(!waiting[mode].includes(existing))waiting[mode].push(existing);
+     reportWaiting(mode);await dispatch(mode);
+   }else{
+     // Room restoration failure must never create a fresh match for this UID.
+     send(ws,{type:'error',message:'ไม่สามารถกู้คืนห้องเดิมได้'});
+   }
    return;
   }
   const name=String(msg.name||'Player').trim().slice(0,20)||'Player';
