@@ -910,3 +910,15 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - **NOT RUN/NOT PROVEN:** new unit tests, generator, syntax checks on new source, real SIGTERM, real WebSocket drain, real startup/DB lease recovery, Railway staging/deploy, OAuth, 10K. Await owner scope for one existing Codespaces fake-only test before claiming PASS. No Supabase data or user-visible UI v12 changes; no provider services, deployment, cost or secrets introduced.
 - **Known limit:** this source-level timeout only bounds socket-drain attempt, not all DB writes or DB pool-close duration; additional shutdown race conditions require targeted review. Completion estimate **22%** unchanged.
 - **NEXT SINGLE ACTION:** owner approves 4-case fake-only WebSocket shutdown test in existing Codespaces; run once with generated runtime/syntax validation and record actual tested SHA and output in GitHub; no earlier suites rerun.
+
+
+## 2026-11-26 21:00 Asia/Bangkok — Owner approved isolated WebSocket shutdown 4-case OFFLINE test; awaiting Codespaces execution
+- Owner explicitly authorized **one** existing-Codespaces-only run of `qa/railway-socket-shutdown-injected.test.cjs` (four fake-only cases), generator `tools/prepare_railway_secure.py`, required helper presence and Node syntax checks. The authorization expressly excludes actual server startup, real Supabase, Railway deployment/service, UI v12 changes or new spending.
+- Reopened exact current `main` sources before providing command: four cases use in-memory fake client/WebSocket/HTTP callbacks only, and `backend/railway/socket-shutdown.cjs` has bounded close/terminate behavior. Generator includes `socket-shutdown.cjs`. No test has been executed by the assistant; GitHub integration cannot invoke the existing Codespaces terminal.
+- **TEST PENDING, not yet PASS.** No new provider action, SQL change, network listener or secret operation. Prior injected startup 5/5, HTTP loopback 3/3 and other separately evidenced results remain PASS and must not be rerun unnecessarily.
+- Approved exact command:
+```bash
+cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --test qa/railway-socket-shutdown-injected.test.cjs && python3 tools/prepare_railway_secure.py && test -f railway-runtime/backend/railway/socket-shutdown.cjs && node --check railway-runtime/backend/railway/socket-shutdown.cjs && node --check railway-runtime/backend/railway/secure-server.cjs && git rev-parse HEAD && echo RAILWAY_SHUTDOWN_INJECTED_OFFLINE_PASS
+```
+- Require owner sanitized terminal result with 4/4, 0 fail and tested full SHA before accepting PASS; stop on failure without blind rerun. This tests simulated close order and timeout, **not actual SIGTERM/WebSocket process shutdown**. Estimated overall progress **22%** unchanged.
+- **NEXT SINGLE ACTION:** owner runs the approved one-shot command in the existing Codespace, then assistant records actual PASS/FAIL and tested commit SHA in GitHub.
