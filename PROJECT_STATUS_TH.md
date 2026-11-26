@@ -330,3 +330,22 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - Billing ยืนยันว่า compute แบบ 2-core ของบัญชีมีการคิดเงินจริงแล้วในเดือนนี้ จึงยังไม่เปิดเครื่อง ไม่มีการสร้าง Codespace, deploy หรือเปลี่ยนบริการในรอบตรวจนี้
 - หลักฐานเดิม: build สำเร็จและ syntax 3/3 ผ่าน ชุด browser/WebSocket 6 กรณียังไม่ได้รัน ความคืบหน้ารวมประมาณ 18%
 - งานถัดไป: เมื่อมีโควต้า compute ฟรีที่ยืนยันได้ หรือได้รับอนุมัติค่า compute เฉพาะรอบ ให้ใช้เครื่องเดิมที่ไม่มีงานค้างและรันชุดเดิมจาก main โดยรักษางานเดิมไว้
+
+## 2026-11-26 — Codespaces / UI v12 browser-WebSocket acceptance
+
+Owner authorized use of the existing Codespace without the proposed 20-minute limit for the six previously approved cases. Ran against an isolated archive of origin/main at `6f05c955110da9f44b2dfcf9e5ee0f9724b1c12f` on fantastic succotash (2-core). Test source `qa/v12_mode_acceptance.py` from `5177125a1ff42dfe307b7b9bce81e8cbcbc8dcd7`. Installed aiohttp/Playwright in a temporary venv and the Chromium dependencies on the Codespace. Generated v12 page, checked three inline scripts with Node and ran the browser suite once.
+
+Observed output:
+```text
+PASS generated JS syntax 3
+PASS 1 delayed auth / local
+PASS 2 four views / local clock / board markers
+PASS 3 queue cancel / stale callback
+PASS 4 disconnect / fixture identity resume / roll
+PASS 5 invalid room map / missing artwork / clean fixture
+PASS 6 post-game local / rematch
+```
+
+All six passed against the local WebSocket fixture. The four views used the server rules module's deterministic map 2 snapshot. Local mode restored map 1. The fixture provided identities and seat assignments; durable reconnect, Google OAuth, live matchmaking and DB writes still require integration evidence. No game source, UI, SQL or infrastructure deployment changed. Stopped the Codespace and verified it left Active. Per-run compute charge not measured.
+- Overall estimate **19%**. P2 estimate increased from 10% to 15% within its 20% weight. Method update `4449fb4bd50401c2d92767b290348ebb615ac8e1`.
+- **Next single action:** prepare targeted local acceptance for the remaining catalog maps (3–5), including transport endpoints versus actual server rules; obtain scoped test authorization before execution. Random matchmaking remains disabled.
