@@ -102,7 +102,8 @@ if catalog.get('version')!=1 or [b.get('id') for b in catalog['boards']]!=[1,2,3
 # Inject the SAME source definitions used by Node into the generated client.
 board_helper='const luckyKnownBoards='+json.dumps(
  catalog,ensure_ascii=False,separators=(',',':'))+';'+chr(10)
-board_helper+="""function luckyBoardLayout(game){
+board_helper+="""let luckySeenRoomBoard=null;
+function luckyBoardLayout(game){
  const catalog=luckyKnownBoards;
  const id=game?.map??1;
  if(!Number.isInteger(id)||id<1||id>5||catalog.version!==1)
@@ -153,10 +154,14 @@ if html.count(old_animation)!=1:
 html=html.replace(old_animation,new_animation,1)
 old_state="  localGame=msg.game;"
 new_state="""  // Never show a board different from the authoritative room snapshot.
-  if(!luckyBoardLayout(msg.game)){
+  const acceptedBoard=msg.game&&luckyBoardLayout(msg.game);
+  if(!acceptedBoard||
+     (luckySeenRoomBoard?.roomId===msg.roomId &&
+      luckySeenRoomBoard.mapId!==acceptedBoard.id)){
    toast('ข้อมูลกระดานจากเซิร์ฟเวอร์ไม่ตรงกัน');
    onlineSocket?.close();return;
   }
+  luckySeenRoomBoard={roomId:msg.roomId,mapId:acceptedBoard.id};
   localGame=msg.game;"""
 if html.count(old_state)!=1:
     raise RuntimeError('Original v12 online state hook drifted')
