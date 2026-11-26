@@ -714,3 +714,13 @@ PASS map 5: 11 server turns and SVG endpoints
 - Created **planning only** `backend/RAILWAY_STAGING_RESOURCE_COST_REVIEW_2026-11-26_TH.md` at commit `44b7cefa02dcc880377adb18f4c310a28c6b2c51`: conservative one-service/one-replica staging proposal, no Railway PostgreSQL, secret security, UI v12 lock, cost/budget gate, exit checklist.
 - **No** Railway service or deployment, patch, secrets, database modification, Codespaces/test execution, UI changes, paid subscription/credit changes or new resources were made. Provider cost delta unmeasured; overall project estimate **22%** unchanged.
 - **NEXT SINGLE ACTION:** verify the authenticated Railway workspace Plan, available Credits, Usage and Cost Control read-only; if plugin cannot expose billing values, owner should inspect account Dashboard (no secrets). Then obtain specific service creation/deploy/cost-duration approval and source readiness before changing staging.
+
+
+## 2026-11-26 20:26 Asia/Bangkok — Railway workspace Trial billing screenshot (owner evidence)
+- Owner screenshot of authenticated Railway Workspace → Settings → Billing shows **Active Plan: Trial Workspace**, upper banner **"30 days or $5.00 left"**, text "It includes your credit balance of $5. Deployments are shut down when you run out of credits." No payment method on file; no billing history found.
+- This is an account-facing **Trial credit/time indicator**, not verified numerical resource usage, project-specific spending rate, a guarantee of exactly $5 unused credits, or proof of an independent hard-budget cutoff for an arbitrary budget. The workspace plan is **not** Hobby; no reason to upgrade based on this screenshot.
+- Previous Railway connector read-only inventory: existing project `Lucky-Game-GDevelop`, environment `staging`, **0 services / 0 deployments**; no new resources created in this turn.
+- Running a staging service could consume Trial credit (CPU/memory/egress); avoid assuming free unlimited hosting. No credit spent or consumed by **new Railway service** in this review. Codespaces/other provider use is separate and not measured.
+- **No** Railway service, deployment, secret variable, plan upgrade, card addition, Supabase mutation or UI v12 change. Retain prior restricted SQL write→rollback PASS; do not rerun.
+- Overall estimated project progress **22%** unchanged.
+- **NEXT SINGLE ACTION:** inspect the Railway workspace Usage / consumption view to establish actual utilization and current remaining Trial credit, then prepare a one-replica staging cost/time cap for explicit owner approval. Do NOT provision or deploy until that scope and server-side TLS/auth readiness are reviewed.
