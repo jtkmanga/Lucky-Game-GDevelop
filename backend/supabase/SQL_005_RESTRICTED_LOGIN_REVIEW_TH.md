@@ -47,3 +47,15 @@
 No SQL, credentials, schema/role membership, Railway environment, Codespaces, tests or service changes performed during this planning stage. UI v12 remains unchanged. Project estimate 22%.
 
 **NEXT SINGLE ACTION:** get scoped owner approval for Gate A, including an agreed safe path for credential creation without exposing it in tool calls or transcript.
+
+
+## 2026-11-26 — Approved passwordless identity applied (Migration 005)
+
+- Owner approved the previous Gate A account-creation continuation. To avoid credentials in a transcript or connector SQL, installed **only the passwordless LOGIN role and sole role membership**. Actual source `backend/supabase/005_restricted_login_no_password.sql` commit `21b872a4a20d46bef9b723bfb92dce9e5451ad1a`.
+- Supabase `apply_migration` returned `success:true`. Migration history: `20261126124323 lucky_005_restricted_login_no_password`.
+- Post-apply live read-only inspection: `lucky_game_server_login` `rolcanlogin=true`, `rolpassword IS NULL=true`, `rolsuper=false`, `rolcreatedb=false`, `rolcreaterole=false`, `rolreplication=false`, `rolbypassrls=false`, `rolinherit=true`.
+- `pg_auth_members`: one membership for `lucky_game_server_login` in `lucky_game_runtime` with `inherit_option=true`, `set_option=false`, `admin_option=false`. Existing provider-created `postgres` membership in runtime role remains untouched.
+- Schema rights: `game` USAGE=true/CREATE=false, `anon` USAGE=false. Effective `has_table_privilege` matches five-table matrix, no DELETE anywhere, no SELECT/INSERT/UPDATE/DELETE on Orders/Admin/Archives.
+- This is a **catalog privilege inspection**, not an authenticated session test nor RLS row-access exercise. Role has **no password**, and no password was generated, set, stored or passed to any API.
+- **NOT APPROVED/NOT DONE:** credential establishment, Railway service/variables/deploy, real authentication, live game transaction, Google OAuth. No UI v12 change or additional paid resource.
+- **NEXT SINGLE ACTION:** obtain specific approval of a secure password provisioning method that prevents secrets from entering GitHub, the chat or logged SQL tool arguments, and verify custom user login/TLS on the chosen session pooler before any Railway deployment.
