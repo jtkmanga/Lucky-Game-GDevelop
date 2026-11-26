@@ -191,6 +191,7 @@ async function inspectAmbiguousCommit(room,expectedRevision,expectedGame,awards)
    missingKinds:assessment.missingKinds,
    conflictingKinds:assessment.conflictingKinds,
    duplicateKinds:assessment.duplicateKinds,
+   receiptStatus:assessment.receiptStatus,
    recoveryDecision:recovery.decision,
    recoveryBlockingReasons:recovery.blockingReasons,
    nextAction:'HALTED_REQUIRES_REVIEW'
