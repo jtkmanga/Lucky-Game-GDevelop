@@ -316,3 +316,11 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - `backend/railway/FIVE_BOARD_UI_COMPATIBILITY_TH.md` — six bounded browser/server acceptance cases, including delayed auth, stale callbacks, UID reconnect, invalid artwork and post-game local play. Commit `b837655cdeb24e67b6bdb44a98d420609ba2af18`.
 - Source edits only. Original v12 HTML/CSS/ZIP preserved. No generated build, tests, CI dispatch, SQL migration or deploy initiated. No Railway/Supabase changes or new paid resource requested. Billing delta not measured. Overall project estimate **18%**; runtime acceptance and random board enablement remain pending.
 - **NEXT SINGLE ACTION:** obtain scoped permission for a local Codespaces build and bounded fixture-based browser/server acceptance of these transitions (including generated JS syntax); keep random matchmaking disabled until verified. Deployment, real OAuth and schema application remain separate gates.
+
+## 2026-11-26 — ผลตรวจหลังอนุมัติ build และ 6 กรณีเฉพาะรอบนี้
+- ใช้ local Work runtime เนื่องจาก GitHub CLI ไม่มี session สำหรับ Codespaces ใช้ไฟล์จาก main และ ZIP ต้นฉบับ
+- Build ครั้งแรกหยุดเพราะ rules.js ขาดบรรทัดว่างท้ายไฟล์หนึ่งบรรทัด คืนไบต์ตาม ZIP ต้นฉบับใน commit 38155867a156877fd8d9268aa828bef82cc7c9fe แล้ว build หน้า v12 สำเร็จ ตรวจไวยากรณ์ JavaScript ที่สร้างด้วย node --check ผ่าน 3/3 บล็อก
+- ชุดทดสอบ qa/v12_mode_acceptance.py commit 5177125a1ff42dfe307b7b9bce81e8cbcbc8dcd7 ใช้ Chromium, Playwright, aiohttp และ Node สร้าง snapshot จากกติกาจริง ใช้ WebSocket/identity fixture แบบ local
+- สถานะทั้ง 6 กรณี (รอ Auth, เล่นบนเครื่อง→Free 4, ยกเลิกคิว, หลุด→กลับห้อง, กระดานผิด, จบเกม→เริ่มใหม่): BLOCKED ก่อนเข้าเคสทั้งหก Local Chromium launcher พบแต่ executable ปลายทางขาด ส่วน Cloud Browser เข้า loopback fixture ไม่ได้ (connection refused) จึงไม่มี runtime PASS หรือ FAIL ของเกม
+- ประเมินรวม 18% ไม่มีการ deploy, apply SQL, เปิดสุ่มแผนที่, เริ่ม Codespace หรือปรับ Railway/Supabase
+- งานถัดไปเดียว: รันชุดที่อนุมัติแล้วใน Codespace ที่เชื่อมต่อได้และมี Chromium/Playwright/aiohttp พร้อม จาก root: `python3 tools/prepare_railway_secure.py && python3 qa/v12_mode_acceptance.py` บันทึกผลรายกรณี ไม่ต้องขออนุมัติซ้ำในขอบเขตเดิม การเปิดใช้บริการและการทดสอบอื่นยังพักอยู่
