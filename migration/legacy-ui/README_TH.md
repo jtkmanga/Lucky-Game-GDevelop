@@ -29,3 +29,14 @@
 - ไม่เปิด VIP/PromptPay หรือระบบซื้อจริงโดยไม่มีคำสั่งใหม่
 
 **ขั้นตอนถัดไป:** รัน QA ใน Codespaces และทดสอบ browser staging แบบจำกัดความเสี่ยงก่อน Merge/Deploy; แก้ความแตกต่างเรื่องกติกา/5 maps/ไอเทมให้เท่าต้นฉบับ และทดสอบ Google 4 บัญชี
+
+
+## One-command Codespaces 4 workstreams (27 พ.ย. 2569)
+```bash
+cd /workspaces/Lucky-Game-GDevelop && git fetch origin feature/legacy-ui-railway-free4 && git switch feature/legacy-ui-railway-free4 && git pull --ff-only origin feature/legacy-ui-railway-free4 && bash scripts/lucky_4in1_codespaces.sh
+```
+- Script runs source tests, syntax, exact 5-map authoritative board and Lucky Box/timeout contracts, local Railway runtime generation, optional existing Chromium Playwright smoke on localhost, and writes UTC report/log in `qa/reports/legacy-migration/`. It only stages generated report files (not secrets or other changes) if working tree is clean and pushes that report to GitHub. No public server, external DB writes, Cloudflare calls or Deploy.
+- Real 4 distinct Google accounts, 4/4 online play, reconnect after real socket loss, end-game scores **cannot be declared PASS** by a Codespaces mock or without browser sessions and a deployed migration build; report BLOCKED until independently verified.
+- Original V99 UI source has 5 map layouts; branch `backend/railway/board-definitions.json` now matches V99 snakes/ladders/map names exactly. `multi-board-rules.cjs` uses canonical board mapping for map1–5 and `secure-server.cjs` selects random 1–5 at new room creation **on this branch only**. Existing rooms and live Staging main remain unchanged.
+- **Original items NOT complete**: win ×2 and snake-shield entitlement gameplay/parity remain open; do not remove this blocker just because Lucky Box tests pass.
+- The generated runtime is local and uses existing `tools/prepare_railway_secure.py`, then overlays this new original UI and browser JS. Do not run its start command or deploy as part of this script.
