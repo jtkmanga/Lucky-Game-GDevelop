@@ -81,6 +81,63 @@ let luckyClientPromise = fetch('/api/supabase-config',{cache:'no-store'})
    if(!config.url || !config.publishableKey)throw Error('Missing Supabase public config');
    return window.supabase.createClient(config.url,config.publishableKey);
  });
+let luckyNameUid=null;
+// A nickname is display data only. The authenticated UID controls the profile scope.
+function luckyRenderSavedName(value){
+ const name=String(value||'').trim().slice(0,20);
+ if(name.length<2)return false;
+ state.name=name;
+ $('playerName').value=name;
+ $('welcomeName').textContent=name;
+ if($('localPlayer0'))$('localPlayer0').value=name;
+ renderPlayerSlots();
+ return true;
+}
+function luckyUseNameForAccount(user){
+ if(!user){
+  if(luckyNameUid!==null){
+   luckyNameUid=null;
+   luckyRenderSavedName('Po');
+   $('playerName').value='';
+  }
+  return;
+ }
+ if(luckyNameUid===user.id)return;
+ luckyNameUid=user.id;
+ let cached='';
+ try{cached=localStorage.getItem('lucky-player-name:'+user.id)||'';}catch{}
+ const data=user.user_metadata||{};
+ const candidate=data.lucky_player_name||cached||data.full_name||data.name||
+   (user.email||'').split('@')[0];
+ if(!luckyRenderSavedName(candidate))luckyRenderSavedName('Po');
+}
+async function luckyPersistPlayerName(name){
+ const clean=String(name||'').trim().slice(0,20);
+ if(!luckyRenderSavedName(clean))return false;
+ try{
+  const client=await luckyClientPromise;
+  const {data,error}=await client.auth.getUser();
+  if(error && error.name!=='AuthSessionMissingError')throw error;
+  const user=data?.user;
+  if(user){
+   luckyNameUid=user.id;
+   try{localStorage.setItem('lucky-player-name:'+user.id,clean);}catch{}
+   const saved=await client.auth.updateUser({data:{lucky_player_name:clean}});
+   if(saved.error)throw saved.error;
+   toast('บันทึกชื่อกับบัญชี Google แล้ว');
+  }else{
+   try{localStorage.setItem('lucky-new-ui-name',clean);}catch{}
+   toast('บันทึกชื่อในเครื่องแล้ว กรุณาเข้าสู่ระบบ Google เพื่อซิงก์');
+  }
+  return true;
+ }catch{
+  if(luckyNameUid){
+   try{localStorage.setItem('lucky-player-name:'+luckyNameUid,clean);}catch{}
+  }
+  toast('เปลี่ยนชื่อในเครื่องแล้ว แต่ซิงก์ Google ไม่สำเร็จ');
+  return false;
+ }
+}
 window.luckyGetAccessToken=async ()=>{
  const client=await luckyClientPromise;
  const {data,error}=await client.auth.getSession();
@@ -129,6 +186,7 @@ function luckyMountGoogleControls(){
  parent.insertBefore(login,strip);
  parent.insertBefore(accountBar,strip);
  function show(user){
+  luckyUseNameForAccount(user);
   const signed=!!user;
   login.style.display=signed?'none':'block';
   accountBar.style.display=signed?'flex':'none';
@@ -264,6 +322,15 @@ def replace_hook(source, replacement):
     if html.count(source) != 1:
         raise RuntimeError('Expected exactly one v12 hook: ' + source[:70])
     html = html.replace(source, replacement, 1)
+
+# Replace the v12 local-only nickname handler, keeping the original name field/button.
+replace_hook("$('saveName').addEventListener('click',()=>{const name=$('playerName').value.trim(); if(name.length<2){toast('กรุณาใส่ชื่ออย่างน้อย 2 ตัวอักษร'); return;} state.name=name; try{localStorage.setItem('lucky-new-ui-name',name)}catch{} $('welcomeName').textContent=name; if($('localPlayer0'))$('localPlayer0').value=name; toast('บันทึกชื่อบนอุปกรณ์นี้แล้ว'); renderPlayerSlots();});",
+ """$('saveName').addEventListener('click',()=>{const name=$('playerName').value.trim().slice(0,20);if(name.length<2){toast('กรุณาใส่ชื่ออย่างน้อย 2 ตัวอักษร');return;}luckyPersistPlayerName(name);});""")
+# On the way into the lobby, never leave a typed but unsaved nickname as stale Po.
+replace_hook("$('enterLobby').addEventListener('click',()=>{$('welcomeName').textContent=state.name; navigate('lobby');});",
+ """$('enterLobby').addEventListener('click',()=>{const typed=$('playerName').value.trim();if(typed.length>=2&&typed!==state.name)luckyPersistPlayerName(typed);$('welcomeName').textContent=state.name;navigate('lobby');});""")
+# Retain the existing legacy local saved-name behavior for signed-out offline local play.
+# Signed-in users are restored by UID from their Google profile and per-account fallback.
 
 replace_hook("function onlineSend(message){", """let luckyConnectAttempt=0;
 let luckyAuthPending=false;
