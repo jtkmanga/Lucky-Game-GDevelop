@@ -543,3 +543,12 @@ PASS map 5: 11 server turns and SVG endpoints
 - **Not applied:** no new role/password/SQL policy, no Railway service/config/deploy, no Google OAuth changes, no Codespaces work or tests. No provider cost measured; no new billable resource created. UI v12 unchanged.
 - **Progress remains 22% estimated**. Verified exclusion strengthens the security preflight but does not prove live server DB/Auth integration.
 - **NEXT SINGLE ACTION:** source-review concrete role-specific SQL GRANT + RLS migration and rollback/forward-fix plan against the eight installed tables; request scoped permission before applying anything to Supabase.
+
+
+## 2026-11-26 (Asia/Bangkok) — SQL 004 limited Railway runtime access drafted, NOT APPLIED
+- Resumed next eligible source-only task after previous Data API exclusion confirmation. Inspected installed 001–003 migration SQL, actual `game` PostgreSQL ownership/RLS catalog via **SELECT-only** Supabase connector, and current selected `game-store.cjs` / `room-lease-store.cjs` SQL operations.
+- Live catalog reports all eight game tables owned by `postgres` and RLS=true (FORCE RLS=false). The dedicated runtime role must remain a **non-owner**, non-BYPASSRLS identity and use explicit policies.
+- Created **UNAPPLIED DRAFT** `backend/supabase/004_railway_runtime_access_PROPOSAL.sql`, commit `ea911073650316ba7c514ca5f1f7ce4ae58bbe18`: new NOLOGIN `lucky_game_runtime` role, schema USAGE, narrowly scoped per-table DML, 11 role-scoped policies; no `anon` / `authenticated` grants; excludes Admin/order/archive tables; no credentials or login yet.
+- Created review / rollback gate `backend/supabase/MIGRATION_004_RUNTIME_ROLE_REVIEW_TH.md`, commit `f06485b266cb3ec008cf20c8f4765025f8fc4a73`. Warns that policies permitting server role access do **not** authorize untrusted browser users; later LOGIN membership, Railway secrets and runtime verification each require separately scoped approval.
+- **No DDL executed**, no role created, no SQL applied, no test, no Railway/Supabase configuration mutation, Codespaces, Deploy, UI v12 change, new service or charge. Project estimate **22%** remains unchanged; SQL is source-only, not a successful migration.
+- **NEXT SINGLE ACTION:** seek explicit scope approval for installing migration 004 in the existing Supabase project after reviewing its role/RLS effects; do not create a Railway login/service or deploy as part of that approval.
