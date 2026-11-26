@@ -394,3 +394,12 @@ PASS map 5: 11 server turns and SVG endpoints
 - ไม่มี Codespace start, CI/Actions, SQL, migration, Railway deployment, Supabase mutation, service creation, random board activation หรือทรัพยากรจ่ายเงินใหม่; เครดิต/ค่าใช้จ่ายผู้ให้บริการไม่ได้วัด รอบนี้ทำ source-only + in-process harness
 - ความคืบหน้ารวมยังประเมิน **20%** ตามวิธีเดิม ไม่เพิ่มจาก harness แทน integration acceptance
 - **NEXT SINGLE ACTION:** ใช้ Codespaces เดิมที่เข้าถึง Terminal ได้เพื่อรัน `node --test qa/room-board-reconnect-contract.test.cjs` เฉพาะ suite นี้ และเพิ่ม/รัน local WebSocket fixture สำหรับการส่ง `verifiedRoomSnapshot` (legacy map 1 และ bad checkpoint) ภายในขอบเขตที่ได้รับอนุญาตแล้ว; หากการใช้ Codespace อาจมีค่าใช้จ่ายใหม่ ให้ตรวจ/ขออนุมัติค่าคอมพิวต์ก่อนเปิดเครื่อง ไม่ Deploy
+
+
+## 2026-11-26 — Follow-up: targeted source-contract recovery guards; Node/WS still pending
+- User approved continuation of the previously scoped reconnect QA. Inspected current GitHub main QA and secure-server sources; connector tools here do not expose Codespaces terminal, and the local container cannot fetch the private repo directly. No extra paid GitHub Actions or Railway service was started to work around that.
+- Added two **source-only** regression checks in `qa/railway-board-sync-source-contract.test.cjs`: verify `verifiedRoomSnapshot` supplies canonical map-one board without changing persisted `room.game`/calling store, and check both room multicast/UID resume paths call the validator and halt on bad board. Commit `76e23b0ab56571889adce351535507eb69d8e2fa`.
+- Both new source-contract checks reported **2/2** in a standalone V8 evaluation using fetched server text. This is NOT the `node --test` runner, and not live server, WSS, Supabase Auth, DB, or browser verification. Previous 9/9 V8 compatibility checks remain separate; 6/6 and 33/33 legacy scope not rerun.
+- **NOT RUN:** Codespaces Node runner, real WebSocket fixture, CI, browser or service tests. **NOT CHANGED:** UI v12, Railway, Supabase, SQL migrations, staging, production, random matchmaking, paid resources. Measured vendor credit delta unknown.
+- Overall estimate remains **20%** under existing method.
+- **NEXT SINGLE ACTION:** run only `node --test qa/room-board-reconnect-contract.test.cjs qa/railway-board-sync-source-contract.test.cjs` in the authorized existing Codespace when terminal access and compute-cost authorization are available. Then add bounded actual WebSocket fixture specifically for map-one legacy snapshot and corrupt board; no Deploy or unrelated retesting.
