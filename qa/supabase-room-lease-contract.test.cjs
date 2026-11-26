@@ -22,7 +22,8 @@ function award(kind='win'){
 }
 function args(extra={}){
  return {roomId:ROOM,ownerId:OWNER,leaseEpoch:1,expectedRevision:0,
-  game:{over:true,current:0,players:[]},deadlineMs:null,awards:[award()],...extra};
+  game:{over:true,current:0,players:[]},deadlineMs:null,awards:[award()],
+  receipt:{type:'roll',actorIndex:0,dice:4,outcome:{}},...extra};
 }
 function mockPg({claim=true,failAt=null,duplicate=false}={}){
  const calls=[];
@@ -39,6 +40,8 @@ function mockPg({claim=true,failAt=null,duplicate=false}={}){
    pendingVersion++;
    return {rowCount:1,rows:[{revision:pendingVersion,mode,seats:[{uid:PLAYER}]}]};
   }
+  if(q.includes('INSERT INTO game.turn_receipts'))
+   return {rowCount:1,rows:[{revision:pendingVersion}]};
   if(q.includes('INSERT INTO game.score_events')){
    if(duplicate)return {rowCount:0,rows:[]};
    pendingPoints+=Number(params[5]);
