@@ -132,18 +132,31 @@ function schedule(room){
  if(room.game.over){room.deadline=null;return;}
  const revision=room.revision, delay=Math.max(0,room.deadline-Date.now());
  room.timer=setTimeout(()=>{
-  if(room.revision!==revision||room.game.over)return;
+  if(room.revision!==revision||room.game.over||room.halted)return;
+  if(room.busy){
+   // A previous roll is still committing. Don't discard the deadline forever:
+   // the successful commit will reschedule; while busy, retry this revision.
+   room.timer=setTimeout(()=>schedule(room),100);
+   room.timer.unref?.();
+   return;
+  }
   advance(room,null).catch(err=>console.error('Timeout transition failed',err.code||err.message));
  },delay+1);
  room.timer.unref?.();
 }
 async function advance(room,roll){
- if(room.busy||room.game.over)return;
+ if(room.busy||room.game.over||room.halted)return;
  room.busy=true;
  try{
   const now=Date.now();
   if(roll===null && now<room.deadline)return;
-  if(roll!==null && now>=room.deadline)return;
+  if(roll!==null && now>=room.deadline){
+   // A late roll must not consume the turn. Explicitly trigger the timeout
+   // instead of relying on a timer that may have fired while a turn was busy.
+   if(!room.halted)setImmediate(()=>advance(room,null).catch(
+     e=>console.error('Late-roll timeout failed',e.code||e.message)));
+   return;
+  }
   const old=room.game;
   const next=structuredClone(old);
   const actor=next.current;
@@ -214,6 +227,7 @@ async function handle(ws,msg){
    // No unverified bearer-token resume; the verified UID owns this seat.
    const last=existing.ws;
    if(last&&last!==ws){last.session=null;last.close(4000,'duplicate session');}
+   if(ws.readyState!==WebSocket.OPEN)return;
    existing.ws=ws;ws.session=existing;
    const room=rooms.get(existing.roomId);
    if(room){
@@ -232,6 +246,9 @@ async function handle(ws,msg){
   const name=String(msg.name||'Player').trim().slice(0,20)||'Player';
   const avatar=typeof msg.avatar==='string' && msg.avatar.length<=12?msg.avatar:'🐱';
   await store.player(uid,name);
+  // The socket may close while the database operation is pending. Never leave
+  // a ghost player in matchmaking or a stale active-session registry.
+  if(ws.readyState!==WebSocket.OPEN)return;
   const session={uid,mode,name,avatar,ws,roomId:null,index:null};
   ws.session=session;sessions.set(uid,session);
   waiting[mode].push(session);
