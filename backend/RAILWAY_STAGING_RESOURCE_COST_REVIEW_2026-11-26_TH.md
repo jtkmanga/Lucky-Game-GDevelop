@@ -45,3 +45,12 @@
 **NEXT SINGLE ACTION:** verify authenticated workspace **Plan / Usage / Credits / Cost Control** and decide an explicit staging cost ceiling before service creation. If inaccessible via connector, owner may inspect dashboard; do not invent account-specific prices.
 
 **No spending or provider mutation in this review.** Project completion remains **22% estimated**.
+
+
+## 2026-11-26 20:28 Asia/Bangkok — Owner Railway Usage screenshot, measured zero usage
+- Authenticated Railway workspace `JTK Manga's Projects` screenshot shows Usage interval **Nov 25–Nov 27**, `Current Usage $0.00`, `Discounts $0.00`, `Credits Used $0.00`, `Estimated Month's Cost $0.00`, `Credits Available $5.00`, `Est Credits Required $0.00`, and **No project usage this month**.
+- Trial Plan text reports **one-time $5.00 credit**, **1 GB RAM, 2 vCPU, 1 GB disk**, and top banner **"30 days or $5.00 left"**. Previous Billing screenshot: no payment method, no billing history.
+- This confirms *dashboard-reported workspace credit/usage at screenshot time*. It does not establish real future burn rate, a configurable spending cap or application readiness. No running service; Railway connector inventory still has 0 services/deployments as previously checked.
+- **Conservative proposed staging envelope**, not yet authorized: one service, one replica, no additional PostgreSQL/database/volume, no payments or production, keep total Trial consumption bounded by available credit and a short manually monitored session. A hard cap below $5 is **not verified**; require explicit owner's acceptable credit spend and duration, confirm supported resource limits and cleanup behavior before provisioning. Stay under Trial plan's stated limits, but do not claim specific $/hour without measured resources and pricing.
+- **Unresolved deployment gate:** trusted Node `pg` CA/verify-full TLS wiring, private `DATABASE_URL` injection and Auth/OAuth runtime prerequisites; test source readiness before spending credit. Owner's prior DB `INSERT→UPDATE→ROLLBACK` PASS remains valid, not full Railway runtime verification.
+- No Railway change, plan upgrade, credit consumption by a new deployment, Codespace action or UI v12 modification in this checkpoint. **NEXT:** review source-only server TLS/readiness wiring and prepare a service creation/deployment approval proposal with a specific maximum spend and time limit; no deploy automatically.
