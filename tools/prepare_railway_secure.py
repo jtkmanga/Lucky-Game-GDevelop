@@ -113,7 +113,7 @@ function luckyMountGoogleControls(){
  if(!parent)return;
  const accountBar=document.createElement('div');
  accountBar.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;background:#fff;border:1px solid #e8ddc9;border-radius:12px;box-shadow:0 3px 0 rgba(122,90,60,.12);padding:9px 12px;margin:8px 0;min-width:0';
- accountBar.hidden=true;
+ accountBar.style.display='none';
  const identity=document.createElement('span');
  identity.style.cssText='min-width:0;overflow-wrap:anywhere;font-weight:700;color:#4c3a2e';
  accountBar.appendChild(identity);
@@ -130,8 +130,8 @@ function luckyMountGoogleControls(){
  parent.insertBefore(accountBar,strip);
  function show(user){
   const signed=!!user;
-  login.hidden=signed;
-  accountBar.hidden=!signed;
+  login.style.display=signed?'none':'block';
+  accountBar.style.display=signed?'flex':'none';
   if(signed){
    identity.textContent='✅ '+(user.email||user.user_metadata?.full_name||'บัญชี Google');
    leaf.textContent='✅ เข้าสู่ระบบ Google สำเร็จ';
