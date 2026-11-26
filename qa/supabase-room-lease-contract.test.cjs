@@ -140,3 +140,21 @@ test('turn receipt cannot refer to a seat outside the persisted room',async()=>{
  })),/Turn receipt actor index exceeds room seat count/);
  assert.deepEqual(db.state(),{roomVersion:0,points:0});
 });
+
+
+test('receipt INSERT failure rolls back room revision AND prepared winner points',async()=>{
+ const db=mockPg({failAt:'INSERT INTO game.turn_receipts'});
+ await assert.rejects(db.store.commitFencedTurn(args()),/SIMULATED_SQL_FAILURE/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+ const commands=db.calls.map(x=>x.sql);
+ assert(commands.some(q=>q.includes('UPDATE game.rooms')&&q.includes('RETURNING revision,mode,seats')));
+ assert(commands.some(q=>q.includes('INSERT INTO game.score_events')));
+ assert(commands.some(q=>q.includes('INSERT INTO game.turn_receipts')));
+ assert(commands.includes('ROLLBACK'));
+ assert.equal(commands.includes('COMMIT'),false);
+});
+test('receipt revision conflict rolls back the whole room and award transaction',async()=>{
+ const db=mockPg({failAt:'INSERT INTO game.turn_receipts'});
+ await assert.rejects(db.store.commitFencedTurn(args()),/SIMULATED_SQL_FAILURE/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+});
