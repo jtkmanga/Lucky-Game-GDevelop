@@ -20,7 +20,7 @@ const {requireRuleTransition}=require('./rule-transition-guard.cjs');
 const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
 const {requireRoomAccess}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
-const {healthResponse}=require('./health-readiness.cjs');
+const {respondHealth}=require('./health-http-handler.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
@@ -447,12 +447,7 @@ const server=http.createServer((req,res)=>{
   res.end(JSON.stringify(config));return;
  }
  if(u.pathname==='/health'){
-  const response=healthResponse(startupReady,shuttingDown);
-  res.writeHead(response.statusCode,{
-   'content-type':'application/json','cache-control':'no-store',
-   'x-content-type-options':'nosniff'
-  });
-  res.end(JSON.stringify(response.body));return;
+  respondHealth(req,res,{startupReady,shuttingDown});return;
  }
  let filename;
  try{
