@@ -20,6 +20,14 @@ function gameBoard(game){
  }else if(id!==1)throw Error('MISSING_BOARD_CHECKPOINT');
  return canonical;
 }
+function assertRoomBoard(game){
+ const board=gameBoard(game);
+ if(!Number.isSafeInteger(game.gift)||
+    !eligibleGiftTiles(board).includes(game.gift)||
+    typeof game.giftUsed!=='boolean')
+  throw Error('INVALID_ROOM_GIFT_FOR_BOARD');
+ return board;
+}
 function randomChoice(max,rng){
  const v=rng();
  if(typeof v!=='number'||!Number.isFinite(v)||v<0||v>=1)
@@ -38,7 +46,7 @@ function create(names,mode='free',rng=Math.random,boardId=1){
  return game;
 }
 function turn(game,roll,rng=Math.random){
- const board=gameBoard(game);
+ const board=assertRoomBoard(game);
  if(game.over)throw Error('game over');
  if(!Number.isInteger(roll)||roll<1||roll>6)throw Error('invalid dice');
  // Map 1 must retain the original engine semantics and event strings.
@@ -68,5 +76,5 @@ function turn(game,roll,rng=Math.random){
  if(!game.over){game.current=(game.current+1)%game.players.length;game.turn++;}
  return {type,from,landing,position:p.pos,reward,events,gameOver:game.over};
 }
-function timeout(game){gameBoard(game);return Legacy.timeout(game);}
-module.exports={create,turn,timeout,selectRandomBoard,gameBoard};
+function timeout(game){assertRoomBoard(game);return Legacy.timeout(game);}
+module.exports={create,turn,timeout,selectRandomBoard,gameBoard,assertRoomBoard};
