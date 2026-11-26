@@ -477,3 +477,11 @@ PASS map 5: 11 server turns and SVG endpoints
 - Terminal: tests 2, pass 2, fail 0, cancelled 0, skipped 0, todo 0, duration_ms 265.600837, FIXTURE_EXIT=0. ใช้ตัวรับข้อความของเกมจริงบน loopback กับ identity/store จำลอง ขอบเขตยังไม่รวม Google OAuth จริง, PostgreSQL จริง หรือการกู้หลัง process restart ด้วยฐานข้อมูลจริง
 - GitHub ยืนยันว่า Codespace stopped หลังจบทดสอบ ไม่ได้วัดค่า Compute รายรอบ ไม่ได้เปลี่ยน UI, Deploy หรือแก้ Railway/Supabase
 - ความคืบหน้ารวมยังประมาณ 20% ตามวิธีประเมินเดิม งานถัดไป: ตรวจความพร้อม Supabase แบบอ่านอย่างเดียว เทียบ schema และการตั้งค่า Auth ที่ตรวจได้กับข้อกำหนดการกู้ห้องจาก PostgreSQL จริง ก่อนเสนอขอบเขต staging
+
+## 2026-11-26 — ตรวจ Supabase จริงแบบอ่านอย่างเดียว ก่อนทดสอบกู้ห้อง
+- Lucky-Game / llbkxnazkliskzcureec, Singapore, ACTIVE_HEALTHY, PostgreSQL 17.12.0.002 ข้อมูลสถานะจาก get_project
+- ตรวจเฉพาะ catalog: game_schema=false, auth_users=true, rooms=false, receipts=false รายการตารางใน public/game ว่าง และ list_migrations คืน [] ไม่อ่านข้อมูลผู้ใช้หรือค่า secret
+- เทียบกับ backend/supabase/game-store.cjs: health ต้องพบ players, vip_entitlements, rooms, score_events และ turn_receipts; เส้นทางกู้ต้องอ่าน seats/game_state และตรวจ lease_owner/lease_epoch/lease_until ปัจจุบัน schema ยังไม่พร้อมให้ตัวรับ WebSocket เปิดทำงานกับ Postgres จริง
+- Supabase connector ไม่มีคำสั่งอ่าน Auth provider config; หน้า Dashboard ของ provider แสดงหน้าลงชื่อเข้าใช้ สถานะเปิด/ปิด Google และ redirect allowlist จึงยังไม่ยืนยัน การมี auth.users เพียงอย่างเดียวไม่ยืนยันการตั้งค่า OAuth
+- ไม่มีการ apply SQL, เปิด Codespace, Deploy, เรียก Google OAuth หรือรันทดสอบซ้ำ การเปลี่ยนแปลงในรอบนี้จำกัดที่เอกสาร GitHub ผล local reconnect 2/2 ยังใช้ตามขอบเขตเดิม ประเมินรวม 20%
+- งานถัดไป: ทบทวน SQL 001_game_private_schema.sql, 002_room_lease_draft.sql และ 003_turn_receipts_draft.sql รวมสิทธิ์ของ runtime role, RLS และทางย้อนกลับ เพื่อเสนอให้อนุมัติการติดตั้งเฉพาะฐาน staging ก่อน apply จริง แยกการตั้งค่า Google และ Railway deployment ออกจากการอนุมัติ SQL
