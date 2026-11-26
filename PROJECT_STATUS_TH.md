@@ -875,3 +875,15 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - Created `backend/RAILWAY_INJECTED_STARTUP_PREFLIGHT_2026-11-26_TH.md` commit `f5546907232066b006d7e0c205d22a9815c9326a` with one authorized-only Codespaces offline command, acceptance and limitations.
 - **NOT RUN:** new 5-case test or post-change generator/syntax; no full game server, Supabase calls/DB mutation, Google OAuth/WS activity, Railway resource/service/deploy, public port or new credits consumed. No UI v12 visuals modified. Estimated overall progress **22%** unchanged.
 - **NEXT SINGLE ACTION:** request precise owner approval for one offline injected-startup 5-case test in existing Codespaces, then owner runs once and shares actual 5/5 and HEAD evidence. Avoid implying passing prior HTTP tests proves actual server boot.
+
+
+## 2026-11-26 20:55 Asia/Bangkok — Owner approval for injected startup offline 5-case test; awaiting existing Codespaces run
+- Owner explicitly approved **one** local-only test of `qa/railway-startup-injected.test.cjs` (5 cases), Railway draft runtime generation, generated module presence and Node syntax checks **only** in the existing Codespace. No actual game server, HTTP listener, TCP binding, Supabase connection/lease write, Railway service/deploy, UI v12 change or new spend.
+- Reviewed exact `main` test and `backend/railway/startup-lifecycle.cjs` source: fake `EventEmitter` listener (does not bind a socket), injected health/recovery, cases for successful ordering, DB health failure, recovery failure, listen error and stop during startup. No connected GitHub action provides a Codespaces terminal; the assistant cannot run this remotely.
+- **PENDING — NOT RUN / NOT PASS**. Existing earlier 3/3 loopback HTTP, 4/4 pure health and Node pg SQL TLS results remain PASS; don't repeat.
+- Exact single command owner can run:
+```bash
+cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --test qa/railway-startup-injected.test.cjs && python3 tools/prepare_railway_secure.py && test -f railway-runtime/backend/railway/startup-lifecycle.cjs && node --check railway-runtime/backend/railway/startup-lifecycle.cjs && node --check railway-runtime/backend/railway/secure-server.cjs && git rev-parse HEAD && echo RAILWAY_STARTUP_INJECTED_OFFLINE_PASS
+```
+- Stop on any failure and share sanitized terminal output. Do not interpret generator success or pure injection tests as full app process or Railway deployment. Project progress remains **22% estimated**.
+- **NEXT SINGLE ACTION:** collect actual Codespaces 5/5 results and tested SHA, then record pass/fail on GitHub before proceeding.
