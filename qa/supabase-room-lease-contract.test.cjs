@@ -161,3 +161,30 @@ test('receipt revision conflict rolls back the whole room and award transaction'
  assert(db.calls.some(x=>x.sql==='ROLLBACK'));
  assert.equal(db.calls.some(x=>x.sql==='COMMIT'),false);
 });
+
+
+test('Lucky Box receipt must match trusted awarded points',async()=>{
+ const db=mockPg();
+ await assert.rejects(db.store.commitFencedTurn(args({
+  game:{over:false,current:0,players:[]},
+  deadlineMs:Date.now()+20000,
+  awards:[award('lucky_box')],
+  receipt:{type:'roll',actorIndex:0,dice:3,outcome:{reward:5}}
+ })),/Lucky Box reward and receipt mismatch/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+});
+test('roll without Lucky Box must not claim one in receipt',async()=>{
+ const db=mockPg();
+ await assert.rejects(db.store.commitFencedTurn(args({
+  receipt:{type:'roll',actorIndex:0,dice:4,outcome:{reward:3}}
+ })),/Lucky Box reward and receipt mismatch/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+});
+test('timeout must not store a roll outcome',async()=>{
+ const db=mockPg();
+ await assert.rejects(db.store.commitFencedTurn(args({
+  game:{over:false,current:1,players:[]},deadlineMs:Date.now()+20000,
+  awards:[],receipt:{type:'timeout',actorIndex:0,dice:null,outcome:{reward:0}}
+ })),/Timeout receipt must not contain roll outcome/);
+ assert.deepEqual(db.state(),{roomVersion:0,points:0});
+});
