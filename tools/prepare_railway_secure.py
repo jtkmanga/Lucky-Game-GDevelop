@@ -101,7 +101,7 @@ if catalog.get('version')!=1 or [b.get('id') for b in catalog['boards']]!=[1,2,3
     raise RuntimeError('Invalid versioned board catalog')
 # Inject the SAME source definitions used by Node into the generated client.
 board_helper='const luckyKnownBoards='+json.dumps(
- catalog,ensure_ascii=False,separators=(',',':'))+';\\n'
+ catalog,ensure_ascii=False,separators=(',',':'))+';'+chr(10)
 board_helper+="""function luckyBoardLayout(game){
  const catalog=luckyKnownBoards;
  const id=game?.map??1;
