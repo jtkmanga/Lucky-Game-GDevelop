@@ -5,7 +5,7 @@
  * Does not generate dice, alter state, award points, or authorize recovery.
  * Does not replace approved real integration tests.
  */
-const Rules=require('./rules.js');
+const {gameBoard}=require('./multi-board-rules.cjs');
 function requireRuleTransition(before,after,receipt,awards){
  function fail(reason){throw Error('RULE_TRANSITION_MISMATCH:'+reason);}
  if(!before||!after||!receipt||!Array.isArray(before.players)||
@@ -25,6 +25,10 @@ function requireRuleTransition(before,after,receipt,awards){
  });
  if(!sameNonActor)fail('OTHER_PLAYER_MUTATED');
  if(receipt.type==='timeout'){
+  try{
+   if(gameBoard(before).id!==gameBoard(after).id)
+    fail('BOARD_CHANGED_DURING_TURN');
+  }catch(error){fail('INVALID_BOARD_CHECKPOINT');}
   if(receipt.dice!==null||Object.keys(receipt.outcome||{}).length||
      awards.length||after.over||after.winner!==before.winner||
      after.giftUsed!==before.giftUsed||
@@ -43,12 +47,20 @@ function requireRuleTransition(before,after,receipt,awards){
     !['normal','snake','ladder','win'].includes(o.type)||
     !Array.isArray(o.events)||o.events.some(e=>typeof e!=='string'))
   fail('INVALID_ROLL_OUTCOME');
+ // Validate the persisted room map, not global original ZIP constants.
+ // Board changes across turns must fail before any PostgreSQL write.
+ let board;
+ try{
+  board=gameBoard(before);
+  const nextBoard=gameBoard(after);
+  if(board.id!==nextBoard.id)fail('BOARD_CHANGED_DURING_TURN');
+ }catch(error){fail('INVALID_BOARD_CHECKPOINT');}
  const win=o.landing>=100;
  const predicted=win?{type:'win',position:100}:
-   Object.hasOwn(Rules.SNAKES,o.landing)?
-    {type:'snake',position:Rules.SNAKES[o.landing]}:
-   Object.hasOwn(Rules.LADDERS,o.landing)?
-    {type:'ladder',position:Rules.LADDERS[o.landing]}:
+   Object.hasOwn(board.snakes,o.landing)?
+    {type:'snake',position:board.snakes[o.landing]}:
+   Object.hasOwn(board.ladders,o.landing)?
+    {type:'ladder',position:board.ladders[o.landing]}:
     {type:'normal',position:o.landing};
  if(o.type!==predicted.type||o.position!==predicted.position)
   fail('BOARD_MOVE_INCONSISTENT');
