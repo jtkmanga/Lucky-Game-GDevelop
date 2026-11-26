@@ -171,7 +171,7 @@ function haltRoom(room,reason){
 // state, release or reacquire a lease, reschedule, or broadcast a guessed turn.
 async function inspectAmbiguousCommit(room,expectedRevision,expectedGame,awards){
  try{
-  const evidence=await store.readRoomAndAwards(room.id);
+  const evidence=await store.readRoomAndAwards(room.id,expectedRevision);
   const assessment=classifyRoomReconciliation({
    ...evidence,expectedRevision,expectedGame,awards,
    ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch
