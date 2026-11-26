@@ -27,6 +27,15 @@ const TURN_MS=20000;
 const waiting={free:[],vip:[]}, rooms=new Map(), sessions=new Map();
 const clients=new Set(), dispatchBusy={free:false,vip:false};
 const restoreTasks=new Map(); // single-process de-duplication, not cross-replica coordination
+const uidJoinLocks=new Map(); // serialize joins for one verified account in this process
+async function withUidJoinLock(uid,task){
+ const prior=uidJoinLocks.get(uid)||Promise.resolve();
+ const current=prior.catch(()=>{}).then(task);
+ const barrier=current.catch(()=>{});
+ uidJoinLocks.set(uid,barrier);
+ try{return await current;}
+ finally{if(uidJoinLocks.get(uid)===barrier)uidJoinLocks.delete(uid);}
+}
 async function restoreRoom(roomId){
  if(rooms.has(roomId))return rooms.get(roomId);
  if(restoreTasks.has(roomId))return restoreTasks.get(roomId);
@@ -54,7 +63,7 @@ async function restoreRoom(roomId){
   });
   const room={id:roomId,mode:row.mode,seats:members,game:row.game_state,
     deadline:Number(row.deadline_ms),revision:Number(row.revision),
-    timer:null,busy:false};
+    timer:null,busy:false,halted:false};
   members.forEach((member,i)=>{
     member.roomId=roomId;member.index=i;sessions.set(member.uid,member);
   });
@@ -108,7 +117,7 @@ async function dispatch(mode){
     for(const s of seats){send(s.ws,{type:'error',message:'สร้างห้องไม่สำเร็จ'});q.push(s);}
     break;
    }
-   const room={id,mode,seats,game,deadline,revision:0,timer:null,busy:false};
+   const room={id,mode,seats,game,deadline,revision:0,timer:null,busy:false,halted:false};
    rooms.set(id,room);
    for(const s of seats)s.roomId=id;
    schedule(room);
@@ -119,6 +128,7 @@ async function dispatch(mode){
 }
 function schedule(room){
  if(room.timer)clearTimeout(room.timer);
+ if(room.halted)return;
  if(room.game.over){room.deadline=null;return;}
  const revision=room.revision, delay=Math.max(0,room.deadline-Date.now());
  room.timer=setTimeout(()=>{
@@ -166,6 +176,7 @@ async function advance(room,roll){
  }catch(e){
   console.error('Turn commit failed',e.code||e.message);
   // Fail closed: do not broadcast an unpersisted turn.
+  room.halted=true; // fail closed: never continue from an unverified DB revision
   if(room.timer)clearTimeout(room.timer);
   for(const s of room.seats)send(s.ws,{type:'error',message:'บันทึกสถานะห้องไม่สำเร็จ'});
  }finally{room.busy=false;}
@@ -180,7 +191,11 @@ async function handle(ws,msg){
   const auth=await requirePlayerIdentity(msg);
   await requireRoomAccess(auth,mode,store);
   const uid=auth.uid;
-  let existing=sessions.get(uid);
+  // Different sockets for the SAME verified UID may authenticate concurrently.
+  // Serialize all seat registration and takeover changes for this UID.
+  await withUidJoinLock(uid,async()=>{
+   if(ws.readyState!==WebSocket.OPEN)return;
+   let existing=sessions.get(uid);
   // On process restart, locate the unfinished verified UID seat in PostgreSQL.
   // The same-process cache remains the fast path. No guest bearer-token resume.
   if(!existing){
@@ -202,6 +217,7 @@ async function handle(ws,msg){
    existing.ws=ws;ws.session=existing;
    const room=rooms.get(existing.roomId);
    if(room){
+     if(room.halted)return send(ws,{type:'error',message:'ห้องถูกพักเพราะข้อมูลไม่ตรงกัน'});
      send(ws,{type:'state',roomId:room.id,seat:existing.index,
        game:room.game,deadline:room.deadline,event:{type:'resume'}});
    }else if(!existing.roomId){
@@ -220,6 +236,7 @@ async function handle(ws,msg){
   ws.session=session;sessions.set(uid,session);
   waiting[mode].push(session);
   await dispatch(mode);
+  }); // UID lock held through DB lookup, seat recovery and queue registration
   return;
  }
  const s=ws.session;
@@ -230,7 +247,7 @@ async function handle(ws,msg){
  }
  if(msg.type==='roll'){
   const room=rooms.get(s.roomId);
-  if(!room||room.game.over)return send(ws,{type:'error',message:'ห้องไม่พร้อม'});
+  if(!room||room.game.over||room.halted)return send(ws,{type:'error',message:'ห้องไม่พร้อม'});
   if(room.game.current!==s.index)return send(ws,{type:'error',message:'ยังไม่ถึงตา'});
   if(Date.now()>=room.deadline)return send(ws,{type:'error',message:'หมดเวลา'});
   await advance(room,crypto.randomInt(1,7));
