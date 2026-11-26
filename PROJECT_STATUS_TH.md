@@ -1196,3 +1196,10 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - เริ่มงานถัดไป: รัน baseline ที่เกี่ยวกับ guard/receipt ที่ `main` `20a0a76a1bebcf63e41e23a0b081d7848672aaf4`: `node --test qa/rule-transition-receipt.test.cjs` **9 PASS / 0 FAIL**. แยกจากผล item kernel; ไม่ยืนยันทั้ง flow จาก Google, DB จริง, browser หรือ Staging
 - ไม่ Deploy, ไม่ merge, ไม่ใช้ Codespace/Actions, ไม่แก้ service/DB และไม่เปิดจ่ายเงินจริง. เก็บ feature branch ไว้โดยยังไม่เปิด PR เพราะยังยืนยันไม่ได้ว่า Railway PR environments ปิดอยู่. การทำงาน CLI ของ Codex ใน session นี้ติด filesystem/sandbox initialization; ใช้ coding worker ใน Cloud สำหรับ candidate และตรวจ diff/หลักฐานก่อนบันทึก
 - **NEXT SINGLE ACTION:** ทำ fixture ใน process แยกเพื่อเชื่อมกติกา map 1/2–5, transition guard, fenced award และ receipt พร้อมตรวจ replay/timeout โดยไม่เปิดสิทธิ์ runtime; ใช้ baseline 9/9 เป็นเกณฑ์เดิม ไม่อ้างว่า E2E ผ่าน
+
+## 2026-11-27 (Asia/Bangkok) — เปลี่ยนจากรอบรายวันเป็นงานคู่ขนานตามผลส่งกลับ
+- เจ้าของยกเลิกงานตามกำหนด 10:00 น. เท่านั้น ตรวจยืนยันว่า disabled แล้ว ไม่ยกเลิกหรือย้อนงานพัฒนา และไม่ตั้งงานตามเวลาใหม่; D14 และกติกาห้าม Deploy/ค่าใช้จ่าย/merge ที่อาจ Auto Deploy ยังมีผลเต็ม
+- กลับมาจาก checkpoint `dc033823c9ab9fd1d4f8dfa3d22858794be419d3` และ feature SHA `8e22e5da1f4be5b37d268d7a91d3c6354c3be856`; ผลเดิม item kernel 5/5 และ receipt baseline 9/9 คงเดิม ยังไม่มีผลรันใหม่ที่ยืนยัน ณ checkpoint การมอบหมายนี้
+- งานวิเคราะห์คุณภาพ Staging และ Go/No-Go กับงานโค้ด fixture โล่ ×2 และ turn receipt แยกเป็นงาน Cloud ที่เริ่มจริงและมีการ์ดในแชต งานแรกอ่านอย่างเดียว งานหลังรับผิดชอบเฉพาะ fixture/helper ที่ไม่ถูกโหลดในเกมจริง; Dot ตรวจ diff/หลักฐานและถือสิทธิ์เขียนสถานะ จึงไม่แก้ไฟล์ชนกัน
+- งาน fixture ที่สร้างผ่าน Dot บน Cloud ไม่เท่ากับงานบนหน้า Codex Cloud ที่ยืนยันแยกได้; ทาง CLI ตรวจรายการงาน Codex Cloud ไม่สำเร็จเพราะการยืนยันตัวตน (401) ขณะที่หน้าเว็บ Codex Cloud ส่งไปหน้าเข้าสู่ระบบ ไม่มีหลักฐานว่าโควตาหมด และไม่ได้สร้างงานซ้ำผ่านหน้าเว็บ
+- **NEXT:** ตรวจผลที่ทั้งสองงานส่งกลับทันทีเมื่อมีผล ตรวจไฟล์และคำสั่งเทสต์จริงก่อน commit ในสาขาแยก; ไม่อ้างว่าผ่าน Staging E2E จาก fixture
