@@ -814,3 +814,15 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - Created `qa/railway-health-readiness.test.cjs` with **4 proposed pure offline cases** for starting 503, ready 200, stopping 503, and not-ready/stopping 503; commit `f7b3b3cbf34f59473a9686c76e3e4834bbe66e10`. Authored scope and one-shot existing Codespaces command in `backend/RAILWAY_HEALTH_OFFLINE_ACCEPTANCE_2026-11-26_TH.md` commit `0faff54997a60d1c631f0a80297274b224f5a344`.
 - **NOT RUN:** new Node pure test, regenerated build after these changes, syntax check, live server startup/health, lease recovery, Supabase writes, browser/OAuth/WS, Railway deploy or production. No provider/environment mutations or UI v12 changes. Progress **22% estimated** unchanged. No new Railway resource/credit consumption.
 - **NEXT SINGLE ACTION:** obtain scope-limited owner approval for **offline** health helper 4 tests + generated runtime and syntax checks from existing Codespaces. Do NOT start real server or connect DB under that authorization; separately design/approve live startup due to lease-claim writes.
+
+
+## 2026-11-26 20:46 Asia/Bangkok — Owner APPROVED Railway Health OFFLINE 4-case test; awaiting Codespaces execution
+- Owner explicitly authorized one **existing Codespaces-only** run of four `qa/railway-health-readiness.test.cjs` pure local cases, Python Railway runtime generation and syntax checks, without starting a real HTTP/WebSocket server, connecting Supabase, deploying, creating Railway services or costs, or changing locked UI v12.
+- Verified current `main` sources before providing command: `qa/railway-health-readiness.test.cjs` file blob `7ce3cbfe447436ec7cb95f923fc45da4df7bc3c3`, pure `backend/railway/health-readiness.cjs` blob `08510973ac7cc3ededec3061a9729ef3e4b6da4b`, and generator `tools/prepare_railway_secure.py` blob `2d42067d01f66d8c772e91671a7333c461213a28` includes health helper copy. No test or system modification performed by assistant.
+- GitHub connector cannot execute an existing Codespaces Terminal command. **RUN PENDING**; cannot claim test success without real output. Owner's prior Node pg read-only live TLS/auth PASS is reused, not rerun.
+- Authorized one-shot shell command:
+```bash
+cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --test qa/railway-health-readiness.test.cjs && python3 tools/prepare_railway_secure.py && test -f railway-runtime/backend/railway/health-readiness.cjs && node --check railway-runtime/backend/railway/health-readiness.cjs && node --check railway-runtime/backend/railway/secure-server.cjs && git rev-parse HEAD && echo RAILWAY_HEALTH_OFFLINE_PREFLIGHT_PASS
+```
+- **STOP** if any step fails; do not rerun automatically. Only check after owner-provided sanitized stdout. No actual server startup authorized due possible lease recovery PostgreSQL writes. No Railway deploy/service or new spend; current overall completion estimate **22%**, unchanged.
+- **NEXT SINGLE ACTION:** receive owner Codespaces terminal output, verify 4/4 pass and printed commit SHA, then record verified outcome and next task.
