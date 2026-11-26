@@ -28,3 +28,11 @@ Static-review receipt payload invariants and mock assertions for missing/duplica
 - Added unexecuted mock cases in `qa/supabase-room-lease-contract.test.cjs`, commit `00dad43f932ecd0929f2bab3a479fa82fcb00cdc`.
 - New consolidated preflight `backend/supabase/MIGRATION_001_003_REVIEW_TH.md`, commit `030b51b6c8f371747493be88cd1f7cca4ce9bdc0`.
 - No actual test execution, PostgreSQL schema mutation, Railway deployment or billable resource launch. All outcomes are assumptions until approved verification.
+
+
+## 2026-11-26 — Exact-revision forensic evidence and rollback mock updates (UNTESTED)
+- `game-store.cjs.readRoomAndAwards(roomId,expectedRevision)` now reads the **specific receipt at expectedRevision+1**, rather than latest 2 receipts. This avoids losing the relevant receipt when newer room revisions exist. Commit `32b67ea55b35a9d37909d4c0a2462ef263ac00f6`.
+- Railway ambiguous-commit handler passes `expectedRevision` to this read-only query, commit `de90a91055627354ea4c8c473d0c28c2d0853742`.
+- Receipt matching only establishes forensic evidence: if the room itself advanced to later revisions, classification remains `REVISION_DIVERGED`, manual recovery remains BLOCK and no automatic roll/replay/unhalt occurs.
+- Added unexecuted mock cases for receipt INSERT failure after award staging and duplicate receipt uniqueness failure, asserting no room/score COMMIT (`72d90e7b4b9fac8774e1a3289f2e49de6b981506`, `8e2ee922027f17d8a87298f2c6c6b6192c076e02`); later-revision forensic tests `b1f566cfd941722a488b3cdf656fbe8d8625d28b`. Mock expectations are **not PASS evidence**.
+- No SQL applied, no tests/CI/Actions run, no Railway deploy, no payment/provider changes and no new charges.
