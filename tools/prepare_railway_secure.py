@@ -24,6 +24,14 @@ for name in ('secure-server.cjs','postgres-store.cjs','rules.js',
 for name in ('supabase-access-token.cjs','room-access.cjs'):
     shutil.copy2(ROOT/'backend/auth'/name,AUTH/name)
 shutil.copytree(ROOT/'backend/supabase',API/'supabase',dirs_exist_ok=True)
+# Supabase's public 2021 root CA (owner-downloaded from project dashboard).
+# Bundled only for PostgreSQL TLS trust; it is NOT a credential or private key.
+# Fail closed if absent, rather than relying on disabled certificate checking.
+ca_source=ROOT/'prod-ca-2021.crt'
+if not ca_source.is_file() or b'-----BEGIN CERTIFICATE-----' not in ca_source.read_bytes():
+    raise RuntimeError('Supabase root CA file missing or invalid')
+shutil.copy2(ca_source,API/'supabase'/'prod-ca-2021.crt')
+
 
 with zipfile.ZipFile(SOURCE) as z:
     # Fail closed on source drift. The tracked rules.js was copied unchanged
