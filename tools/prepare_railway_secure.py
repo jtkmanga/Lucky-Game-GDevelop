@@ -112,15 +112,18 @@ function luckyMountGoogleControls(){
  account.style.cssText='font-size:0.85em;overflow-wrap:anywhere';
  const login=document.createElement('button');
  login.type='button';
- login.textContent='เข้าสู่ระบบด้วย Google';
- login.style.cssText='border:1px solid #b8aa8a;border-radius:12px;padding:8px 12px;background:#fff9e9;color:#5c6941;font:inherit;font-weight:700;cursor:pointer';
+ login.textContent='G เข้าสู่ระบบด้วย Google';
+ login.style.cssText='width:100%;box-sizing:border-box;border:2px solid #e3d8c2;border-radius:18px;padding:16px 12px;margin:12px 0;background:#fff;color:#59483d;font:inherit;font-weight:800;font-size:1.03em;box-shadow:0 3px 0 rgba(122,90,60,.14);cursor:pointer';
  const logout=document.createElement('button');
  logout.type='button';
  logout.textContent='ออกจากระบบ';
  logout.hidden=true;
  logout.style.cssText='border:1px solid #b8aa8a;border-radius:12px;padding:8px 12px;background:#fff9e9;color:#5c6941;font:inherit;font-weight:700;cursor:pointer';
- controls.append(account,login,logout);
+ controls.append(account,logout);
  panel.appendChild(controls);
+ // As in the owner screenshot: prominent full-width white Google button
+ // directly ABOVE the existing yellow login status strip.
+ panel.parentNode.insertBefore(login,panel);
  const show=(user)=>{
    const authenticated=!!user;
    leaf.textContent=authenticated?'🔓 เข้าสู่ระบบ Google แล้ว':'🔒 ยังไม่ได้เข้าสู่ระบบ Google';
