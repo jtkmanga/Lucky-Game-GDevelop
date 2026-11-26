@@ -62,6 +62,37 @@ function createRailwayStore(connectionString){
    const r=await pool.query('SELECT * FROM game.rooms WHERE room_id=$1',[roomId]);
    return r.rows[0]||null;
   },
+  // Consistent forensic snapshot: both reads use one repeatable-read,
+  // read-only transaction on one PostgreSQL connection. No mutation and
+  // no automatic decision to resume a halted room.
+  async readRoomAndAwards(roomId){
+   if(!UUID.test(roomId))throw Error('Invalid room ID');
+   const client=await pool.connect();
+   let begun=false,discard=false;
+   try{
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    begun=true;
+    const roomResult=await client.query(
+     `SELECT room_id,mode,seats,game_state,deadline_ms,revision,status,
+             lease_owner,lease_epoch,lease_until
+       FROM game.rooms WHERE room_id=$1::uuid`,[roomId]
+    );
+    const ledgerResult=await client.query(
+     `SELECT event_id,uid,mode,kind,points
+       FROM game.score_events WHERE game_id=$1::uuid
+         AND kind IN ('win','lucky_box')
+       ORDER BY kind,event_id`,[roomId]
+    );
+    await client.query('COMMIT');begun=false;
+    return {room:roomResult.rows[0]||null,ledger:ledgerResult.rows};
+   }catch(error){
+    if(begun){
+     try{await client.query('ROLLBACK');}
+     catch(e){discard=true;error.rollbackErrorCode=e.code||'ROLLBACK_FAILED';}
+    }
+    throw error;
+   }finally{client.release(discard);}
+  },
   // Legacy unfenced commit intentionally removed. Only commitFencedTurn is allowed.
   async leaderboard(mode,startMs,endMs,limit=50){
    if(!['free','vip'].includes(mode))throw Error('Invalid leaderboard mode');
