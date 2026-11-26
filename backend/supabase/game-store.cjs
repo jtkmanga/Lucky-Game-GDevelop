@@ -15,6 +15,8 @@ function createRailwayStore(connectionString){
    if(Object.values(r.rows[0]||{}).some(x=>x===null))throw Error('Supabase game schema missing; do not start');
    const columns=await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='game' AND table_name='rooms' AND column_name IN ('lease_owner','lease_epoch','lease_until')");
    if(columns.rowCount!==3)throw Error('Supabase room lease schema 002 missing; do not start');
+   const receipts=await pool.query("SELECT to_regclass('game.turn_receipts') AS receipts");
+   if(!receipts.rows[0]?.receipts)throw Error('Supabase turn receipt schema 003 missing; do not start');
   },
   acquireRoomLease:leases.acquire,
   renewRoomLease:leases.renew,
@@ -83,8 +85,15 @@ function createRailwayStore(connectionString){
          AND kind IN ('win','lucky_box')
        ORDER BY kind,event_id`,[roomId]
     );
+    const receiptsResult=await client.query(
+     `SELECT room_id,revision,previous_revision,lease_epoch,event_type,
+             actor_index,roll,outcome,game_state,award_events
+        FROM game.turn_receipts WHERE room_id=$1::uuid
+        ORDER BY revision DESC LIMIT 2`,[roomId]
+    );
     await client.query('COMMIT');begun=false;
-    return {room:roomResult.rows[0]||null,ledger:ledgerResult.rows};
+    return {room:roomResult.rows[0]||null,ledger:ledgerResult.rows,
+      receipts:receiptsResult.rows};
    }catch(error){
     if(begun){
      try{await client.query('ROLLBACK');}
