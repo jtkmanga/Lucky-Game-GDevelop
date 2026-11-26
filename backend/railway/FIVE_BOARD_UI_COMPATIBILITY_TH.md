@@ -52,3 +52,13 @@ UI v12 frozen; no SQL 001–003 installed, no tests permitted, no Railway deploy
 - `multi-board-rules.cjs.assertRoomBoard(game)` checks canonical map + legal Lucky Box tile, and `secure-server.cjs` calls it before restoring persisted room sessions or multicasting state (`6a5f7008da9f7509e11b4184163137b69382f481`, `66619343f1aae23b91ca222d20f4ec0cc9fb953b`).
 - `qa/room-board-reconnect-contract.test.cjs` added as **UNEXECUTED** mock/source contract checks (commit `51f6ecd23e2d249b27819221ffffa89e69ea6f8d`). Real PostgreSQL, browser and multi-socket synchronization remain unverified.
 - Random server map selection remains **OFF**, no tests, SQL, deploy, new services or charges performed. Overall progress estimate remains 18%.
+
+
+## 2026-11-26 — Source-only synchronization audit and fixes (NOT RUN)
+- Inspected current `tools/prepare_railway_secure.py`, `backend/railway/board-visual-bridge.js`, versioned map catalog, stored room recovery, and the **exact** v12 ZIP `public/index.html` functions `tilePercent()`, `renderBoard()`, `animateTurn()`, `travelSnakeBody()`, `onlineApplyMessage()`, SVG `snake-track`/ladder groups, with **read-only inspection only**.
+- **Important unrelated safety bug found and fixed:** in `secure-server.cjs.advance()` the ambiguous-COMMIT catch previously referenced `expectedRevision`, `next`, and `awards` declared inside the try block. Moved stable forensic evidence variables outside try and pass those exact values to the read-only inspector when present; halted rooms still never auto-replay (commit `30b10d212d85d4bd63259d0668bf9efd39346213`).
+- The same commit adds `verifiedRoomSnapshot(room)` and reuses it on both room-wide state multicasts and individual UID-verified resume state messages. A corrupt board halts the room; do not send guessed/invalid game state.
+- The generated HTML v12 JavaScript now **requires `msg.game.board` on every ONLINE state**, including map 1; only local legacy offline play may use the map-one fallback. Commit `80d88b955f115d4cfc711cf63646a4f324c3d225`. Preserves original ZIP markup, positions and CSS.
+- Added `qa/railway-board-sync-source-contract.test.cjs` (commit `1a386d10c13b4761c2c3346f5c4117710e6f68db`) with prepared static regression checks. **NOT EXECUTED**.
+- No actual generated HTML/browser visual or WebSocket test, SQL migration, deploy, charges or staging load performed. Random map selection remains disabled. Do not claim synchronization PASS without an authorized real run.
+- NEXT: static-review browser bridge ordering and error handling when a client switches between local and online modes; prepare bounded runtime/browser acceptance checks for owner authorization, then decide when random maps may be enabled.
