@@ -462,3 +462,10 @@ PASS map 5: 11 server turns and SVG endpoints
 - Scope gates: source snapshot/WS outbound frame acceptance now evidenced; still **UNVERIFIED**: end-to-end verified UID reconnect, Supabase Auth/Google, persisted DB after process restart, cross-instance fencing, live multiplayer and randomized maps.
 - Overall project progress remains **20% estimate** under current published methodology pending complete integration gate. 
 - **NEXT SINGLE ACTION:** source-prepare a tightly scoped authenticated join/resume local fixture with mocked identity and DB, covering seat continuity and corrupted stored map on restore, without real provider traffic or deploy; obtain explicit approval before extending tests beyond the authorized reconnect scope.
+
+## 2026-11-26 — เตรียมชุดตรวจ join/resume ผ่านตัวรับ WebSocket ของเกม
+- เพิ่ม `qa/railway-authenticated-resume.test.cjs` ที่ commit `5899edfad4fa4d50a61f15a90135c52dbecd8d3a` ใช้ secure-server.cjs ทั้งไฟล์, WebSocket บน loopback และ Free room access ตามซอร์สจริง จำลองเฉพาะตัวตรวจ identity และ store สำหรับข้อมูลห้อง พร้อมแยก timer/process ของชุดทดสอบ
+- กรณีแรกตรวจว่า token ที่ตัวจำลองปฏิเสธเข้าไม่ถึงการค้นหาห้อง จากนั้นใช้ UID ที่ยอมรับเพื่อกู้ห้องแผนที่ 3 จาก store และต่อใหม่ผ่าน socket อีกตัว ตรวจ roomId, seat 2, ทั้ง snapshot และจำนวนครั้งที่อ่าน store
+- กรณีที่สองส่ง UID ที่ยอมรับแต่พบ board=null ในข้อมูลห้อง ต้องได้ error พร้อมสาเหตุ BOARD_CHECKPOINT_MISMATCH ใน log ภายใน
+- สถานะ: เตรียมซอร์สแล้ว ยังไม่ได้รัน 2 กรณีใหม่นี้ ไม่มีผล PASS ใหม่ คงหลักฐานเดิม Node 20/20, outbound WebSocket 2/2, UI 6/6 และแผนที่ 33/33 ความคืบหน้าประเมิน 20% ไม่มีการเปิด Codespace, Deploy, เปลี่ยน UI หรือแตะ Railway/Supabase
+- งานถัดไป: รันเฉพาะ fixture ใหม่นี้บน existing Codespace ภายในขอบเขต Node.js/WebSocket reconnect ที่ได้รับอนุมัติ โดยใช้ ws เดิมถ้ายังมี: `NODE_PATH=/tmp/lucky-ws-qa/node_modules node --test qa/railway-authenticated-resume.test.cjs` บันทึก HEAD, exit และผลจริงทั้งสองกรณี ขอบเขตจริงของ Google/DB และการ Deploy ยังแยกต่างหาก
