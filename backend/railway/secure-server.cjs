@@ -24,6 +24,9 @@ const PORT=Number(process.env.PORT||8080);
 const WEB=path.resolve(__dirname,'public');
 const MAX_CONNECTIONS=500; // conservative until authorized capacity validation
 const TURN_MS=20000;
+const OWNER_ID=crypto.randomUUID(); // unique per Node process; never supplied by a player
+const LEASE_MS=30000;
+const RENEW_MS=10000;
 const waiting={free:[],vip:[]}, rooms=new Map(), sessions=new Map();
 const clients=new Set(), dispatchBusy={free:false,vip:false};
 const restoreTasks=new Map(); // single-process de-duplication, not cross-replica coordination
@@ -41,8 +44,15 @@ async function restoreRoom(roomId){
  if(rooms.has(roomId))return rooms.get(roomId);
  if(restoreTasks.has(roomId))return restoreTasks.get(roomId);
  const task=(async()=>{
+  // Claim ownership BEFORE any local timer/state is reconstructed. If another
+  // worker has a valid lease, do not operate the room on this process.
+  const claim=await store.acquireRoomLease(roomId,OWNER_ID,LEASE_MS/1000);
+  if(!claim)return null;
   const row=await store.loadRoom(roomId);
-  if(!row||row.status!=='playing')return null;
+  if(!row||row.status!=='playing'||
+     row.lease_owner!==OWNER_ID||
+     Number(row.lease_epoch)!==claim.leaseEpoch)
+    throw Error('Room lease changed during restore');
   const sourceSeats=row.seats;
   if(!['free','vip'].includes(row.mode)||!Array.isArray(sourceSeats)||
     sourceSeats.length!==capacity(row.mode)||!Number.isSafeInteger(Number(row.revision))||
@@ -65,12 +75,13 @@ async function restoreRoom(roomId){
   });
   const room={id:roomId,mode:row.mode,seats:members,game:row.game_state,
     deadline:Number(row.deadline_ms),revision:Number(row.revision),
-    timer:null,busy:false,halted:false};
+    timer:null,leaseTimer:null,leaseEpoch:claim.leaseEpoch,busy:false,halted:false};
   members.forEach((member,i)=>{
     member.roomId=roomId;member.pendingRoomId=null;
     member.index=i;sessions.set(member.uid,member);
   });
   rooms.set(roomId,room);
+  renewRoomLease(room);
   schedule(room); // expired turns are skipped by authoritative timer, not auto-rolled
   return room;
  })();
@@ -115,9 +126,10 @@ async function dispatch(mode){
    });
    pendingCreates.add(id);
    const deadline=Date.now()+TURN_MS;
+   let leaseEpoch;
    try{
-    await store.initializeRoom({
-      roomId:id,mode,game,
+    leaseEpoch=await store.initializeRoom({
+      roomId:id,mode,game,ownerId:OWNER_ID,
       seats:seats.map(s=>({uid:s.uid,name:s.name})),deadlineMs:deadline
     });
    }catch(err){
@@ -131,14 +143,37 @@ async function dispatch(mode){
    }finally{
     pendingCreates.delete(id);
    }
-   const room={id,mode,seats,game,deadline,revision:0,timer:null,busy:false,halted:false};
+   const room={id,mode,seats,game,deadline,revision:0,timer:null,leaseTimer:null,leaseEpoch,busy:false,halted:false};
    rooms.set(id,room);
    for(const s of seats){s.roomId=id;s.pendingRoomId=null;}
+   renewRoomLease(room);
    schedule(room);
    transmit(room,{type:'start'});
   }
   reportWaiting(mode);
  }finally{dispatchBusy[mode]=false;}
+}
+function haltRoom(room,reason){
+ if(room.halted)return;
+ room.halted=true;
+ if(room.timer)clearTimeout(room.timer);
+ if(room.leaseTimer)clearTimeout(room.leaseTimer);
+ console.error('Room halted:',room.id,reason);
+ for(const member of room.seats)
+  send(member.ws,{type:'error',message:'ห้องถูกพักชั่วคราว กรุณาลองเชื่อมต่อใหม่ภายหลัง'});
+}
+function renewRoomLease(room){
+ if(room.halted||room.game.over)return;
+ if(room.leaseTimer)clearTimeout(room.leaseTimer);
+ room.leaseTimer=setTimeout(async()=>{
+  if(room.halted||room.game.over)return;
+  try{
+   const renewed=await store.renewRoomLease(room.id,OWNER_ID,room.leaseEpoch,LEASE_MS/1000);
+   if(!renewed)return haltRoom(room,'LEASE_EXPIRED_OR_STOLEN');
+   renewRoomLease(room);
+  }catch(e){haltRoom(room,'LEASE_RENEW_FAILED: '+(e.code||e.message));}
+ },RENEW_MS);
+ room.leaseTimer.unref?.();
 }
 function schedule(room){
  if(room.timer)clearTimeout(room.timer);
@@ -194,18 +229,17 @@ async function advance(room,roll){
    });
   }
   const nextDeadline=next.over?null:Date.now()+TURN_MS;
-  const revision=await store.commitTurn({
-    roomId:room.id,expectedRevision:room.revision,game:next,
-    deadlineMs:nextDeadline,awards
+  const revision=await store.commitFencedTurn({
+    roomId:room.id,ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch,
+    expectedRevision:room.revision,game:next,deadlineMs:nextDeadline,awards
   });
   room.game=next;room.deadline=nextDeadline;room.revision=revision;
+  if(next.over&&room.leaseTimer)clearTimeout(room.leaseTimer);
   schedule(room);transmit(room,event);
  }catch(e){
   console.error('Turn commit failed',e.code||e.message);
   // Fail closed: do not broadcast an unpersisted turn.
-  room.halted=true; // fail closed: never continue from an unverified DB revision
-  if(room.timer)clearTimeout(room.timer);
-  for(const s of room.seats)send(s.ws,{type:'error',message:'บันทึกสถานะห้องไม่สำเร็จ'});
+  haltRoom(room,'UNCONFIRMED_TURN_COMMIT'); // no replay of random dice or awards
  }finally{room.busy=false;}
 }
 async function handle(ws,msg){
@@ -227,7 +261,11 @@ async function handle(ws,msg){
   // The same-process cache remains the fast path. No guest bearer-token resume.
   if(!existing){
    const savedRoomId=await store.findResumableRoomForUid(uid);
-   if(savedRoomId)await restoreRoom(savedRoomId);
+   if(savedRoomId){
+     const recovered=await restoreRoom(savedRoomId);
+     if(!recovered)return send(ws,{type:'error',
+       message:'ห้องเดิมอยู่บนเซิร์ฟเวอร์อื่นหรือยังไม่พร้อม'});
+   }
    existing=sessions.get(uid);
   }
   if(existing){
@@ -252,7 +290,9 @@ async function handle(ws,msg){
      // DB outage => leave every seat quarantined, fail closed.
      const persisted=await store.loadRoom(pendingId);
      if(persisted && persisted.status==='playing'){
-       await restoreRoom(pendingId);
+       const recovered=await restoreRoom(pendingId);
+       if(!recovered)return send(ws,{type:'error',
+         message:'ห้องเดิมกำลังถูกจัดการโดยเซิร์ฟเวอร์อื่น'});
      }else if(persisted){
        return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม กรุณาติดต่อผู้ดูแล'});
      }else{
@@ -369,6 +409,8 @@ store.health().then(()=>server.listen(PORT,'0.0.0.0',()=>
  process.exitCode=1;store.close().catch(()=>{}).finally(()=>process.exit(1));
 });
 process.on('SIGTERM',()=>{
- for(const room of rooms.values())clearTimeout(room.timer);
+ for(const room of rooms.values()){
+  room.halted=true;clearTimeout(room.timer);clearTimeout(room.leaseTimer);
+ }
  wss.close();server.close(()=>store.close().finally(()=>process.exit(0)));
 });
