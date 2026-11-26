@@ -14,7 +14,7 @@ const PLAYER='44444444-4444-4444-8444-444444444444';
 const input={
  roomId:ROOM,ownerId:OWNER,leaseEpoch:1,expectedRevision:0,
  game:{over:true,players:[]},deadlineMs:null,
- receipt:{type:'roll',actorIndex:0,dice:6,outcome:{}},
+ receipt:{type:'roll',actorIndex:0,dice:6,outcome:{reward:0}},
  awards:[{eventId:ROOM+':win',uid:PLAYER,gameId:ROOM,mode:'free',kind:'win',points:10}]
 };
 function fakePool({failCommit=false,failInsert=false,failRollback=false}){
