@@ -37,6 +37,14 @@ function createRailwayStore(connectionString){
      [roomId,mode,JSON.stringify(seats.map(s=>({uid:s.uid,name:s.name}))),JSON.stringify(game),deadlineMs,'playing']
    );
   },
+  async findResumableRoomForUid(uid){
+   mustUid(uid);
+   const r=await pool.query(
+     "SELECT room_id FROM game.rooms WHERE status='playing' AND seats @> jsonb_build_array(jsonb_build_object('uid',$1::text)) ORDER BY created_at DESC LIMIT 1",
+     [uid]
+   );
+   return r.rows[0]?.room_id||null;
+  },
   async loadRoom(roomId){
    const r=await pool.query('SELECT * FROM game.rooms WHERE room_id=$1',[roomId]);
    return r.rows[0]||null;
