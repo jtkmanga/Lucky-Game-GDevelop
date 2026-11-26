@@ -14,7 +14,8 @@ const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const {WebSocket,WebSocketServer}=require('ws');
-const Rules=require('./rules.js');
+// Multi-board adapter deliberately defaults to board 1 until client board rendering is reviewed.
+const Rules=require('./multi-board-rules.cjs');
 const {requireRuleTransition}=require('./rule-transition-guard.cjs');
 const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
 const {requireRoomAccess}=require('../auth/room-access.cjs');
