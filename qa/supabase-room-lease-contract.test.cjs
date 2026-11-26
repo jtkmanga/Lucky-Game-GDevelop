@@ -23,7 +23,7 @@ function award(kind='win'){
 function args(extra={}){
  return {roomId:ROOM,ownerId:OWNER,leaseEpoch:1,expectedRevision:0,
   game:{over:true,current:0,players:[]},deadlineMs:null,awards:[award()],
-  receipt:{type:'roll',actorIndex:0,dice:4,outcome:{}},...extra};
+  receipt:{type:'roll',actorIndex:0,dice:4,outcome:{reward:0}},...extra};
 }
 function mockPg({claim=true,failAt=null,duplicate=false,receiptDuplicate=false}={}){
  const calls=[];
