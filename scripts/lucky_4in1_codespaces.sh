@@ -19,6 +19,9 @@ REPORT="$REPORT_DIR/$STAMP.md"
 LOG="$REPORT_DIR/$STAMP.log"
 printf "# Lucky Game V99 → Railway: single-run evidence\n\n- UTC: %s\n- Base SHA: \`%s\`\n- Branch: \`%s\`\n- No deploy / no Supabase writes / no Cloudflare runtime\n\n" "$STAMP" "$BASE_SHA" "$CURRENT_BRANCH" > "$REPORT"
 printf "RUN %s at %s\n" "$CURRENT_BRANCH" "$BASE_SHA" > "$LOG"
+# Preserve source fingerprints; an existing dirty Codespace is never overwritten.
+git status --short >> "$LOG" 2>&1 || true
+sha256sum qa/legacy-ui-free4-source.test.cjs migration/legacy-ui/index.html migration/legacy-ui/style.css backend/railway/secure-server.cjs backend/railway/rules.js >> "$LOG" 2>&1 || true
 PASS=0;FAIL=0;BLOCKED=0
 run_step() {
  local name="$1"; shift
@@ -30,6 +33,13 @@ run_step() {
   local status=$?
   printf -- "- **FAIL** (exit %s) — %s\n" "$status" "$name" >> "$REPORT"
   echo "FAIL: $name (exit=$status)"; FAIL=$((FAIL+1))
+  # Emit the actual last error lines so the owner can share one screenshot,
+  # and preserve full TAP/stack trace in the report without rerunning PASS suites.
+  echo "--- FAILURE DIAGNOSTIC (last 65 log lines) ---"
+  tail -n 65 "$LOG"
+  printf "\n### Failure diagnostic: %s\n\n\`\`\`text\n" "$name" >> "$REPORT"
+  tail -n 65 "$LOG" >> "$REPORT"
+  printf "\`\`\`\n" >> "$REPORT"
  fi
 }
 blocked() {
