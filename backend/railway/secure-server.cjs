@@ -429,6 +429,10 @@ async function handle(ws,msg){
   await advance(room,crypto.randomInt(1,7));
  }
 }
+// Readiness reports the completed startup database preflight, not ongoing
+// database availability. Avoid an unapproved query on every /health request.
+let startupReady=false;
+let shuttingDown=false;
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
  if(u.pathname==='/api/supabase-config'){
@@ -442,8 +446,16 @@ const server=http.createServer((req,res)=>{
   res.end(JSON.stringify(config));return;
  }
  if(u.pathname==='/health'){
-  res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});
-  res.end(JSON.stringify({ok:true,mode:'draft-auth-required'}));return;
+  const ready=startupReady&&!shuttingDown;
+  res.writeHead(ready?200:503,{
+   'content-type':'application/json','cache-control':'no-store',
+   'x-content-type-options':'nosniff'
+  });
+  res.end(JSON.stringify({
+   ok:ready,
+   status:shuttingDown?'stopping':ready?'ready':'starting',
+   mode:'draft-auth-required'
+  }));return;
  }
  let filename;
  try{
@@ -496,15 +508,39 @@ async function recoverOrphanedRoomsAtStartup(){
  }
 }
 store.health().then(recoverOrphanedRoomsAtStartup)
- .then(()=>server.listen(PORT,'0.0.0.0',()=>
-  console.log('Lucky Game Supabase-auth leased draft listening on '+PORT)
- )).catch(err=>{
- console.error('Database preflight failed; server will NOT listen:',err.code||err.message);
- process.exitCode=1;store.close().catch(()=>{}).finally(()=>process.exit(1));
+ .then(()=>{
+  if(shuttingDown)return;
+  return new Promise((resolve,reject)=>{
+   const onError=error=>{
+    server.off('listening',onListening);
+    reject(error);
+   };
+   const onListening=()=>{
+    server.off('error',onError);
+    startupReady=true;
+    console.log('Lucky Game Supabase-auth leased draft listening on '+PORT);
+    resolve();
+   };
+   server.once('error',onError);
+   server.once('listening',onListening);
+   server.listen(PORT,'0.0.0.0');
+  });
+ }).catch(err=>{
+ startupReady=false;
+ // Avoid emitting full driver error objects; they may contain connection data.
+ console.error('Database/startup preflight failed; server will NOT be ready:',err.code||'STARTUP_FAILED');
+ process.exitCode=1;
+ store.close().catch(()=>{}).finally(()=>process.exit(1));
 });
 process.on('SIGTERM',()=>{
+ shuttingDown=true;startupReady=false;
  for(const room of rooms.values()){
   room.halted=true;clearTimeout(room.timer);clearTimeout(room.leaseTimer);
  }
- wss.close();server.close(()=>store.close().finally(()=>process.exit(0)));
+ wss.close();
+ if(server.listening){
+  server.close(()=>store.close().finally(()=>process.exit(0)));
+ }else{
+  store.close().finally(()=>process.exit(0));
+ }
 });
