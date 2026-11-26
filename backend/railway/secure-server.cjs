@@ -267,9 +267,13 @@ async function advance(room,roll){
   }
   const nextDeadline=next.over?null:Date.now()+TURN_MS;
   const expectedRevision=room.revision;
+  const receipt={
+   type:roll===null?'timeout':'roll',actorIndex:actor,
+   dice:roll,outcome:roll===null?{}:{...event.outcome}
+  };
   const revision=await store.commitFencedTurn({
     roomId:room.id,ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch,
-    expectedRevision,game:next,deadlineMs:nextDeadline,awards
+    expectedRevision,game:next,deadlineMs:nextDeadline,awards,receipt
   });
   // A concurrent heartbeat failure may halt this worker while COMMIT is in
   // flight. Never broadcast or schedule from a locally halted coordinator;
