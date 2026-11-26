@@ -106,3 +106,13 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - **No unit tests, browser tests, GitHub Actions, bots, migrations, Google OAuth setup, Railway service/deploy or paid resource use in this session. No PASS asserted.**
 - Known open risks: players disconnecting during room insertion; server restart and timer catch-up under long outage; multi-replica room ownership; all Supabase Google OAuth/provider credential and schema migration gates.
 - **NEXT SINGLE ACTION:** safeguard matchmaking if a seat disconnects while room creation is awaiting DB persistence, then document DB reconciliation implications. Continue source-only until owner explicitly lifts testing/deploy pause.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), DB-pending seat disconnect protection
+- Read current source and canonical handoff files; resumed first eligible task, **no new repository**.
+- Changed `backend/railway/secure-server.cjs` to reserve matching seats synchronously before async room INSERT; disconnects during insertion no longer return those seats to matchmaking. On commit, previously disconnected players retain the durable room seat for verified UID reconnect.
+- Ambiguous INSERT failure now **quarantines** seats instead of requeuing into a possible second room. During verified reconnect, check the persisted room ID: if playing, restore; if confirmed absent, release all reserved seats and requeue only connected clients; if DB is down, remain quarantined. Switching from Free/VIP while reservation is outstanding is rejected.
+- Source commits `d9d6eb9e728bfe4e904ec332ea38cb88d60247cd` and `c0d961cd844f217fe872a182e90d169cce9e06b1`. Detailed engineering note: `backend/supabase/P1_STATUS_TH.md` commit `2f5403fbdbfdbaada11eced006a2ab595e2f54b6`.
+- All changes remain **UNTESTED SOURCE ONLY**. No Supabase migration was applied; no Google OAuth configured, no Railway service created/deployed, no tests/CI/bots/load run, no new charge-incurring resources.
+- Known blockers: Google provider credentials, database migration approval, restart sweeping of orphaned rooms, distributed room coordinator for multiple replicas, full game parity and 10K evidence.
+- **NEXT SINGLE ACTION:** prepare durable room ownership/lease and restart reconciliation design (source only), then identify scoped permissions required to apply Supabase schema when owner explicitly authorizes it.
