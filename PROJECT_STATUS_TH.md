@@ -887,3 +887,14 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 ```
 - Stop on any failure and share sanitized terminal output. Do not interpret generator success or pure injection tests as full app process or Railway deployment. Project progress remains **22% estimated**.
 - **NEXT SINGLE ACTION:** collect actual Codespaces 5/5 results and tested SHA, then record pass/fail on GitHub before proceeding.
+
+
+## 2026-11-26 20:56 Asia/Bangkok — Injected full-server startup sequence 5/5 PASS (owner Codespaces screenshot)
+- Owner screenshot from existing Codespace `fantastic succotash`, branch `main`, shows `git pull --ff-only origin main` fast-forward from `47f0a03` to **tested full HEAD `abb0e1d0c89855c887df4ce5ff8c93912db6a5e1`** and the explicitly approved, only-new `node --test qa/railway-startup-injected.test.cjs` sequence.
+- **5 tests PASS, 0 FAIL, 0 SKIPPED** (~159.18 ms). Named cases all green: (1) Ready only after DB health, room recovery, server listening; (2) Failed DB health does not recover, listen or signal readiness; (3) Failed recovery does not listen or signal readiness; (4) Listener error never signals ready; (5) Shutdown after preflight prevents recovery/listening. The suite uses fake DB health, recovery and Fake EventEmitter listener, with **no actual network binding or Supabase writes**.
+- `python3 tools/prepare_railway_secure.py` generated draft `railway-runtime`; required generated `backend/railway/startup-lifecycle.cjs` present; `node --check` generated lifecycle and secure-server both exited without error; screenshot printed **`RAILWAY_STARTUP_INJECTED_OFFLINE_PASS`**, then regular shell prompt.
+- Scope: actual owner Codespaces evidence of injected lifecycle logic PASS, generator and syntax PASS, **not** live process/HTTP/WS server startup, actual DB recovery lease writes, SIGTERM integration, Google OAuth, Railway service/deployment, 10K or production readiness.
+- Prior verified HTTP loopback **3/3 PASS**, pure health **4/4 PASS**, Node pg TLS/auth read-only and restricted SQL RLS rollback all reused, not rerun.
+- No live game server, Supabase connection or modification, public HTTP port, Railway service/Deploy, additional project expense, credential logging or UI v12 changes in this test. The existing Codespace's routine compute allowance may still be consumed; no incremental charge measured.
+- Estimated overall project progress remains **22%** until a formal runtime milestone acceptance criterion passes.
+- **NEXT SINGLE ACTION:** source-only review the real server startup/shutdown path for race conditions and design a no-DB-write full-process acceptance strategy, OR prepare an explicitly approved staging service pilot with measured Trial credit/time constraints. Do not run a real server with room lease recovery or deploy without separate owner scope.
