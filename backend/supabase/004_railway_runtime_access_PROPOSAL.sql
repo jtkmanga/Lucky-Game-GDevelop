@@ -1,6 +1,8 @@
--- Lucky Game migration 004 PROPOSAL ONLY. NOT APPROVED OR APPLIED.
--- Scoped to the server-only Railway runtime privilege bundle.
--- Execute only after separate explicit owner authorization and security review.
+-- Lucky Game migration 004. Applied after scoped owner approval on 2026-11-26.
+-- Supabase migration history: 20261126123243 lucky_004_railway_runtime_access.
+-- This archived source matches the migration body applied; the migration runner
+-- managed its transaction (standalone BEGIN/COMMIT lines were omitted).
+-- DO NOT REAPPLY; future modifications require a new reviewed migration.
 -- NO PASSWORDS. NO LOGIN ROLE. NO BROWSER GRANTS.
 -- Owner's dashboard confirms schema game excluded from Data API (2026-11-26).
 BEGIN;
