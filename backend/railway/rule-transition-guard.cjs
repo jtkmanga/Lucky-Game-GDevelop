@@ -5,6 +5,7 @@
  * Does not generate dice, alter state, award points, or authorize recovery.
  * Does not replace approved real integration tests.
  */
+const Rules=require('./rules.js');
 function requireRuleTransition(before,after,receipt,awards){
  function fail(reason){throw Error('RULE_TRANSITION_MISMATCH:'+reason);}
  if(!before||!after||!receipt||!Array.isArray(before.players)||
@@ -43,6 +44,14 @@ function requireRuleTransition(before,after,receipt,awards){
     !Array.isArray(o.events)||o.events.some(e=>typeof e!=='string'))
   fail('INVALID_ROLL_OUTCOME');
  const win=o.landing>=100;
+ const predicted=win?{type:'win',position:100}:
+   Object.hasOwn(Rules.SNAKES,o.landing)?
+    {type:'snake',position:Rules.SNAKES[o.landing]}:
+   Object.hasOwn(Rules.LADDERS,o.landing)?
+    {type:'ladder',position:Rules.LADDERS[o.landing]}:
+    {type:'normal',position:o.landing};
+ if(o.type!==predicted.type||o.position!==predicted.position)
+  fail('BOARD_MOVE_INCONSISTENT');
  const lucky=awards.filter(a=>a.kind==='lucky_box');
  const winners=awards.filter(a=>a.kind==='win');
  if(o.from!==old.pos||o.landing!==old.pos+d||now.pos!==o.position||
