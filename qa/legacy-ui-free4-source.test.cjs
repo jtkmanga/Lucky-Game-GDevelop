@@ -27,6 +27,15 @@ test('legacy prototype does not expose Cloudflare test UI or payment entry',()=>
  assert.doesNotMatch(html,/workers\.dev|cloudflare\.com/);
  assert.match(html,/id="vip-buy"[^>]+disabled/);
 });
+test('Railway-only Supabase client is mounted and cryptographic random map choice enabled',()=>{
+ assert.match(html,/src="\.\/railway-app\.js"/);
+ const js=fs.readFileSync(path.join(root,'migration/legacy-ui/railway-app.js'),'utf8');
+ assert.match(js,/auth\.signInWithOAuth/);
+ assert.match(js,/type:'join'/);
+ assert.match(js,/location\.host\+'\/ws'/);
+ assert.match(server,/crypto\.randomInt\(1,6\)/);
+ assert.doesNotMatch(js,/firebase|workers\.dev|cloudflare/i);
+});
 test('browser UI staged as a source reference only (no fake online success)',()=>{
  assert.match(html,/Railway/);
  assert.doesNotMatch(html,/ผู้เล่น 4\/4 ออนไลน์แล้ว/);
