@@ -141,6 +141,8 @@ function createRoomLeaseStore(pool) {
     for(const award of awards){
      if(award.mode!==mode||!seatUids.has(award.uid))
        throw Error('Award identity not a verified member of this room');
+     if(award.uid!==seats[receipt.actorIndex]?.uid)
+       throw Error('Award identity differs from authoritative turn actor');
      const result=await client.query(
       `INSERT INTO game.score_events(event_id,uid,mode,game_id,kind,points)
          VALUES($1,$2::uuid,$3,$4::uuid,$5,$6)
