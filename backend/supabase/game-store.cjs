@@ -67,8 +67,10 @@ function createRailwayStore(connectionString){
   // Consistent forensic snapshot: both reads use one repeatable-read,
   // read-only transaction on one PostgreSQL connection. No mutation and
   // no automatic decision to resume a halted room.
-  async readRoomAndAwards(roomId){
+  async readRoomAndAwards(roomId,expectedRevision){
    if(!UUID.test(roomId))throw Error('Invalid room ID');
+   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)
+    throw Error('Invalid expected revision');
    const client=await pool.connect();
    let begun=false,discard=false;
    try{
@@ -88,8 +90,9 @@ function createRailwayStore(connectionString){
     const receiptsResult=await client.query(
      `SELECT room_id,revision,previous_revision,lease_epoch,event_type,
              actor_index,roll,outcome,game_state,award_events
-        FROM game.turn_receipts WHERE room_id=$1::uuid
-        ORDER BY revision DESC LIMIT 2`,[roomId]
+        FROM game.turn_receipts
+        WHERE room_id=$1::uuid AND revision=$2::bigint`,
+     [roomId,expectedRevision+1]
     );
     await client.query('COMMIT');begun=false;
     return {room:roomResult.rows[0]||null,ledger:ledgerResult.rows,
