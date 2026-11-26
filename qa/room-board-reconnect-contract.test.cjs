@@ -47,3 +47,43 @@ test('map1 legacy state without versioned board remains recoverable',()=>{
  delete g.board;
  assert.equal(Rules.assertRoomBoard(g).id,1);
 });
+
+test('legacy map-one checkpoint can be normalized without mutating persisted snapshot',()=>{
+ const g=Rules.create(['Alice','Bob'],'free',()=>0.23,1);
+ delete g.board;
+ const persisted=JSON.stringify(g);
+ const canonicalBoard=Rules.assertRoomBoard(g);
+ const online={...g,board:{version:1,id:canonicalBoard.id,
+  snakes:canonicalBoard.snakes,ladders:canonicalBoard.ladders}};
+ assert.equal(JSON.stringify(g),persisted);
+ assert.equal(online.map,1);
+ assert.deepEqual(online.board,{version:1,id:1,
+  snakes:getBoard(1).snakes,ladders:getBoard(1).ladders});
+ assert.equal(Rules.assertRoomBoard(online).id,1);
+});
+test('explicit corrupt or missing map checkpoint must not silently become board one',()=>{
+ const valid=Rules.create(['Alice','Bob'],'vip',()=>0.23,2);
+ const missing={...valid};delete missing.board;
+ assert.throws(()=>Rules.assertRoomBoard(missing),/MISSING_BOARD_CHECKPOINT/);
+ for(const badBoard of [null,{}, {...valid.board,id:1},
+   {...valid.board,version:2}]){
+  assert.throws(()=>Rules.assertRoomBoard({...valid,board:badBoard}),
+    /BOARD_CHECKPOINT_MISMATCH/);
+ }
+ const old=Rules.create(['Alice','Bob'],'vip',()=>0.23,1);
+ old.board=null;
+ assert.throws(()=>Rules.assertRoomBoard(old),/BOARD_CHECKPOINT_MISMATCH/);
+});
+test('persisted map is stable across reconnection copies for every catalog map',()=>{
+ for(const id of [1,2,3,4,5]){
+  const room=Rules.create(['Alice','Bob'],'vip',()=>0.23,id);
+  const saved=JSON.stringify(room);
+  const reconnectA=JSON.parse(saved),reconnectB=JSON.parse(saved);
+  const boardA=Rules.assertRoomBoard(reconnectA);
+  const boardB=Rules.assertRoomBoard(reconnectB);
+  assert.equal(boardA.id,id);
+  assert.deepEqual(boardA,boardB);
+  assert.deepEqual(reconnectA.board,reconnectB.board);
+  assert.equal(reconnectA.gift,reconnectB.gift);
+ }
+});
