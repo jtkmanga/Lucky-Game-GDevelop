@@ -144,3 +144,12 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - **ALL SOURCE-ONLY AND UNTESTED.** No Supabase migration, Google OAuth provider setup, Railway service creation/deploy, CI/tests, load, money or credit usage initiated. Not production-ready or verified multi-replica safe.
 - Remaining gaps: shared WebSocket routing and distributed matchmaking identity; periodic reconciliation beyond a 10-room startup sweep; failure recovery from locally halted room; OAuth setup; safe SQL migration; 5 maps, Admin, payments, resets, 10K proof.
 - **NEXT SINGLE ACTION:** review and prepare source-level tests for lease fencing, concurrent room ownership, transaction rollback and recovery (do not execute while testing pause remains), then request scoped approval before applying SQL 001/002 or staging deployment.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), source-only lease test preparation
+- Continued directly from the canonical GitHub handoff and latest leased Railway server/source state. No new repository or infrastructure.
+- Authored (NOT RUN) `qa/supabase-room-lease-contract.test.cjs`, Node `node:test` with a simulated PostgreSQL pool. Cases cover lease/epoch/revision fencing, atomic room/score writes, rollback after duplicate award or SQL failure, rejection for non-seat UIDs, winner +10, lease contention and unfinished-game deadline validation. Source commit `66d435c116343994ee59013cedc67d9efe34392a`.
+- Updated an outdated comment in `backend/supabase/room-lease-store.cjs` to say source-wired but NOT TESTED or deployed (commit `99cfc431103d3e050e53c8c52a12ccc28cbe5b29`).
+- Added `qa/SUPABASE_LEASE_TEST_PLAN_TH.md` describing expected assertions and limits of mock-only coverage, isolated real-DB acceptance gates and how to retain existing evidence without needless reruns (commit `6e8b81666b4e658a499f7303729a58dc9b41e43e`).
+- **Zero tests executed.** No Actions/CI, Supabase migrations, Railway service/deploy, Google OAuth setup, load tests, new paid resources or new credit usage. No PASS claim. Mock tests cannot certify real PostgreSQL, RLS, external recovery or 10K.
+- **NEXT SINGLE ACTION:** static-review the fenced transaction for ambiguous commit/rollback failures and draft isolated real-PostgreSQL test fixture/teardown only, still without running tests or deploying; separate scoped approval required for tests, migrations and deployment.
