@@ -485,3 +485,29 @@ PASS map 5: 11 server turns and SVG endpoints
 - Supabase connector ไม่มีคำสั่งอ่าน Auth provider config; หน้า Dashboard ของ provider แสดงหน้าลงชื่อเข้าใช้ สถานะเปิด/ปิด Google และ redirect allowlist จึงยังไม่ยืนยัน การมี auth.users เพียงอย่างเดียวไม่ยืนยันการตั้งค่า OAuth
 - ไม่มีการ apply SQL, เปิด Codespace, Deploy, เรียก Google OAuth หรือรันทดสอบซ้ำ การเปลี่ยนแปลงในรอบนี้จำกัดที่เอกสาร GitHub ผล local reconnect 2/2 ยังใช้ตามขอบเขตเดิม ประเมินรวม 20%
 - งานถัดไป: ทบทวน SQL 001_game_private_schema.sql, 002_room_lease_draft.sql และ 003_turn_receipts_draft.sql รวมสิทธิ์ของ runtime role, RLS และทางย้อนกลับ เพื่อเสนอให้อนุมัติการติดตั้งเฉพาะฐาน staging ก่อน apply จริง แยกการตั้งค่า Google และ Railway deployment ออกจากการอนุมัติ SQL
+
+## 2026-11-26 — ทบทวน migration 001–003 ก่อนติดตั้ง staging
+ตรวจซอร์สเทียบกับ game-store.cjs และ room-lease-store.cjs เท่านั้น หลักฐานก่อนหน้าแสดงว่าไม่มี schema game และประวัติ migrations ว่าง ยังไม่ได้ apply หรือทดสอบ SQL ในรอบนี้
+
+- 001 สร้าง 7 ตารางและเปิด RLS ย้าย REVOKE สิทธิ์ตารางให้ทำหลังสร้างและระบุเฉพาะ 7 ตารางโดยตรง commit `95f6caef33502204ae5012b9755171c0cd8f9c48`
+- 002 เพิ่ม lease_owner, lease_epoch, lease_until พร้อม constraint และดัชนีกู้ห้อง ลำดับต้องตามหลัง 001 การตรวจ constraint เดิมด้วยข้อความและ IF NOT EXISTS ไม่พิสูจน์ว่า schema ที่มีอยู่ตรงกับร่าง ข้อเสนอนี้ครอบคลุมการติดตั้งครั้งแรกเท่านั้น ถ้าพบ object เดิมที่ไม่ตรงกับประวัติให้หยุดและเทียบโครงสร้าง
+- 003 สร้างตารางที่ 8 turn_receipts มี PK (room_id,revision) เปิด RLS และถอนสิทธิ์ client แก้ CHECK ให้ roll ต้องมีแต้ม 1–6 และ timeout ต้องมีค่า NULL อย่างชัดเจน เพราะ PostgreSQL ยอมรับผล CHECK ที่เป็น NULL commit `d78f9034ff6518d42ad7a5b3ff19925c15c96978`
+
+### สิทธิ์ที่ runtime ต้องใช้ในระยะเชื่อมต่อ
+ใช้ role ฝั่ง server แยกจากเจ้าของตาราง ไม่มี BYPASSRLS ไม่สืบทอดสิทธิ์ผู้ดูแล ให้ USAGE เฉพาะ schema game และ policy เฉพาะ role กับคำสั่งที่จำเป็น โดยจำกัดคอลัมน์ที่เขียนตามคำสั่งจริง สิทธิ์ GRANT อย่างเดียวไม่ผ่าน RLS ที่ยังไม่มี policy
+
+| ตาราง | การใช้งานของ runtime |
+|---|---|
+| players | SELECT, INSERT และ UPDATE เฉพาะ display_name, name_key, updated_at สำหรับ upsert |
+| vip_entitlements | SELECT uid, status, expires_at |
+| rooms | SELECT, INSERT และ UPDATE เฉพาะข้อมูลตา สถานะ revision และ lease; ครอบคลุม RETURNING |
+| score_events, turn_receipts | SELECT และ INSERT สำหรับบันทึกผลครั้งเดียวและอ่านตรวจสอบ ห้ามแก้/ลบผ่าน runtime; policy ของ score_events ควรจำกัด kind สำหรับเกมให้เหลือ win/lucky_box |
+| orders, admin_audit, leaderboard_archives | ไม่มี query ที่ต้องให้สิทธิ์ในสอง store ที่ตรวจ |
+
+ไม่จำเป็นต้องให้ runtime อ่าน auth.users โดยตรงเพื่อบังคับ foreign key และไม่มี sequence ที่ต้องให้สิทธิ์ในร่างนี้ 001–003 ยังไม่สร้าง runtime role หรือ policies สำหรับ role นี้ ดังนั้นการติดตั้ง schema สำเร็จอย่างเดียวจะยังไม่เปิดให้เกมเขียนข้อมูล
+
+### ขอบเขต staging ที่เสนอให้อนุมัติ
+ใช้เฉพาะโปรเจกต์ llbkxnazkliskzcureec หลังยืนยัน catalog ล่าสุดว่า game ยังว่างและ auth.users มีอยู่ ติดตั้ง 001 → 002 → 003 เป็น migration แยกรายการผ่านเครื่องมือ migration ที่รองรับ transaction โดยคงความเป็น atomic ต่อไฟล์และหลีกเลี่ยง BEGIN/COMMIT ซ้อน wrapper บันทึก migration ID หลังแต่ละไฟล์ ตรวจ catalog ให้ครบ 8 ตาราง, RLS ทุกตาราง, client ACL, constraint/index, lease columns และ PK ของ receipts ตรวจด้วยว่า game ไม่อยู่ในรายการ schema ที่เปิดผ่าน Data API ไม่สร้าง service/role/credentials ไม่ให้สิทธิ์ runtime ไม่แก้ Auth ไม่ Deploy และไม่ใส่ข้อมูลผู้เล่น
+- หากไฟล์หนึ่งล้มเหลว ให้ตรวจทั้ง catalog และ migration history และหยุดที่ไฟล์นั้น ไฟล์ก่อนหน้าที่ commit แล้วคงอยู่ หลีกเลี่ยงการรันซ้ำทั้งชุด
+- หลัง commit ให้ใช้การแก้ไปข้างหน้าเป็นหลัก หากต้องย้อนจริง เก็บ schema/data และ history ก่อน ตรวจ dependency และข้อมูลผู้ใช้ ขออนุมัติการลบแยก แล้วใช้ compensating migration ย้อน 003 (receipts), 002 (ดัชนี, constraint, lease columns), 001 (ตารางลูกก่อนตารางแม่ แล้วจึง schema ถ้าว่าง) เฉพาะ object ที่สร้างในรอบนั้น ห้าม DROP CASCADE และไม่ลบ auth.users หรือเขียนทับ migration history
+- ความคืบหน้าประเมิน 20% ไม่มีการเปิด Codespace, เปลี่ยนฐานข้อมูล หรือ Deploy งานถัดไปเดียว: รออนุมัติการติดตั้ง schema staging และการตรวจ catalog ตามขอบเขตข้างต้น
