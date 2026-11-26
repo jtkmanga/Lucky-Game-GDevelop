@@ -1,0 +1,113 @@
+diff --git a/backend/railway/multi-board-rules.cjs b/backend/railway/multi-board-rules.cjs
+index c68f9c1..96f1b55 100644
+--- a/backend/railway/multi-board-rules.cjs
++++ b/backend/railway/multi-board-rules.cjs
+@@ -5,6 +5,7 @@
+  * explicitly blocked until the generated HTML v12 can render and animate
+  * the exact same persisted board for every player.
+  */
++const {planMatchItemEffects}=require('./match-item-effects.cjs');
+ const Legacy=require('./rules.js');
+ const {getBoard,eligibleGiftTiles,pickBoard}=require('./board-maps.cjs');
+ function selectRandomBoard(rng=Math.random){return pickBoard(rng).id;}
+@@ -50,16 +51,20 @@ function turn(game,roll,rng=Math.random){
+  if(game.over)throw Error('game over');
+  if(!Number.isInteger(roll)||roll<1||roll>6)throw Error('invalid dice');
+  // Map 1 must retain the original engine semantics and event strings.
+- if(board.id===1)return Legacy.turn(game,roll,rng);
++ if(board.id===1&&!Object.hasOwn(game,'matchItems'))return Legacy.turn(game,roll,rng);
+  const p=game.players[game.current];
+  if(!p)throw Error('invalid current player');
+  const from=p.pos,landing=from+roll;
++ const effect=planMatchItemEffects(game,board,landing);
++ if(effect.nextMatchItems)game.matchItems=effect.nextMatchItems;
+  const events=[`${p.name} ทอยได้ ${roll} · จากช่อง ${from} ไปช่อง ${Math.min(100,landing)}`];
+  p.pos=Math.min(100,landing);
+  let type='normal',reward=0;
+  if(landing>=100){
+-  game.over=true;game.winner=p.id;type='win';p.score+=10;
+-  events.push(`🏆 ${p.name} ชนะ! ได้ 10 คะแนน`);
++  game.over=true;game.winner=p.id;type='win';p.score+=effect.winnerPoints;
++  events.push(`🏆 ${p.name} ชนะ! ได้ ${effect.winnerPoints} คะแนน`);
++ }else if(effect.shieldUsed){
++  type='shield';events.push(`🛡️ ใช้โล่ที่ช่อง ${landing}`);
+  }else if(Object.hasOwn(board.snakes,landing)){
+   p.pos=board.snakes[landing];type='snake';
+   events.push(`🐍 ตกงูช่อง ${landing} ลงช่อง ${p.pos}`);
+diff --git a/backend/railway/rule-transition-guard.cjs b/backend/railway/rule-transition-guard.cjs
+index c07cede..66a46fe 100644
+--- a/backend/railway/rule-transition-guard.cjs
++++ b/backend/railway/rule-transition-guard.cjs
+@@ -5,6 +5,8 @@
+  * Does not generate dice, alter state, award points, or authorize recovery.
+  * Does not replace approved real integration tests.
+  */
++const {isDeepStrictEqual}=require('node:util');
++const {planMatchItemEffects}=require('./match-item-effects.cjs');
+ const {gameBoard}=require('./multi-board-rules.cjs');
+ function requireRuleTransition(before,after,receipt,awards){
+  function fail(reason){throw Error('RULE_TRANSITION_MISMATCH:'+reason);}
+@@ -29,6 +31,7 @@ function requireRuleTransition(before,after,receipt,awards){
+    if(gameBoard(before).id!==gameBoard(after).id)
+     fail('BOARD_CHANGED_DURING_TURN');
+   }catch(error){fail('INVALID_BOARD_CHECKPOINT');}
++  if(!isDeepStrictEqual(before.matchItems,after.matchItems))fail('TIMEOUT_ITEMS_CHANGED');
+   if(receipt.dice!==null||Object.keys(receipt.outcome||{}).length||
+      awards.length||after.over||after.winner!==before.winner||
+      after.giftUsed!==before.giftUsed||
+@@ -44,7 +47,7 @@ function requireRuleTransition(before,after,receipt,awards){
+     !Number.isSafeInteger(o.from)||!Number.isSafeInteger(o.landing)||
+     !Number.isSafeInteger(o.position)||!Number.isSafeInteger(o.reward)||
+     o.reward<0||typeof o.gameOver!=='boolean'||
+-    !['normal','snake','ladder','win'].includes(o.type)||
++    !['normal','snake','ladder','win','shield'].includes(o.type)||
+     !Array.isArray(o.events)||o.events.some(e=>typeof e!=='string'))
+   fail('INVALID_ROLL_OUTCOME');
+  // Validate the persisted room map, not global original ZIP constants.
+@@ -56,7 +59,9 @@ function requireRuleTransition(before,after,receipt,awards){
+   if(board.id!==nextBoard.id)fail('BOARD_CHANGED_DURING_TURN');
+  }catch(error){fail('INVALID_BOARD_CHECKPOINT');}
+  const win=o.landing>=100;
+- const predicted=win?{type:'win',position:100}:
++ const effect=planMatchItemEffects(before,board,old.pos+d);
++ if(!isDeepStrictEqual(effect.nextMatchItems,after.matchItems))fail('ITEM_STATE');
++ const predicted=effect.shieldUsed?{type:'shield',position:old.pos+d}:win?{type:'win',position:100}:
+    Object.hasOwn(board.snakes,o.landing)?
+     {type:'snake',position:board.snakes[o.landing]}:
+    Object.hasOwn(board.ladders,o.landing)?
+@@ -73,13 +78,13 @@ function requireRuleTransition(before,after,receipt,awards){
+       o.type==='win'||after.winner!==before.winner||
+       after.current!==(actor+1)%before.players.length||
+       after.turn!==before.turn+1)||
+-    now.score!==old.score+o.reward+(win?10:0)||
++    now.score!==old.score+o.reward+effect.winnerPoints||
+     now.luckyEarned!==old.luckyEarned+o.reward||
+     (o.reward>0?(!after.giftUsed||before.giftUsed||
+       now.pos!==before.gift||lucky.length!==1||
+       lucky[0].points!==o.reward):lucky.length!==0)||
+     winners.length!==(win?1:0)||
+-    (win&&winners[0].points!==10)||
++    (win&&winners[0].points!==effect.winnerPoints)||
+     awards.some(a=>!['win','lucky_box'].includes(a.kind))||
+     (o.reward===0&&after.giftUsed!==before.giftUsed))
+   fail('OUTCOME_OR_AWARD_DIVERGED');
+diff --git a/backend/supabase/room-lease-store.cjs b/backend/supabase/room-lease-store.cjs
+index 1b48f36..2ae4cde 100644
+--- a/backend/supabase/room-lease-store.cjs
++++ b/backend/supabase/room-lease-store.cjs
+@@ -98,8 +98,13 @@ function createRoomLeaseStore(pool) {
+        !['free','vip'].includes(award.mode)||
+        !Number.isSafeInteger(award.points)||award.points<=0||
+        kinds.has(award.kind))throw Error('Invalid or duplicate game award');
+-    if(award.kind==='win'&&(!game.over||award.points!==10))
+-      throw Error('Winner award requires a completed game (+10)');
++    if(award.kind==='win'){
++     const multiplier=Object.hasOwn(game,'matchItems')
++       ? game.matchItems?.players?.[receipt.actorIndex]?.winMultiplier : 1;
++     if(!game.over||game.winner!==receipt.actorIndex||
++        ![1,2].includes(multiplier)||award.points!==10*multiplier)
++       throw Error('Winner award differs from guarded winner state');
++    }
+     kinds.add(award.kind);
+    }
+    const client=await pool.connect();
