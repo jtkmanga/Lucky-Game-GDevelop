@@ -95,6 +95,75 @@ window.luckyGetAccessToken=async ()=>{
  if(result.error)throw result.error;
  throw Error('OAuth redirect started; connect again after returning');
 };
+// Authentication controls are mounted inside the existing welcome status panel.
+// Keep the original v12 HTML/CSS, game buttons and matchmaking logic unchanged.
+function luckyMountGoogleControls(){
+ const leaf=[...document.querySelectorAll('body *')].find(el=>
+   el.children.length===0 &&
+   el.textContent?.includes('ระบบเข้าสู่ระบบ Google ยังไม่เปิดใช้งาน'));
+ if(!leaf)return;
+ const panel=leaf.parentElement||leaf;
+ leaf.textContent='กำลังตรวจสอบบัญชี Google...';
+ const controls=document.createElement('span');
+ controls.style.cssText='display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:8px';
+ const account=document.createElement('span');
+ account.setAttribute('role','status');
+ account.setAttribute('aria-live','polite');
+ account.style.cssText='font-size:0.85em;overflow-wrap:anywhere';
+ const login=document.createElement('button');
+ login.type='button';
+ login.textContent='เข้าสู่ระบบด้วย Google';
+ login.style.cssText='border:1px solid #b8aa8a;border-radius:12px;padding:8px 12px;background:#fff9e9;color:#5c6941;font:inherit;font-weight:700;cursor:pointer';
+ const logout=document.createElement('button');
+ logout.type='button';
+ logout.textContent='ออกจากระบบ';
+ logout.hidden=true;
+ logout.style.cssText='border:1px solid #b8aa8a;border-radius:12px;padding:8px 12px;background:#fff9e9;color:#5c6941;font:inherit;font-weight:700;cursor:pointer';
+ controls.append(account,login,logout);
+ panel.appendChild(controls);
+ const show=(user)=>{
+   const authenticated=!!user;
+   leaf.textContent=authenticated?'🔓 เข้าสู่ระบบ Google แล้ว':'🔒 ยังไม่ได้เข้าสู่ระบบ Google';
+   account.textContent=authenticated?(user.user_metadata?.full_name||user.email||'บัญชี Google'):'';
+   login.hidden=authenticated;
+   logout.hidden=!authenticated;
+ };
+ login.addEventListener('click',async ()=>{
+   login.disabled=true;
+   account.textContent='กำลังเปิด Google...';
+   try{
+     const client=await luckyClientPromise;
+     const result=await client.auth.signInWithOAuth({
+       provider:'google',options:{redirectTo:location.origin+location.pathname}
+     });
+     if(result.error)throw result.error;
+   }catch(error){
+     account.textContent='ไม่สามารถเปิด Google Login ได้ กรุณาลองใหม่';
+   }finally{login.disabled=false;}
+ });
+ logout.addEventListener('click',async ()=>{
+   logout.disabled=true;
+   try{
+     const client=await luckyClientPromise;
+     const result=await client.auth.signOut();
+     if(result.error)throw result.error;
+     show(null);
+   }catch{account.textContent='ออกจากระบบไม่สำเร็จ';}
+   finally{logout.disabled=false;}
+ });
+ luckyClientPromise.then(async client=>{
+   client.auth.onAuthStateChange((_event,session)=>show(session?.user||null));
+   const {data,error}=await client.auth.getUser();
+   if(error && error.name!=='AuthSessionMissingError')throw error;
+   show(data?.user||null);
+ }).catch(()=>{
+   leaf.textContent='ไม่สามารถตรวจสอบ Google Login ได้';
+   account.textContent='กรุณารีเฟรชหน้าเกม';
+ });
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',luckyMountGoogleControls,{once:true});
+}else{luckyMountGoogleControls();}
 </script>
 """
 anchor="<script>/* Lucky Game pure turn rules:"
