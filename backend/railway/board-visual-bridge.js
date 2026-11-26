@@ -34,7 +34,9 @@ function luckyRenderBoardArt(board){
   return {x:p.left*10,y:p.top*10};
  };
  const point=(x,y)=>Number(x.toFixed(1))+','+Number(y.toFixed(1));
- bodies.replaceChildren();faces.replaceChildren();ladderRoot.replaceChildren();
+ const nextBodies=document.createDocumentFragment();
+ const nextFaces=document.createDocumentFragment();
+ const nextLadders=document.createDocumentFragment();
  for(const [rawHead,tail] of Object.entries(board.snakes)){
   const head=Number(rawHead),a=pt(head),b=pt(tail);
   const dx=b.x-a.x,dy=b.y-a.y;
@@ -51,9 +53,9 @@ function luckyRenderBoardArt(board){
    const attrs={d,stroke:layers[i].stroke,'stroke-width':layers[i].width};
    if(i===0){attrs.class='snake-track';attrs['data-head']=head;attrs['data-tail']=tail;}
    if(layers[i].opacity)attrs.opacity=layers[i].opacity;
-   bodies.append(el('path',attrs));
+   nextBodies.append(el('path',attrs));
   }
-  faces.append(el('use',{href:'#mintSnakeFace',x:a.x,y:a.y}));
+  nextFaces.append(el('use',{href:'#mintSnakeFace',x:a.x,y:a.y}));
  }
  for(const [rawStart,destination] of Object.entries(board.ladders)){
   const a=pt(Number(rawStart)),b=pt(destination);
@@ -73,7 +75,10 @@ function luckyRenderBoardArt(board){
    draw(x-ox,y-oy,x+ox,y+oy,12,'#a97334');
    draw(x-ox,y-oy,x+ox,y+oy,7,'#ffdf98');
   }
-  ladderRoot.append(group);
+  nextLadders.append(group);
  }
+ bodies.replaceChildren(nextBodies);
+ faces.replaceChildren(nextFaces);
+ ladderRoot.replaceChildren(nextLadders);
  svg.dataset.luckyBoardId=String(board.id);
 }
