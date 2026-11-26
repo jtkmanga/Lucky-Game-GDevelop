@@ -433,3 +433,12 @@ PASS map 5: 11 server turns and SVG endpoints
 - No Deploy, SQL migration, Railway/Supabase mutation, new Codespace or GitHub Actions run evidenced. Codespace was active for owner-run test; actual compute cost not measured. Original UI v12 unchanged.
 - Overall estimated progress stays **20%**, pending stronger integration evidence.
 - **NEXT SINGLE ACTION:** prepare/run *only* a bounded local WebSocket reconnect fixture (legacy map-one resume emits canonical versioned board; malformed board fails closed), using existing Codespace with no deployment or unrelated tests, then record its exact log and source SHA.
+
+
+## 2026-11-26 — Local WebSocket reconnect frame fixture authored, NOT RUN
+- Reused the owner-provided Codespaces Node reconnect evidence **20/20 PASS** at source `9f8677efad78646e0915d1836819fc4140bc0175`; did not repeat those tests.
+- Added `qa/railway-room-reconnect-websocket.test.cjs` (commit `dca0b4d57a8b2e27866e971665e8fd33871ad381`). It starts a WebSocket server **bound to 127.0.0.1 with ephemeral port**, creates real local socket connections, and executes the **extracted existing production** `send`, `verifiedRoomSnapshot`, `transmit` and `haltRoom` functions in a local VM with real multi-board rules and `ws`. It checks legacy map-one outbound versioned board and preserved stored game; corrupted checkpoint sends an error and halts instead of sending a valid room state.
+- **This is a bounded outbound WS frame test, NOT full secure-server UID join/reconnect, Auth, PostgreSQL, Railway deployment or client browser test.** The test source is authored **NOT RUN**, pending owner-run Codespaces confirmation; therefore no result PASS or FAIL claimed.
+- Does not modify the original v12 UI, game server logic, provider configuration, SQL, public hosting, or random board activation. No new infrastructure/service created or deployed. Current Codespaces spend not measured.
+- Project estimate stays **20%** pending runtime evidence.
+- **NEXT SINGLE ACTION:** Owner can run from the existing Codespaces root at current main: `git pull --ff-only origin main && node --test qa/railway-room-reconnect-websocket.test.cjs`. If the module `ws` is absent, prepare the existing local railway-runtime dependencies only and rerun this fixture, without Deploy or replaying prior 20 cases. Record actual stdout, exit status and HEAD commit before any PASS claim.
