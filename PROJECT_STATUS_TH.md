@@ -306,3 +306,13 @@ Append a dated checkpoint or edit this file: date, files changed, commit IDs, wh
 - **No tests/CI/GitHub Actions, SQL 001–003 migrations, Railway deploy, real Google OAuth, payment, new services, costs or staging load.** New code remains UNVERIFIED. No randomized boards enabled; original v12 UI unchanged.
 - **Overall estimated completion still 18%** per `PROJECT_PROGRESS_METHOD_TH.md` (not an acceptance/test pass rate).
 - **NEXT SINGLE ACTION:** source-review client online/local mode switching and visual bridge error handling, author bounded but unexecuted browser+server acceptance cases, and only enable randomized maps after separately approved testing and deployment scope. D06/D07 remain active.
+
+
+## Session checkpoint — 2026-11-26 (Asia/Bangkok), v12 local/online transitions
+
+- Reviewed the ZIP's actual click, timer, message and close handlers alongside the generated bridge and authoritative server messages. Found stale socket callbacks, a live local timer during matching, and a closed connection whose online clock could re-enable roll.
+- `tools/prepare_railway_secure.py` — invalidate superseded authentication attempts, restrict callbacks to the current socket, stop the local clock on entry, discard online state on close/cancel/pre-room error, and return to the existing lobby after a board/render failure. Commit `57a4c71ef19b2166b1f0caf133ce9f0d236fd75b`.
+- `backend/railway/board-visual-bridge.js` — construct replacement artwork off-screen before replacing the three SVG layers. Commit `bbd27c6203e0a8e1fe9d50934994f74cdc20f36e`.
+- `backend/railway/FIVE_BOARD_UI_COMPATIBILITY_TH.md` — six bounded browser/server acceptance cases, including delayed auth, stale callbacks, UID reconnect, invalid artwork and post-game local play. Commit `b837655cdeb24e67b6bdb44a98d420609ba2af18`.
+- Source edits only. Original v12 HTML/CSS/ZIP preserved. No generated build, tests, CI dispatch, SQL migration or deploy initiated. No Railway/Supabase changes or new paid resource requested. Billing delta not measured. Overall project estimate **18%**; runtime acceptance and random board enablement remain pending.
+- **NEXT SINGLE ACTION:** obtain scoped permission for a local Codespaces build and bounded fixture-based browser/server acceptance of these transitions (including generated JS syntax); keep random matchmaking disabled until verified. Deployment, real OAuth and schema application remain separate gates.
