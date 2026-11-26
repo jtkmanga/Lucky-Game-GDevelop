@@ -373,3 +373,13 @@ PASS map 5: 11 server turns and SVG endpoints
 - พบความต่างระหว่าง client/server สำหรับข้อมูลเก่า: map 1 ที่ขาดฟิลด์ board ผ่านการตรวจบน server แต่ client ออนไลน์ต้องการ versioned board เสมอ แก้ server ส่ง layout มาตรฐาน v1 ใน snapshot ของแผนที่ 1 เก่าโดยไม่เขียนทับ DB และแยกกรณีฟิลด์หายออกจากกรณีมีค่าเสีย เช่น null ซึ่งต้องปฏิเสธ
 - แก้ backend/railway/multi-board-rules.cjs ที่ c91dc0e99370527ae5177000f194df7483c3d638 และ backend/railway/secure-server.cjs ที่ fc95d7f54b255ea137baf363ba6457f49857e0bb ผลเป็นการตรวจ/แก้ซอร์ส ยังไม่ได้ทดสอบการแก้สองจุดนี้ ไม่มีการเปิด Codespace, Deploy หรือแก้ฐานข้อมูล ผล 6/6 และ 33/33 เป็นหลักฐานของรอบก่อน ความคืบหน้ารวมประมาณ 20%
 - งานถัดไป: ตรวจการกลับห้องด้วย fixture เฉพาะ snapshot ใหม่และ map 1 เก่า รวมกรณี board เสีย โดยยืนยันว่าลูกค้าได้รับ map เดิมและปฏิเสธข้อมูลเสีย ก่อนพิจารณาเปิดสุ่มจริง
+
+
+## 2026-11-26 — เตรียม fixture ตรวจการกู้ห้อง map 1 เก่า / map 2–5 (ไม่รันทดสอบ)
+- อ่าน AGENTS → PROJECT_STATUS → PROJECT_MASTER_PLAN → DECISIONS → NEW_CHAT_HANDOFF จาก GitHub branch main ตามลำดับก่อนทำงาน และตรวจ `multi-board-rules.cjs`, `secure-server.cjs`, สัญญา reconnect เดิม และแค็ตตาล็อกกระดานเฉพาะจุด
+- เพิ่มกรณีใน `qa/room-board-reconnect-contract.test.cjs` โดยไม่เปลี่ยนเกม: (1) legacy map 1 ไม่มี `board` ตรวจการประกอบ snapshot ออนไลน์จาก canonical layout โดยไม่เปลี่ยน stored game; (2) map 2 ที่ขาด board, board null/version/id ผิด และ map 1 ที่มี board null ต้องถูกปฏิเสธ; (3) snapshot ที่ serialize/restore สำหรับ map 1–5 ต้องคง board/Lucky Box เดิมระหว่าง reconnect
+- Commit: `37d8442b66a5c6bfeeed663e085dec9ad132197d` (QA source). ตรวจซอร์สแล้วพบ `verifiedRoomSnapshot` ใน server ใช้แนวทาง normalize legacy map 1 แบบไม่เขียน DB และ `assertRoomBoard` ตรวจ checkpoint; ชุด QA ใหม่ยังไม่พิสูจน์ WebSocket จริงหรือ UI จริง
+- **ยังไม่รัน QA ใหม่**; หลักฐานเดิม 6/6 mode acceptance และ 33/33 เส้นทางแผนที่ 3–5 ยังใช้ได้เฉพาะ revision/ขอบเขตที่บันทึกก่อนหน้า ผลโค้ด normalize ใน commits `c91dc0e`/`fc95d7f` ยังไม่ผ่านการทดสอบเฉพาะหลังแก้
+- ไม่มี Codespaces start, GitHub Actions, deploy, Supabase SQL/migration, Railway change, Google OAuth, เปิดสุ่มแผนที่, หรือจ่ายเงินรอบนี้; ค่าใช้จ่ายใหม่จากงานรอบนี้ไม่มี แต่ยอดผู้ให้บริการไม่ได้วัด
+- **ความคืบหน้ารวมประมาณ 20% คงเดิม** (งานนี้เพิ่มเพียง QA source ไม่ใช่ PASS)
+- **งานถัดไปเพียงงานเดียว:** เมื่อได้รับอนุมัติขอบเขตการทดสอบเฉพาะจุด ให้รันเฉพาะ `node --test qa/room-board-reconnect-contract.test.cjs` ในสภาพแวดล้อมที่มีอยู่ แล้วตรวจการส่ง `verifiedRoomSnapshot` ผ่าน WebSocket fixture สำหรับ legacy map 1 และ checkpoint เสีย โดยไม่ Deploy; หากยังไม่อนุมัติ ให้เตรียม source fixture เท่านั้น
