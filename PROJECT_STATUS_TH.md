@@ -579,3 +579,10 @@ PASS map 5: 11 server turns and SVG endpoints
 - Updated `backend/supabase/RAILWAY_DB_LOGIN_PREFLIGHT_2026-11-26_TH.md` commit `7a12e98ff7d1ec0d8e6677d78d8e2183b8e7cbb4` with source-specific connection decision, custom-login/pooler uncertainty, and no-secret provider Connect panel steps.
 - **No provider mutation**: no database LOGIN or role membership, no SQL, secret, Railway service, Codespace, test, deploy or paid upgrade. UI v12 untouched. Cost delta unmeasured, no new resource initiated.
 - **Overall estimate 22% unchanged. NEXT SINGLE ACTION:** verify project-specific connection mode and custom-role account format in Supabase authenticated Connect panel (read-only, never paste DB password or full connection URI); after this, propose scoped LOGIN role and membership for separate owner approval.
+
+
+## 2026-11-26 19:39 Asia/Bangkok — Supabase project Session Pooler screenshot recorded
+- Owner supplied screenshot of project `Lucky-Game` Connect panel showing Session Pooler selected: host `aws-1-ap-southeast-1.pooler.supabase.com`, port `5432`, database `postgres`, default user `postgres.llbkxnazkliskzcureec` (no password collected).
+- This **verifies project-specific Session Pooler connection parameters** as displayed, but **not** custom restricted LOGIN compatibility, role inheritance, TLS or actual Railway connection. Default `postgres` must not be used as gameplay service identity.
+- Updated `backend/supabase/RAILWAY_DB_LOGIN_PREFLIGHT_2026-11-26_TH.md` at commit `7eaebe130ba29be67a4409517047dd55e01ab964`. No Login, SQL, Secret, Service, Deploy, test or billing resource change. UI v12 remains frozen.
+- Project completion estimate **22% unchanged**. NEXT SINGLE ACTION: verify custom role support / username convention for Supavisor Session Pooler, then prepare restricted login membership for separately scoped approval.
