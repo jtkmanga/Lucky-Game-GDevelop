@@ -4,7 +4,6 @@
 BEGIN;
 CREATE SCHEMA IF NOT EXISTS game;
 REVOKE ALL ON SCHEMA game FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON ALL TABLES IN SCHEMA game FROM PUBLIC, anon, authenticated;
 
 CREATE TABLE IF NOT EXISTS game.players (
  uid UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -80,6 +79,9 @@ ALTER TABLE game.score_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game.leaderboard_archives ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game.admin_audit ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE game.players, game.vip_entitlements, game.rooms,
+ game.score_events, game.leaderboard_archives, game.orders, game.admin_audit
+ FROM PUBLIC, anon, authenticated;
 -- No client SELECT/INSERT/UPDATE/DELETE policies. Application tables stay inaccessible through anon/authenticated.
 COMMIT;
 
