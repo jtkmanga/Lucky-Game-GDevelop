@@ -163,6 +163,31 @@ function haltRoom(room,reason){
  for(const member of room.seats)
   send(member.ws,{type:'error',message:'ห้องถูกพักชั่วคราว กรุณาลองเชื่อมต่อใหม่ภายหลัง'});
 }
+// An ambiguous COMMIT has no safe automatic replay: an acknowledgement can
+// be lost after the database commits. Read the authoritative checkpoint from
+// a fresh pool query for operator diagnostics ONLY. Never mutate the local
+// state, release or reacquire a lease, reschedule, or broadcast a guessed turn.
+async function inspectAmbiguousCommit(room,expectedRevision){
+ try{
+  const checkpoint=await store.loadRoom(room.id);
+  if(!checkpoint){
+   console.error('AMBIGUOUS_COMMIT_UNRESOLVED',room.id,'ROOM_NOT_FOUND');
+   return;
+  }
+  const revision=Number(checkpoint.revision);
+  const sameLease=checkpoint.lease_owner===OWNER_ID &&
+    Number(checkpoint.lease_epoch)===room.leaseEpoch;
+  const result=revision===expectedRevision+1?'POSSIBLY_COMMITTED':
+    revision===expectedRevision?'POSSIBLY_NOT_COMMITTED':'REVISION_CHANGED';
+  console.error('AMBIGUOUS_COMMIT_RECONCILIATION',JSON.stringify({
+   roomId:room.id,expectedRevision,storedRevision:revision,
+   leaseStillOwned:sameLease,roomStatus:checkpoint.status,outcome:result,
+   nextAction:'HALTED_REQUIRES_REVIEW'
+  }));
+ }catch(error){
+  console.error('AMBIGUOUS_COMMIT_UNRESOLVED',room.id,error.code||'READ_FAILED');
+ }
+}
 function renewRoomLease(room){
  if(room.halted||room.game.over)return;
  if(room.leaseTimer)clearTimeout(room.leaseTimer);
@@ -230,9 +255,10 @@ async function advance(room,roll){
    });
   }
   const nextDeadline=next.over?null:Date.now()+TURN_MS;
+  const expectedRevision=room.revision;
   const revision=await store.commitFencedTurn({
     roomId:room.id,ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch,
-    expectedRevision:room.revision,game:next,deadlineMs:nextDeadline,awards
+    expectedRevision,game:next,deadlineMs:nextDeadline,awards
   });
   // A concurrent heartbeat failure may halt this worker while COMMIT is in
   // flight. Never broadcast or schedule from a locally halted coordinator;
@@ -243,8 +269,12 @@ async function advance(room,roll){
   schedule(room);transmit(room,event);
  }catch(e){
   console.error('Turn commit failed',e.code||e.message);
-  // Fail closed: do not broadcast an unpersisted turn.
-  haltRoom(room,'UNCONFIRMED_TURN_COMMIT'); // no replay of random dice or awards
+  // Halt before any read or client-visible action; a COMMIT acknowledgement
+  // may be lost even when the new state and award rows are persisted.
+  haltRoom(room,e.code==='AMBIGUOUS_COMMIT'?'AMBIGUOUS_COMMIT':'UNCONFIRMED_TURN_COMMIT');
+  if(e.code==='AMBIGUOUS_COMMIT')
+   await inspectAmbiguousCommit(room,room.revision);
+  // Do not replay dice, write scores, renew a halted room or broadcast state.
  }finally{room.busy=false;}
 }
 async function handle(ws,msg){
