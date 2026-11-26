@@ -22,6 +22,7 @@ const {requireRoomAccess}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
 const {respondHealth}=require('./health-http-handler.cjs');
 const {beginListening}=require('./startup-lifecycle.cjs');
+const {beginSocketShutdown}=require('./socket-shutdown.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
@@ -514,15 +515,15 @@ beginListening({
  process.exitCode=1;
  store.close().catch(()=>{}).finally(()=>process.exit(1));
 });
+let shutdownStarted=false;
 process.on('SIGTERM',()=>{
+ if(shutdownStarted)return;
+ shutdownStarted=true;
  shuttingDown=true;startupReady=false;
  for(const room of rooms.values()){
   room.halted=true;clearTimeout(room.timer);clearTimeout(room.leaseTimer);
  }
- wss.close();
- if(server.listening){
-  server.close(()=>store.close().finally(()=>process.exit(0)));
- }else{
-  store.close().finally(()=>process.exit(0));
- }
+ beginSocketShutdown({clients,wss,server,graceMs:3000})
+  .catch(()=>{})
+  .finally(()=>store.close().catch(()=>{}).finally(()=>process.exit(0)));
 });
