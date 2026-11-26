@@ -21,10 +21,8 @@ BEGIN
    (lease_owner IS NULL AND lease_until IS NULL)
    OR (lease_owner IS NOT NULL AND lease_until IS NOT NULL)
   );
- ELSIF existing_definition NOT IN (
-  'CHECK ((((lease_owner IS NULL) AND (lease_until IS NULL)) OR ((lease_owner IS NOT NULL) AND (lease_until IS NOT NULL))))',
-  'CHECK (((lease_owner IS NULL AND lease_until IS NULL) OR (lease_owner IS NOT NULL AND lease_until IS NOT NULL)))'
- ) THEN
+ ELSIF regexp_replace(lower(existing_definition), '[[:space:]()]', '', 'g')
+   <> 'checklease_ownerisnullandlease_untilisnullorlease_ownerisnotnullandlease_untilisnotnull' THEN
   RAISE EXCEPTION 'Conflicting game_rooms_lease_consistency definition: %', existing_definition;
  END IF;
 END
