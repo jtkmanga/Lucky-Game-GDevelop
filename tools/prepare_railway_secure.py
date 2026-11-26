@@ -92,6 +92,68 @@ anchor="<script>/* Lucky Game pure turn rules:"
 if html.count(anchor)!=1:
     raise RuntimeError('Script injection anchor changed; manual review required')
 html=html.replace(anchor,bootstrap+anchor,1)
+# JS-only board bridge, based on exact inspected original ZIP v12 hooks.
+# Preserve all visible HTML/CSS/DOM positions, tile classes and color rules.
+# Only the source of snake/ladder data changes.
+board_helper="""function luckyBoardLayout(game){
+ const originalSnakes={98:77,94:68,80:49,59:30,37:15};
+ const originalLadders={4:25,11:50,28:53,43:63,62:85,71:91};
+ if(!game || game.map===1 && !game.board)
+  return {snakes:originalSnakes,ladders:originalLadders};
+ const board=game.board;
+ if(!board || board.version!==1 || board.id!==game.map ||
+    !Number.isInteger(board.id) || board.id<1 || board.id>5 ||
+    !board.snakes || !board.ladders ||
+    typeof board.snakes!=='object' || Array.isArray(board.snakes) ||
+    typeof board.ladders!=='object' || Array.isArray(board.ladders))
+  return null;
+ const seen=new Set();
+ for(const [kind,links] of [['snake',board.snakes],['ladder',board.ladders]]){
+  for(const [rawStart,destination] of Object.entries(links)){
+   const start=Number(rawStart);
+   if(!Number.isSafeInteger(start)||String(start)!==rawStart ||
+      !Number.isSafeInteger(destination)||start<2||start>99 ||
+      destination<2||destination>99||seen.has(start)||
+      (kind==='snake'?destination>=start:destination<=start))
+    return null;
+   seen.add(start);
+  }
+ }
+ if(board.id===1 &&
+    (JSON.stringify(board.snakes)!==JSON.stringify(originalSnakes) ||
+     JSON.stringify(board.ladders)!==JSON.stringify(originalLadders)))
+  return null;
+ return board;
+}
+"""
+render_marker="function renderBoard(){"
+if html.count(render_marker)!=1:
+    raise RuntimeError('Original v12 renderBoard hook drifted; review manually')
+html=html.replace(render_marker,board_helper+render_marker,1)
+old_special="const snakeStart=[98,94,80,59,37], ladderStart=[4,11,28,43,62,71];"
+new_special="""const board=luckyBoardLayout(localGame);
+  if(!board)throw Error('Invalid server board; refuse to render');
+  const snakeStart=Object.keys(board.snakes).map(Number);
+  const ladderStart=Object.keys(board.ladders).map(Number);"""
+if html.count(old_special)!=1:
+    raise RuntimeError('Original v12 board marker hook drifted')
+html=html.replace(old_special,new_special,1)
+old_animation="Object.hasOwn(LuckyRules.SNAKES,ordinaryEnd)"
+new_animation="Object.hasOwn(luckyBoardLayout(localGame)?.snakes||{},ordinaryEnd)"
+if html.count(old_animation)!=1:
+    raise RuntimeError('Original v12 snake animation hook drifted')
+html=html.replace(old_animation,new_animation,1)
+old_state="  localGame=msg.game;"
+new_state="""  // Never show a board different from the authoritative room snapshot.
+  if(!luckyBoardLayout(msg.game)){
+   toast('ข้อมูลกระดานจากเซิร์ฟเวอร์ไม่ตรงกัน');
+   onlineSocket?.close();return;
+  }
+  localGame=msg.game;"""
+if html.count(old_state)!=1:
+    raise RuntimeError('Original v12 online state hook drifted')
+html=html.replace(old_state,new_state,1)
+
 page.write_text(html,encoding='utf8')
 (OUT/'package.json').write_text(json.dumps({
  "name":"lucky-game-railway-auth-preview",
