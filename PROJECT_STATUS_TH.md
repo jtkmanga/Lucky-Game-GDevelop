@@ -619,3 +619,11 @@ PASS map 5: 11 server turns and SVG endpoints
 - **NEXT SINGLE ACTION:** install only the `postgresql-client` package using the existing Codespaces OS package manager, with no Railway service/deploy or change to Supabase. Installation uses existing Codespaces compute/storage and may use current quota; it is not evidence of free compute. Verify `psql --version` afterward. If sudo/apt is unavailable, stop and report; do not blindly install alternate tooling.
 - `lucky_game_server_login` password remains **unset as last verified**. Do not put owner/server password in terminal command arguments, a script, GitHub, logs, or chat. Prepare a provider-confirmed TLS trust chain before any `\\password` execution.
 - Overall progress estimate **22%** unchanged. No other tests or changes performed in this checkpoint.
+
+
+## 2026-11-26 19:49 Asia/Bangkok — Existing Codespaces PostgreSQL client installed
+- Owner screenshot of existing Codespace `fantastic succotash`, branch `main`, shows `sudo apt-get update && sudo apt-get install -y postgresql-client` finished; output `psql (PostgreSQL) 16.15` and **`PSQL_READY`**. PostgreSQL-client tooling prerequisite is now PASS in that Codespace.
+- This is a **local package installation only**. No PostgreSQL connection was made, no certificate/host verified, no owner password entered, and `lucky_game_server_login` has no confirmed newly configured password.
+- Supabase guidance for client-side server identity requires `sslmode=verify-full` with a trusted root certificate or system trust (if suitable); do not downgrade TLS trust. Source: https://supabase.com/docs/guides/database/psql and https://supabase.com/docs/guides/platform/ssl-enforcement
+- No Railway service, SQL, database role changes, deployment, new Codespace, game tests or UI v12 modifications; package installation consumes existing Codespaces resource allowance; costs unmeasured.
+- Overall progress **22%** unchanged. **NEXT SINGLE ACTION:** owner-run authenticated PostgreSQL connection to project Session Pooler with TLS hostname verification and an interactive password prompt (no plaintext secrets in commands), before any `\\password` role mutation. Do not screen-capture credentials.
