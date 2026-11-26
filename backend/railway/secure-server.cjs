@@ -436,8 +436,15 @@ async function handle(ws,msg){
 // database availability. Avoid an unapproved query on every /health request.
 let startupReady=false;
 let shuttingDown=false;
+const leaderboard=process.env.LUCKY_ENABLE_LEADERBOARD==='true'
+ ? require('./leaderboard-http-handler.cjs').createLeaderboardHandler({verifyIdentity:requirePlayerIdentity,store})
+ : null;
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
+ if(u.pathname==='/api/leaderboard'){
+  if(leaderboard)return leaderboard(req,res);
+  res.writeHead(404,{'cache-control':'private, no-store'});res.end('Not Found');return;
+ }
  if(u.pathname==='/api/supabase-config'){
   const config={
    url:supabaseConfig.origin,

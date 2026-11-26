@@ -19,7 +19,8 @@ AUTH.mkdir(parents=True, exist_ok=True)
 
 for name in ('secure-server.cjs','health-readiness.cjs','health-http-handler.cjs','startup-lifecycle.cjs','socket-shutdown.cjs','postgres-store.cjs','rules.js',
              'board-maps.cjs','board-definitions.json','multi-board-rules.cjs',
-             'rule-transition-guard.cjs','current-leaderboard.cjs'):
+             'rule-transition-guard.cjs','current-leaderboard.cjs',
+             'leaderboard-http-handler.cjs','v12-leaderboard-rows.cjs'):
     shutil.copy2(ROOT/'backend/railway'/name,APP/name)
 for name in ('supabase-access-token.cjs','room-access.cjs'):
     shutil.copy2(ROOT/'backend/auth'/name,AUTH/name)
