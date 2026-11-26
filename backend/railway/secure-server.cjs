@@ -122,6 +122,18 @@ function transmit(room,event){
     deadline:room.deadline,event});
  }
 }
+// Called synchronously after the confirmed final state has been sent.
+function detachFinishedRoom(room){
+ if(!room.game.over||room.halted||rooms.get(room.id)!==room)return;
+ if(!room.seats.every((s,i)=>s.roomId===room.id&&s.index===i&&!s.pendingRoomId&&
+     sessions.get(s.uid)===s&&(!s.ws||s.ws.session===s)))return;
+ for(const s of room.seats){
+  if(s.ws)s.ws.session=null;
+  s.ws=null;s.roomId=null;s.index=null;
+  sessions.delete(s.uid);
+ }
+ rooms.delete(room.id);
+}
 function takeOut(queue,session){
  const i=queue.indexOf(session);if(i>=0)queue.splice(i,1);
 }
@@ -310,6 +322,7 @@ async function advance(room,roll){
   room.game=next;room.deadline=nextDeadline;room.revision=revision;
   if(next.over&&room.leaseTimer)clearTimeout(room.leaseTimer);
   schedule(room);transmit(room,event);
+  if(next.over)detachFinishedRoom(room);
  }catch(e){
   console.error('Turn commit failed',e.code||e.message);
   // Halt before any read or client-visible action; a COMMIT acknowledgement
