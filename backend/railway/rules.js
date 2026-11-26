@@ -16,3 +16,4 @@ game.lastRoll=roll;game.events.push(...events);if(!game.over){game.current=(game
 function timeout(game){if(game.over)return null;const p=game.players[game.current];const event=`⏳ ${p.name} หมดเวลา 20 วินาที ข้ามตา (ไม่ทอยอัตโนมัติ)`;game.events.push(event);game.current=(game.current+1)%game.players.length;game.turn++;game.lastRoll=null;return event;}
 return {SNAKES,LADDERS,REWARDS,create,turn,timeout,chooseGift,pickReward};
 });
+
