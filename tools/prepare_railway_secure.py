@@ -74,6 +74,34 @@ bootstrap="""<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.4
 <script>
 'use strict';
 // Authentication wiring only; original Lucky Game layout and styles unchanged.
+let luckyLeaderboardEnabled=false, luckyLeaderboardUid=null, luckyLeaderboardVersion=0;
+async function luckyRefreshLeaderboard(){
+ if(!luckyLeaderboardEnabled)return;
+ const version=++luckyLeaderboardVersion, mode=state.mode;
+ LEADERBOARD_DATA.free=[];
+ LEADERBOARD_DATA.vip=[];
+ renderLeaderboard();
+ if(!luckyLeaderboardUid || !$('lobby').classList.contains('active'))return;
+ try{
+  // Leave the auth callback before asking the SDK for its current session.
+  await new Promise(resolve=>setTimeout(resolve,0));
+  if(version!==luckyLeaderboardVersion)return;
+  const token=await window.luckyGetAccessToken(false);
+  if(!token || version!==luckyLeaderboardVersion)return;
+  const response=await fetch('/api/leaderboard?mode='+mode,{
+   headers:{Authorization:'Bearer '+token},cache:'no-store',mode:'same-origin',redirect:'error'
+  });
+  if(!response.ok)return;
+  const {rows}=await response.json();
+  if(version!==luckyLeaderboardVersion || state.mode!==mode || !Array.isArray(rows) || rows.length>100)return;
+  const medals=['🥇','🥈','🥉'];
+  if(!rows.every((r,i)=>Array.isArray(r)&&r.length===4&&r[0]===(medals[i]??String(i+1))&&
+   r[1]==='👤'&&r[2]==='ผู้เล่น'&&typeof r[3]==='string'&&/^(0|[1-9][0-9]{0,18})$/.test(r[3])&&
+   (r[3].length<19||r[3]<='9223372036854775807')))return;
+  LEADERBOARD_DATA[mode]=rows;
+  renderLeaderboard();
+ }catch{ /* Keep the existing empty state on unavailable data. */ }
+}
 let luckyClientPromise = fetch('/api/supabase-config',{cache:'no-store'})
  .then(async response=>{
    if(!response.ok)throw Error('Supabase configuration unavailable');
@@ -82,6 +110,7 @@ let luckyClientPromise = fetch('/api/supabase-config',{cache:'no-store'})
  .then(config=>{
    if(!window.supabase || !window.supabase.createClient)throw Error('Supabase JS unavailable');
    if(!config.url || !config.publishableKey)throw Error('Missing Supabase public config');
+   luckyLeaderboardEnabled=config.leaderboardEnabled===true;
    return window.supabase.createClient(config.url,config.publishableKey);
  });
 let luckyNameUid=null;
@@ -141,11 +170,12 @@ async function luckyPersistPlayerName(name){
   return false;
  }
 }
-window.luckyGetAccessToken=async ()=>{
+window.luckyGetAccessToken=async (interactive=true)=>{
  const client=await luckyClientPromise;
  const {data,error}=await client.auth.getSession();
  if(error)throw error;
  if(data.session?.access_token)return data.session.access_token;
+ if(!interactive)return null;
  // Browser navigates to Supabase/Google OAuth; the user returns to the same
  // page and clicks the existing Online button again to join a room.
  const result=await client.auth.signInWithOAuth({
@@ -225,7 +255,11 @@ function luckyMountGoogleControls(){
   finally{logout.disabled=false;}
  });
  luckyClientPromise.then(async client=>{
-  client.auth.onAuthStateChange((_event,session)=>show(session?.user||null));
+  client.auth.onAuthStateChange((_event,session)=>{
+   luckyLeaderboardUid=session?.user?.id||null;
+   luckyRefreshLeaderboard();
+   show(session?.user||null);
+  });
   const {data,error}=await client.auth.getUser();
   if(error && error.name!=='AuthSessionMissingError')throw error;
   show(data?.user||null);
@@ -327,6 +361,12 @@ def replace_hook(source, replacement):
     html = html.replace(source, replacement, 1)
 
 # Replace the v12 local-only nickname handler, keeping the original name field/button.
+# The initial seat placeholder is removed when player slots are rendered.
+replace_hook("$('needPlayersLine').textContent=", "if($('needPlayersLine'))$('needPlayersLine').textContent=")
+replace_hook("closeMenu();window.scrollTo", "closeMenu();luckyRefreshLeaderboard();window.scrollTo")
+replace_hook("  renderLeaderboard();\n  renderLocalNames();",
+             "  renderLeaderboard();\n  luckyRefreshLeaderboard();\n  renderLocalNames();")
+
 replace_hook("$('saveName').addEventListener('click',()=>{const name=$('playerName').value.trim(); if(name.length<2){toast('กรุณาใส่ชื่ออย่างน้อย 2 ตัวอักษร'); return;} state.name=name; try{localStorage.setItem('lucky-new-ui-name',name)}catch{} $('welcomeName').textContent=name; if($('localPlayer0'))$('localPlayer0').value=name; toast('บันทึกชื่อบนอุปกรณ์นี้แล้ว'); renderPlayerSlots();});",
  """$('saveName').addEventListener('click',()=>{const name=$('playerName').value.trim().slice(0,20);if(name.length<2){toast('กรุณาใส่ชื่ออย่างน้อย 2 ตัวอักษร');return;}luckyPersistPlayerName(name);});""")
 # On the way into the lobby, never leave a typed but unsaved nickname as stale Po.
