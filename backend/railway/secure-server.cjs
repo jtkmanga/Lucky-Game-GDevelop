@@ -142,7 +142,7 @@ async function dispatch(mode){
    }
    // Seats must be reserved BEFORE the DB call. A disconnect while INSERT is
    // pending must not return a seat to matchmaking (or create two rooms).
-   const id=crypto.randomUUID(), game=Rules.create(seats.map(s=>s.name),mode);
+   const id=crypto.randomUUID(), game=Rules.create(seats.map(s=>s.name),mode,Math.random,crypto.randomInt(1,6));
    seats.forEach((s,i)=>{
      s.index=i;s.pendingRoomId=id;game.players[i].avatar=s.avatar;
    });
