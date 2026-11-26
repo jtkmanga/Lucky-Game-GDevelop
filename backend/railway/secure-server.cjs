@@ -103,8 +103,11 @@ const send=(ws,obj)=>{
 function capacity(mode){return mode==='vip'?2:4;}
 function verifiedRoomSnapshot(room){
  if(!room||room.halted)throw Error('ROOM_UNAVAILABLE');
- Rules.assertRoomBoard(room.game);
- return room.game;
+ const board=Rules.assertRoomBoard(room.game);
+ if(Object.hasOwn(room.game,'board'))return room.game;
+ // Legacy map-one rows predate versioned board snapshots. Supply the
+ // validated original layout to online clients without rewriting the row.
+ return {...room.game,board:{version:1,id:board.id,snakes:board.snakes,ladders:board.ladders}};
 }
 function transmit(room,event){
  let game;
