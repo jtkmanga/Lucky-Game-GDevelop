@@ -412,3 +412,13 @@ PASS map 5: 11 server turns and SVG endpoints
 - No changes to game server logic, original UI v12, Supabase, Railway, SQL, Google OAuth, payments, live random maps or deployment. No paid resources created. Provider spend not measured. Retained 6/6 + 33/33 prior scoped evidence; no retests.
 - Overall progress remains **20% estimate**.
 - **NEXT SINGLE ACTION:** when existing Codespaces terminal access and compute cost gate are available, run only `node --test qa/room-board-reconnect-contract.test.cjs qa/railway-board-sync-source-contract.test.cjs qa/railway-room-snapshot-runtime.test.cjs` on current main; capture Node output and source commit SHA, then separately verify local WebSocket fixture. Do not deploy or start extra resources.
+
+
+## 2026-11-26 — Owner approved existing Codespace Node/WebSocket reconnect only; remote terminal unavailable
+- Owner explicitly authorized reuse of **existing** Codespace to run **only** pending Node.js and WebSocket reconnect tests. No deploy, no new Codespace and no unrelated reruns authorized. This supersedes the test pause **for this narrowly scoped suite only**; D06/D07 remain otherwise in force.
+- Checked tools available in this chat: GitHub integration can fetch/update repository files, manage GitHub Actions metadata, but exposes **no Codespaces terminal/session start/execute tool**. Plugin directory search did not surface a connected existing-Codespace terminal. No alternate infrastructure or billable job was created.
+- **Actual execution status: BLOCKED / NOT RUN**. Did not start an existing Codespace, run `node --test`, open a WebSocket fixture, launch Actions, or run prior 6/6 / 33/33 tests. Previously documented V8 checks remain isolated evidence and are **NOT** a substitute for Codespaces Node/WebSocket PASS.
+- Exact authorized Node suite for later execution against `main`: `node --test qa/room-board-reconnect-contract.test.cjs qa/railway-board-sync-source-contract.test.cjs qa/railway-room-snapshot-runtime.test.cjs`. The bounded WebSocket fixture remains a separate unfinished item; no WSS outcome can be claimed.
+- Existing prepared test source commit: `8e334094c7dbc4147f0792cacb5e72780e388f9a`; source contract commit `76e23b0ab56571889adce351535507eb69d8e2fa`. No source modification or test results obtained in this checkpoint. No Railway/Supabase change, deploy, spending action or UI v12 modification. Provider costs unmeasured.
+- Overall estimated completion **20%** (unchanged).
+- **NEXT SINGLE ACTION:** run the exact narrowly authorized Node suite on the existing Codespace once an actual terminal-capable route is connected; capture full output, commit SHA and VM status, then evaluate the bounded WebSocket reconnect fixture without Deploy. Do not mark PASS without logs.
