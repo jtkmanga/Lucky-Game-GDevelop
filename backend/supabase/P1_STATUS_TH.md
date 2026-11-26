@@ -48,3 +48,12 @@ Continue P1 with a focused read-only review of Supabase Auth provider config/con
 - Source commit `0c58ca5ce14fa8e3a46083fbc7b440c28c4ec5e2`: before replacing a verified player's connection, ensure the new socket remains open so it cannot wrongly disconnect a working old session.
 - **UNTESTED SOURCE ONLY**: no CI/Actions, Codespaces, DB migrations, Google OAuth login, deployments, bills or load tests. Known unaddressed items: room creation while player disconnects during persistence, interval/replay after extended process suspension, distributed ownership across Railway replicas, score reset and all end-to-end auth flows. Do not claim recovery or matchmaking is proven.
 - Next single action: implement safe room admission/requeue behavior around disconnect-during-room-insert with durable checkpoint reconciliation, then revisit database migration/Google OAuth approval gates.
+
+
+## 2026-11-26 — Matchmaking room insertion and disconnect race (source only)
+- Commit `d9d6eb9e728bfe4e904ec332ea38cb88d60247cd`: reserved seats are marked with `pendingRoomId` synchronously BEFORE the asynchronous room INSERT; room creation is single-flight in-process. Disconnect does not free pending seats to matchmaking; successfully committed rooms adopt seats (including disconnected players) and rely on verified-UID resume.
+- On ambiguous DB insert failure, **do not requeue**: the DB might have committed before the error was returned. Keep the pending reservations quarantined; reconnect reads the specific persisted room ID before retrying. On confirmed absence, release all seats from that reservation and requeue only currently connected sessions. If DB lookup fails, the reservation remains quarantined.
+- Commit `c0d961cd844f217fe872a182e90d169cce9e06b1`: prevent cross-mode switching for an existing player during unresolved room creation.
+- **No tests, schema deployment, cloud service deployment, load tests or new charges.** Source-level mitigation only; race-free behavior is **not verified**.
+- **Known gaps:** pending room reservations cannot be released while the user is disconnected without a safe reconciliation job; current recovery is single Node process (no cross-replica ownership lease); pending errors do not notify a disconnected user; room creation/timeout and multiple accounts must be independently verified when owner ends test pause.
+- **Next single action:** design a durable lease/reconciliation and restart sweep for orphaned pending/playing rooms without changing the UI or starting paid services.
