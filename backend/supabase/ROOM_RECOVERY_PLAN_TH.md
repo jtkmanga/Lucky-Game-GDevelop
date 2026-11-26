@@ -4,7 +4,7 @@
 
 ## New committed artifacts
 - `backend/supabase/002_room_lease_draft.sql`: planned `game.rooms.lease_owner`, `lease_epoch`, `lease_until`, and recovery index. **Not applied**. Requires migration 001. Check schema first, because the named CHECK constraint isn't repeat-safe.
-- `backend/supabase/room-lease-store.cjs`: uncalled helper for acquiring, renewing, releasing, listing recoverable rooms and guarded state update. Its `guardedCheckpoint` demonstrates fencing but does **NOT** write score awards and MUST NOT be used as a direct replacement for production `commitTurn`.
+- `backend/supabase/room-lease-store.cjs`: uncalled helper for acquiring, renewing, releasing, listing recoverable rooms and guarded state update. Its new `commitFencedTurn` draft atomically checks the lease and inserts trusted score awards in the SAME PostgreSQL transaction; the method is still **UNTESTED and not wired** to the active server.
 
 ## Correct single-writer room lifecycle (required next)
 1. Generate a random Railway instance owner UUID on process start; never trust user-submitted owner identifiers.
@@ -31,3 +31,16 @@ Supabase Google OAuth provider setup, application schema migration, Railway serv
 ## Last source commits
 - `38dcf0d19e1b4609978de24924296f7905344e8c` — lease SQL draft
 - `82c2794e5bd826c2ae90a9aaef43ffc4cbe30c73` — Node lease helper draft
+
+
+## P1 source update — 2026-11-26: atomic fenced room + score transaction
+
+Source commit `d12ac0bc86a8ffae81fd0fc439078b9b6c257912` replaces the old state-only demonstration helper with a draft `commitFencedTurn` in `backend/supabase/room-lease-store.cjs`.
+
+- An authoritative backend caller supplies `roomId`, `ownerId`, `leaseEpoch`, `expectedRevision`, `game`, `deadlineMs`, and at most two winner/Lucky Box awards.
+- One checked-out PostgreSQL client executes BEGIN, a fenced conditional room UPDATE (owner+epoch+non-expired lease+revision+playing), verifies each award UID matches a stored seat and mode, inserts score ledger rows, COMMIT. Failed SQL / stale lease / duplicate award rolls back the room update.
+- Winner points are constrained to +10 with a finished-game flag. Lucky Box reward amount still relies on server-controlled rules; future game-rule tests must check the one-box constraint and actual reward.
+- No automatic retry on a transport error during COMMIT because the result may be ambiguous. Caller must halt the room and load canonical persisted state.
+- **Danger: this code is not yet wired into `secure-server.cjs`, and that server still calls the original unfenced `game-store.cjs.commitTurn`. Do not claim multi-replica safety.** A complete integration must: acquire lease on room creation/recovery, renew and stop when lost, replace all turn commit paths with this method, release lease, and provide shared routing/sharding.
+- No SQL migration applied, no tests or CI run, no Railway service or deployment and no new bills.
+- Next single action: source-level design and wiring of lease-aware room creation/renewal/recovery into the server, then wait for scoped permission to migrate and test.
