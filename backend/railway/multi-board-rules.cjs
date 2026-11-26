@@ -12,8 +12,8 @@ function gameBoard(game){
  if(!game||typeof game!=='object')throw Error('INVALID_GAME_BOARD');
  const id=game.map;
  const canonical=getBoard(id);
- if(game.board){
-  if(game.board.version!==1||game.board.id!==id||
+ if(Object.hasOwn(game,'board')){
+  if(!game.board||game.board.version!==1||game.board.id!==id||
      JSON.stringify(game.board.snakes)!==JSON.stringify(canonical.snakes)||
      JSON.stringify(game.board.ladders)!==JSON.stringify(canonical.ladders))
    throw Error('BOARD_CHECKPOINT_MISMATCH');
