@@ -17,11 +17,11 @@ test('all five maps are selectable with a persisted immutable layout',()=>{
   assert.deepEqual(g.board.ladders,board.ladders);
  }
 });
-test('default adapter retains map 1 for frozen HTML v12',()=>{
+test('default adapter keeps map 1 but uses canonical original V99 layout',()=>{
  const g=Multi.create(['A','B'],'vip',()=>0.1);
  assert.equal(g.map,1);
- assert.deepEqual(g.board.snakes,Legacy.SNAKES);
- assert.deepEqual(g.board.ladders,Legacy.LADDERS);
+ assert.deepEqual(g.board.snakes,BOARDS[0].snakes);
+ assert.deepEqual(g.board.ladders,BOARDS[0].ladders);
 });
 test('snake and ladder travel are derived from the chosen room map',()=>{
  for(const board of BOARDS){
