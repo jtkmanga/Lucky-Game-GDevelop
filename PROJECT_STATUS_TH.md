@@ -442,3 +442,12 @@ PASS map 5: 11 server turns and SVG endpoints
 - Does not modify the original v12 UI, game server logic, provider configuration, SQL, public hosting, or random board activation. No new infrastructure/service created or deployed. Current Codespaces spend not measured.
 - Project estimate stays **20%** pending runtime evidence.
 - **NEXT SINGLE ACTION:** Owner can run from the existing Codespaces root at current main: `git pull --ff-only origin main && node --test qa/railway-room-reconnect-websocket.test.cjs`. If the module `ws` is absent, prepare the existing local railway-runtime dependencies only and rerun this fixture, without Deploy or replaying prior 20 cases. Record actual stdout, exit status and HEAD commit before any PASS claim.
+
+
+## 2026-11-26 — WebSocket loopback fixture first Codespaces attempt blocked by missing ws module
+- Owner screenshot from existing Codespace `fantastic succotash` shows fast-forward on `main` to `36e96d4`, then `node --test qa/railway-room-reconnect-websocket.test.cjs` on Node v24.22.2.
+- Test loader failed **before either WebSocket acceptance case executed**: `Error: ws dependency unavailable. Prepare local railway-runtime dependencies only; do not deploy.` at `qa/railway-room-reconnect-websocket.test.cjs:23`. Node summary: tests 1, pass 0, fail 1 (module initialization/fixture setup failure). This is NOT evidence of a broken gameplay reconnect and NOT a WebSocket PASS.
+- Previously reported scoped Node contract tests **20/20 PASS** remain valid for their earlier SHA and scope; no need to rerun them.
+- Proposed minimal dependency unblock using existing Codespaces only: `npm install --prefix /tmp/lucky-ws-qa ws@8.18.3 --no-save --ignore-scripts --no-audit --no-fund && NODE_PATH=/tmp/lucky-ws-qa/node_modules node --test qa/railway-room-reconnect-websocket.test.cjs`. Temporary `/tmp` only, no repo/package-lock modification, no deploy; npm network and existing Codespaces compute may consume existing allowance. This follow-up command is offered to owner, **not yet executed/verified**.
+- UI v12 untouched; Railway/Supabase not used or mutated; no new Codespace, services or deployment. Project estimate stays **20%**.
+- **NEXT SINGLE ACTION:** run the single fixture with temporary `ws` dependency, capture real 2-case logs and HEAD SHA, fix only any demonstrated runtime defect and update status. 
