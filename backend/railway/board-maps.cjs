@@ -33,7 +33,7 @@ function validate(spec){
 }
 for(const spec of specs)validate(spec);
 const BOARDS=Object.freeze(specs.map(s=>Object.freeze({
- id:s.id,snakes:Object.freeze({...s.snakes}),ladders:Object.freeze({...s.ladders})
+ id:s.id,name:s.name,snakes:Object.freeze({...s.snakes}),ladders:Object.freeze({...s.ladders})
 })));
 function getBoard(id){
  if(!Number.isInteger(id)||id<1||id>BOARDS.length)

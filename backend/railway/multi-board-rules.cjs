@@ -1,9 +1,9 @@
 'use strict';
 /**
  * Reviewed source adapter for 5 authoritative maps (UNTESTED).
- * CRITICAL: create() defaults to board 1. Random board activation remains
- * explicitly blocked until the generated HTML v12 can render and animate
- * the exact same persisted board for every player.
+ * The V99 original five maps are carried in board-definitions.json.
+ * Every new room stores its selected map snapshot. Existing rooms retain their snapshot.
+ * Use only with the new V99 Railway browser adapter and verified migrations.
  */
 const Legacy=require('./rules.js');
 const {getBoard,eligibleGiftTiles,pickBoard}=require('./board-maps.cjs');
@@ -49,8 +49,6 @@ function turn(game,roll,rng=Math.random){
  const board=assertRoomBoard(game);
  if(game.over)throw Error('game over');
  if(!Number.isInteger(roll)||roll<1||roll>6)throw Error('invalid dice');
- // Map 1 must retain the original engine semantics and event strings.
- if(board.id===1)return Legacy.turn(game,roll,rng);
  const p=game.players[game.current];
  if(!p)throw Error('invalid current player');
  const from=p.pos,landing=from+roll;
