@@ -38,7 +38,7 @@ function createRailwayStore(connectionString){
    if(normalized.length<2)throw Error('Name must be >=2 characters');
    // A name collision fails closed; never reassign another user's name.
    const r=await pool.query(
-     'INSERT INTO game.players(uid,display_name,name_key) VALUES($1,$2,lower($2)) ON CONFLICT(uid) DO UPDATE SET display_name=EXCLUDED.display_name,name_key=EXCLUDED.name_key,updated_at=now() RETURNING uid,display_name',
+     'INSERT INTO game.players(uid,display_name,name_key) VALUES($1,$2::text,lower($2::text)) ON CONFLICT(uid) DO UPDATE SET display_name=EXCLUDED.display_name,name_key=EXCLUDED.name_key,updated_at=now() RETURNING uid,display_name',
      [uid,normalized]
    );return r.rows[0];
   },
