@@ -46,3 +46,13 @@ Supabase documentation: https://supabase.com/docs/guides/api/securing-your-api �
 - Cost delta: not measured; no new billed resource created by this read-only review.
 
 **NEXT SINGLE ACTION:** read the project's Data API **Exposed schemas** setting from its authenticated dashboard and confirm `game` is absent. After that, prepare a separately approved scoped server-role / Railway connection plan without posting secrets.
+
+
+## 2026-11-26 19:28 Asia/Bangkok — Owner Dashboard visual confirmation
+
+- Owner-provided screenshot of authenticated Supabase `Lucky-Game` → Integrations → Data API → Settings → **Exposed schemas** dropdown explicitly shows **two of three schemas exposed**: `graphql_public` (checked), `public` (checked), and **`game` (unchecked)**.
+- Dashboard also shows **0 of 8 tables exposed**. This is a visual current-settings confirmation; no settings were changed and no Save action was requested.
+- **Data API schema-exclusion gate: VERIFIED (owner screenshot)**. Together with independent read-only SQL grant/RLS checks recorded above, `game` is excluded from the displayed Data API exposure list. This does not prove future changes cannot alter this configuration.
+- Dashboard's **Automatically expose new tables** toggle appears enabled. No change authorized in this review; avoid creating tables in exposed schemas and review this setting separately before any future public table migrations.
+- **Still blocked:** dedicated least-privilege PostgreSQL runtime role, Railway DB connection credentials, actual service integration, Google OAuth provider and real staging acceptance. No deployment, migration, Auth/role mutation, tests or new spending in this checkpoint.
+- **NEXT SINGLE ACTION:** prepare and review a source-only least-privilege database runtime-role / Railway connection contract, with no secrets, DDL execution or Deploy.
