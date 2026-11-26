@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS game.turn_receipts (
  created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
  PRIMARY KEY(room_id,revision),
  CHECK ((event_type='timeout' AND roll IS NULL) OR
-        (event_type='roll' AND roll BETWEEN 1 AND 6))
+        (event_type='roll' AND roll IS NOT NULL AND roll BETWEEN 1 AND 6))
 );
 CREATE INDEX IF NOT EXISTS turn_receipts_created_idx
  ON game.turn_receipts(created_at,room_id);
