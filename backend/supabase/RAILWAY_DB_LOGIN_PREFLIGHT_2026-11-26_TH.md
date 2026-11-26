@@ -32,3 +32,27 @@ SQL catalog after migration 004 reports `postgres` a member of `lucky_game_runti
 **Next owner approval candidate:** a tightly scoped, separately reviewed database LOGIN + membership plan. Do not create this account, stage variables, authorize new spending, or deploy based on this document alone.
 
 **Outcome:** architecture/preflight documentation only; migration 004 unchanged, UI v12 unchanged, tests not run, no new resource created, no provider cost measured. Overall project estimate remains **22%**.
+
+
+## 2026-11-26 — Connection-mode research (read-only, not project connection verified)
+
+Official managed-Supabase connection guide: https://supabase.com/docs/guides/database/connecting-to-postgres
+
+| Route | Typical port / network | Relevance to Railway long-lived Node process |
+|---|---|---|
+| Direct Postgres | `5432`, IPv6 on Free projects absent a separately purchased IPv4 option | Suitable for persistent Node process **only if Railway runtime network can reach the project's IPv6 endpoint** |
+| Supavisor shared **session** pooler | `5432`, IPv4 | Preferred fallback for a persistent Node process where direct IPv6 is unavailable |
+| Supavisor shared **transaction** pooler | `6543`, IPv4 | Prefer for short-lived/serverless clients, not the first choice for this persistent service; prepared-statement behavior differs |
+
+These are **general Supabase platform modes**, not a verified Lucky-Game connection string, availability test or guarantee that the custom PostgreSQL role can authenticate through the selected pooler. **Do not hardcode** an example host, placeholder account or user form in Railway: confirm the project-specific Connect dialog and the effective custom-role username format directly, without sharing secrets.
+
+### Technical source gap to resolve before deployment
+
+- The selected backend `backend/supabase/game-store.cjs` creates `new Pool({connectionString,max:8,connectionTimeoutMillis:5000,idleTimeoutMillis:30000})`. No explicit SSL CA/verification option is configured in this source snippet; review `node-postgres` TLS configuration and the actual Supabase root certificate/endpoint requirements before adding security-sensitive connection behavior. **Do not just set `rejectUnauthorized:false`**.
+- The runtime stores state through an explicit `BEGIN`/UPDATE/INSERT/COMMIT transaction and repeatable-read forensic inspection. Preserve connection pinning and ensure any pooler chosen supports its transaction semantics. Never treat a failed network request as a confirmed rollback.
+- Before any approved LOGIN action, confirm the provider's support for a **custom role through direct vs session pooler**; verify actual DNS/IP reachability, region, connection count and server trust chain **without exposing a URI/password**. Avoid assuming the published sample `postgres.project-ref` username format applies to a custom role.
+- If effective custom-role access cannot be established with available free-tier endpoints, **stop** rather than downgrading to the database owner password or buying an IPv4 add-on without explicit approval.
+
+**Current finding:** architecture choices documented; custom user/pooler compatibility and target-specific TLS are **NOT VERIFIED**. No credential, test, provider setting, role membership or deployment was changed.
+
+**NEXT SINGLE ACTION:** inspect the authenticated Supabase `Connect` panel for project-specific direct/session connection modes and verify support for a custom non-owner LOGIN identity **read-only**; then review the exact scoped SQL LOGIN/membership proposal before requesting separate approval.
