@@ -38,20 +38,26 @@ async function restoreRoom(roomId){
     sourceSeats.length!==capacity(row.mode)||!Number.isSafeInteger(Number(row.revision))||
     !row.game_state||typeof row.game_state!=='object'||!Number.isFinite(Number(row.deadline_ms)))
     throw Error('Invalid persisted room checkpoint');
+  // Validate ALL persisted seats before writing anything to the session map.
+  const uids=sourceSeats.map(seat=>seat?.uid);
+  if(uids.some(uid=>typeof uid!=='string'||!uid)||
+     new Set(uids).size!==sourceSeats.length ||
+     uids.some(uid=>{
+       const session=sessions.get(uid);
+       return session&&(session.mode!==row.mode||
+         (session.roomId&&session.roomId!==roomId));
+     }))throw Error('Invalid or conflicting persisted room seats');
   const members=sourceSeats.map((seat,i)=>{
-   if(!seat||typeof seat.uid!=='string')throw Error('Invalid persisted room seat');
    const existing=sessions.get(seat.uid);
-   if(existing&&existing.roomId&&existing.roomId!==roomId)throw Error('Seat already assigned to another room');
-   if(existing)return existing;
-   const restored={uid:seat.uid,mode:row.mode,name:seat.name||'Player',
-     avatar:'🐱',ws:null,roomId,index:i};
-   sessions.set(restored.uid,restored);
-   return restored;
+   return existing||{uid:seat.uid,mode:row.mode,name:seat.name||'Player',
+      avatar:'🐱',ws:null,roomId,index:i};
   });
   const room={id:roomId,mode:row.mode,seats:members,game:row.game_state,
     deadline:Number(row.deadline_ms),revision:Number(row.revision),
     timer:null,busy:false};
-  members.forEach((member,i)=>{member.roomId=roomId;member.index=i;});
+  members.forEach((member,i)=>{
+    member.roomId=roomId;member.index=i;sessions.set(member.uid,member);
+  });
   rooms.set(roomId,room);
   schedule(room); // expired turns are skipped by authoritative timer, not auto-rolled
   return room;
