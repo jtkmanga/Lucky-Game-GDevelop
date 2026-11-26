@@ -18,6 +18,11 @@ function classifyRoomReconciliation({room,ledger,expectedRevision,expectedGame,a
  const rewardRows=ledger.filter(e=>names.includes(e.kind));
  const duplicateKinds=names.filter(k=>rewardRows.filter(e=>e.kind===k).length>1);
  const eventRows=ledger.filter(e=>awards.some(a=>a.eventId===e.event_id));
+ // An unexpected reward event may be legitimate from an earlier turn.
+ // We cannot attribute one ambiguous transition merely from room+ledger;
+ // never treat an unexpected event as proof of corruption automatically.
+ const unexpectedEvents=ledger.filter(e=>!awards.some(a=>a.eventId===e.event_id))
+   .map(e=>e.kind);
  const missingEvents=awards.filter(a=>!eventRows.some(e=>e.event_id===a.eventId)).map(a=>a.kind);
  const mismatchedEvents=awards.filter(a=>{
    const row=eventRows.find(e=>e.event_id===a.eventId);
@@ -40,6 +45,7 @@ function classifyRoomReconciliation({room,ledger,expectedRevision,expectedGame,a
    ownerMatches,roomStatus:room.status,
    expectedAwards:awards.length,matchingAwardEvents:awards.length-missingEvents.length-mismatchedEvents.length,
    missingKinds:missingEvents,conflictingKinds:mismatchedEvents,
-   duplicateKinds,gameStateMatches:sameState};
+   duplicateKinds,unexpectedKinds:unexpectedEvents,
+   gameStateMatches:sameState};
 }
 module.exports={classifyRoomReconciliation};
