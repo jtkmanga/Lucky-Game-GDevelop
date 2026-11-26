@@ -22,3 +22,20 @@
 Request a **single local Codespaces Node build and connection preflight** using existing Codespaces only and restricted credentials from private interactive input. First review generated file paths and `pg` module TLS option precedence without sending secrets. Keep staging Service creation/Deploy and Trial-credit consumption independently gated.
 
 No Railway service/variable/deploy, no database schema/data changes, no new billed resource, and no UI v12 modifications. Overall estimate remains **22%**.
+
+
+## 2026-11-26 — Prepared non-network Node TLS guard assertions (NOT RUN)
+- Added `qa/railway-tls-config.test.cjs` at commit `b83d9556dd83a9a36ae5062ecf1281978957435e`. Its `node:test` cases call only `poolConnectionOptions` using a literal dummy password; they assert CA Buffer/rejectUnauthorized, approved host/port/login, and rejection of owner credentials, wrong endpoint, port, DB, URI `sslmode=disable` overrides, empty password or absent CA. The test never creates `pg.Pool` or a network socket.
+- **NOT RUN:** no Codespaces command, Node test or build was executed in this chat. Authentication and networking remain unverified for Node. Prior `psql` TLS + restricted SQL checks remain valid and must not be rerun for this task.
+- Once owner approves local-only build/config checks, use the **existing** Codespace:
+```bash
+cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && \
+node --test qa/railway-tls-config.test.cjs && \
+python3 tools/prepare_railway_secure.py && \
+test -f railway-runtime/backend/supabase/pg-tls-config.cjs && \
+test -f railway-runtime/backend/supabase/prod-ca-2021.crt && \
+node --check railway-runtime/backend/railway/secure-server.cjs && \
+node --check railway-runtime/backend/supabase/game-store.cjs
+```
+- The above is **local-only**: no dependency installation, database login, test gameplay, Railway creation or deployment. Check generated changes with `git status --short` before any commit. Generated files should remain ignored; do not commit `railway-runtime` or credentials.
+- A true `pg` TCP/TLS database connection test is a separate gate using owner-private credentials and explicit permission, not the same as `node --check`.
