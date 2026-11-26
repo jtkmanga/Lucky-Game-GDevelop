@@ -1,10 +1,9 @@
 'use strict';
 /**
- * PostgreSQL room-ownership building blocks. DRAFT/UNTESTED, NOT wired into
- * the active secure-server. Requires the unapplied 002_room_lease_draft.sql.
- * Callers must use the returned leaseEpoch with every game-state transition;
- * acquiring a lease alone is NOT sufficient to prevent a stale server write.
- * commitFencedTurn() is not wired into the runtime; do not deploy it yet.
+ * PostgreSQL room-ownership building blocks. DRAFT/UNTESTED; source-wired to
+ * the Railway secure-server but NOT deployed. Requires unapplied migrations
+ * 001 and 002. A live lease claim alone does not guarantee routing, recovery,
+ * or distributed matchmaking correctness. Do NOT deploy without approval.
  */
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function checkUuid(value){if(typeof value!=='string'||!UUID.test(value))throw Error('Invalid UUID');return value;}
