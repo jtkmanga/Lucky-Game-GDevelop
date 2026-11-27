@@ -7,14 +7,14 @@
 | VIP2 | Controller/store ใช้ client เดียวตรวจ gate และ INSERT; ปฏิเสธไม่เขียน, ผล COMMIT ไม่ชัดไม่ประกาศหรือสร้างห้องซ้ำ | ปิดโดยค่าเริ่มต้น; ยังไม่ apply gate, ทดสอบ revoke/INSERT พร้อมกันหรือ recovery ข้าม process |
 | สิทธิ์ไอเทม | ตัวอ่าน PostgreSQL ใช้ DB clock เดียว คืนผลครบแยกจาก VIP; บัญชีอ่านอย่างเดียว | ยังไม่ต่อเข้าห้องและไม่มี issuer จริง; ต้องยืนยันหมดสิทธิ์กลางเกม/การคืนสิทธิ์ก่อนเปิด |
 | อันดับ | ทดลองปิดรอบก่อนหน้าของ Free/VIP ด้วยช่วงกรุงเทพฯ และเวลาเริ่มธุรกรรมเดิม, replay ไม่เขียนทับ | ไม่เรียกจาก endpoint/scheduler; ต้องพิสูจน์ผู้เขียนทุกทางและสิทธิ์ที่ไม่ให้แก้ย้อนหลัง; ทั้งหมดยัง provisional |
-| Admin | ตรวจผู้สั่งจาก Auth แยกจากสิทธิ์ operator และผูก receipt กับคนสั่ง; role/audit proposal แยก | มี SQL proposal สำหรับ actor และ receipt ที่ผ่าน single-user แต่ยังไม่ต่อเข้ากับ Node/บัญชี operator จริงหรือ mount route |
+| Admin | ตรวจผู้สั่งจาก Auth แยกจากสิทธิ์ operator และผูก receipt กับคนสั่ง; role/audit proposal แยก | Node adapter และ SQL proposal ต่อกันในซอร์สที่ยังไม่ได้เปิดใช้; ตรวจ binding แยก และยังต้องพิสูจน์ TLS, pool และ auth จริงก่อน mount route |
 | Sandbox | คำสั่งซื้อและผลจากผู้ให้บริการจำลองใน process เดียว, ลงบัญชีจำลองกันซ้ำและคืนเงินเต็มจำนวน | ไม่เชื่อมผู้ให้บริการ ไม่รับเงินจริง ไม่ให้สิทธิ์จริง และไม่พิสูจน์ความทนหลัง restart |
 
 ตรวจเฉพาะเคสใหม่และความเข้ากันของสาขารวม:
 
 ```sh
 node --test --test-name-pattern='^atomic VIP creation' qa/free4-pilot-admission.test.cjs
-node --test qa/pg-item-entitlements.test.cjs qa/admin-room-count-grant-command.test.cjs qa/archive-previous-candidate.test.cjs qa/payment-sandbox/local-settlement.test.cjs
+node --test qa/pg-item-entitlements.test.cjs qa/admin-room-count-grant-command.test.cjs qa/pg-room-count-grant.test.cjs qa/archive-previous-candidate.test.cjs qa/payment-sandbox/local-settlement.test.cjs
 python3 tools/prepare_railway_secure.py
 ```
 
