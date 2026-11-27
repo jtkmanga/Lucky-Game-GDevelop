@@ -1,6 +1,6 @@
 {
   "heads": {
-    "pilot": "19a7a44251844e6c356c69ae4db457f7ea8ea9d3",
+    "pilot": "9135b9cfd929a73cd4e4d5f5d08c046f750425fa",
     "item": "8c3bf432439ccdc29086e1e45b68c640f9615ec6",
     "leader": "1273c138efd0b988589d1abbbb3c917e5826701f",
     "admin": "3462f83c3332769b125fd3d862e75f92602015bb",
@@ -23,7 +23,7 @@
     "leader/backend/storage/score-periods.cjs": "3c305490864150a2184ab3d46a3b41fea7792796",
     "leader/backend/supabase/game-store.cjs": "17d983eac7d52c866721f907412ce4f19d7fdd00",
     "pilot/Lucky_Game_Multiplayer_Test_v1.zip": "4381c01a19394403ca531726eba8ab6e8e6949fa",
-    "pilot/backend/auth/room-access.cjs": "04c69e75a915e824bbb72060fbbf5d73e8e873c0",
+    "pilot/backend/auth/room-access.cjs": "6bc6e967d8457ca06766de5b68f7dbc20402286d",
     "pilot/backend/auth/supabase-access-token.cjs": "4e3dbdedecc2da550b4607fbf5423d75ed39bdb2",
     "pilot/backend/railway/board-definitions.json": "76175a8c291e3315a0bf857755973b640cead70d",
     "pilot/backend/railway/board-maps.cjs": "ab28689023f34192e8291dc54a3a2c6fea5f80c9",
@@ -35,7 +35,7 @@
     "pilot/backend/railway/postgres-store.cjs": "27af763c630362895298e24750f2f34de5da3f80",
     "pilot/backend/railway/rule-transition-guard.cjs": "c07cedebf9e273a17a50de3613d9d78ab5d2d936",
     "pilot/backend/railway/rules.js": "e5436edac8fe597b726a166e7fcd08df09a73bd8",
-    "pilot/backend/railway/secure-server.cjs": "2b24649fde9942d5588ba6df051e7b9bb5422ecb",
+    "pilot/backend/railway/secure-server.cjs": "e361914cc7d98082d686554e45828beeb7cad7f8",
     "pilot/backend/railway/socket-shutdown.cjs": "4c789f7d997ea4bd1486145ff9269b192577a459",
     "pilot/backend/railway/startup-lifecycle.cjs": "9b1792945ba03544ac6be76faa245cefae728dfe",
     "pilot/backend/supabase/game-store.cjs": "7155876d2731e17ff41434072b2016220e6ff60e",
