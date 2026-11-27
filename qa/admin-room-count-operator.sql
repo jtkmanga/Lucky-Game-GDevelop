@@ -26,7 +26,7 @@ DO $test$
 BEGIN
   IF current_user <> 'anon' OR pg_has_role(current_user,'lucky_count_operator','MEMBER') THEN RAISE EXCEPTION 'Wrong effective role'; END IF;
   BEGIN
-    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true);
+    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000001');
     RAISE EXCEPTION 'Unexpected execution privilege';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -42,7 +42,7 @@ DO $test$
 BEGIN
   IF current_user <> 'authenticated' OR pg_has_role(current_user,'lucky_count_operator','MEMBER') THEN RAISE EXCEPTION 'Wrong effective role'; END IF;
   BEGIN
-    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true);
+    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000002');
     RAISE EXCEPTION 'Unexpected execution privilege';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -58,7 +58,7 @@ DO $test$
 BEGIN
   IF current_user <> 'lucky_game_runtime' OR pg_has_role(current_user,'lucky_count_operator','MEMBER') THEN RAISE EXCEPTION 'Wrong effective role'; END IF;
   BEGIN
-    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true);
+    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000003');
     RAISE EXCEPTION 'Unexpected execution privilege';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -74,7 +74,7 @@ DO $test$
 BEGIN
   IF current_user <> 'lucky_game_server_login' OR pg_has_role(current_user,'lucky_count_operator','MEMBER') THEN RAISE EXCEPTION 'Wrong effective role'; END IF;
   BEGIN
-    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true);
+    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000004');
     RAISE EXCEPTION 'Unexpected execution privilege';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -90,7 +90,7 @@ DO $test$
 BEGIN
   IF current_user <> 'lucky_count_reader' OR pg_has_role(current_user,'lucky_count_operator','MEMBER') THEN RAISE EXCEPTION 'Wrong effective role'; END IF;
   BEGIN
-    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true);
+    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000005');
     RAISE EXCEPTION 'Unexpected execution privilege';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -106,7 +106,7 @@ DO $test$
 BEGIN
   IF current_user <> 'lucky_count_predicate_owner' OR pg_has_role(current_user,'lucky_count_operator','MEMBER') THEN RAISE EXCEPTION 'Wrong effective role'; END IF;
   BEGIN
-    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true);
+    PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000006');
     RAISE EXCEPTION 'Unexpected execution privilege';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -138,17 +138,17 @@ BEGIN
   BEGIN PERFORM subject_uid FROM game.room_count_grant_audit; RAISE EXCEPTION 'Operator reads audit'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN DELETE FROM game.room_count_grants WHERE false; RAISE EXCEPTION 'Direct grant change'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN DELETE FROM game.room_count_grant_audit WHERE false; RAISE EXCEPTION 'Audit modification'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
-  BEGIN PERFORM game.set_room_count_grant(NULL,true); RAISE EXCEPTION 'Null subject accepted'; EXCEPTION WHEN null_value_not_allowed THEN NULL; END;
-  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,NULL); RAISE EXCEPTION 'Null state accepted'; EXCEPTION WHEN null_value_not_allowed THEN NULL; END;
-  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000074',true); RAISE EXCEPTION 'Unknown grant subject'; EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+  BEGIN PERFORM game.set_room_count_grant(NULL,true, '01000000-0000-4000-8000-000000000007'); RAISE EXCEPTION 'Null subject accepted'; EXCEPTION WHEN null_value_not_allowed THEN NULL; END;
+  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,NULL, '01000000-0000-4000-8000-000000000008'); RAISE EXCEPTION 'Null state accepted'; EXCEPTION WHEN null_value_not_allowed THEN NULL; END;
+  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000074',true, '01000000-0000-4000-8000-000000000009'); RAISE EXCEPTION 'Unknown grant subject'; EXCEPTION WHEN foreign_key_violation THEN NULL; END;
   RAISE NOTICE 'PASS operator bounded';
 END
 $test$;
 
 DO $test$
 BEGIN
-  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true) IS DISTINCT FROM true THEN RAISE EXCEPTION 'Grant failed'; END IF;
-  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true) IS DISTINCT FROM false THEN RAISE EXCEPTION 'Duplicate grant'; END IF;
+  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000010') IS DISTINCT FROM true THEN RAISE EXCEPTION 'Grant failed'; END IF;
+  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000011') IS DISTINCT FROM false THEN RAISE EXCEPTION 'Duplicate grant'; END IF;
   RAISE NOTICE 'PASS grant and duplicate';
 END
 $test$;
@@ -172,7 +172,7 @@ SET ROLE lucky_count_operator;
 
 DO $test$
 BEGIN
-  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,false); RAISE EXCEPTION 'Expected audit failure'; EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,false, '01000000-0000-4000-8000-000000000012'); RAISE EXCEPTION 'Expected audit failure'; EXCEPTION WHEN check_violation THEN NULL; END;
   RAISE NOTICE 'PASS failed audit rolls back revoke';
 END
 $test$;
@@ -190,14 +190,22 @@ $test$;
 
 RESET ROLE;
 
+DO $test$
+BEGIN
+  IF EXISTS (SELECT FROM game.room_count_grant_requests WHERE request_id='01000000-0000-4000-8000-000000000012') THEN
+    RAISE EXCEPTION 'Failed audit retained request';
+  END IF;
+END
+$test$;
+
 ALTER TABLE game.room_count_grant_audit DROP CONSTRAINT qa_force_audit_failure;
 
 SET ROLE lucky_count_operator;
 
 DO $test$
 BEGIN
-  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,false) IS DISTINCT FROM true THEN RAISE EXCEPTION 'Revoke failed'; END IF;
-  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,false) IS DISTINCT FROM false THEN RAISE EXCEPTION 'Duplicate revoke'; END IF;
+  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,false, '01000000-0000-4000-8000-000000000012') IS DISTINCT FROM true THEN RAISE EXCEPTION 'Revoke failed'; END IF;
+  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,false, '01000000-0000-4000-8000-000000000014') IS DISTINCT FROM false THEN RAISE EXCEPTION 'Duplicate revoke'; END IF;
   RAISE NOTICE 'PASS revoke and duplicate';
 END
 $test$;
@@ -225,12 +233,35 @@ BEGIN
 END
 $test$;
 
+SET ROLE lucky_count_operator;
+DO $test$
+BEGIN
+  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000010') IS DISTINCT FROM true THEN RAISE EXCEPTION 'Grant replay lost original outcome'; END IF;
+  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000011') IS DISTINCT FROM false THEN RAISE EXCEPTION 'No-op replay lost original outcome'; END IF;
+  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,false, '01000000-0000-4000-8000-000000000010');
+    RAISE EXCEPTION 'Changed desire accepted'; EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000074'::uuid,true, '01000000-0000-4000-8000-000000000010');
+    RAISE EXCEPTION 'Changed target accepted'; EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+END
+$test$;
+RESET ROLE;
+
+DO $test$
+BEGIN
+  IF EXISTS (SELECT FROM game.room_count_grants WHERE uid='00000000-0000-4000-8000-000000000073')
+     OR (SELECT count(*) FROM game.room_count_grant_audit WHERE subject_uid='00000000-0000-4000-8000-000000000073') <> 2 THEN
+    RAISE EXCEPTION 'Replay changed grants or audit';
+  END IF;
+  RAISE NOTICE 'PASS historical grant/no-op replay after revoke and payload mismatch checks';
+END
+$test$;
+
 -- Regrant before simulating an identity deletion through the auth subsystem.
 SET ROLE lucky_count_operator;
 
 DO $test$
 BEGIN
-  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true) IS DISTINCT FROM true THEN
+  IF game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000015') IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'Regrant failed';
   END IF;
 END
@@ -255,6 +286,15 @@ BEGIN
     RAISE EXCEPTION 'Explicit audit history changed on auth deletion';
   END IF;
   RAISE NOTICE 'PASS identity deletion removes grant without rewriting explicit audit';
+END
+$test$;
+
+-- Keep function execution rights but switch session_user for this synthetic check.
+SET LOCAL SESSION AUTHORIZATION lucky_count_operator;
+DO $test$
+BEGIN
+  BEGIN PERFORM game.set_room_count_grant('00000000-0000-4000-8000-000000000073'::uuid,true, '01000000-0000-4000-8000-000000000010');
+    RAISE EXCEPTION 'Changed principal accepted'; EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
 END
 $test$;
 
