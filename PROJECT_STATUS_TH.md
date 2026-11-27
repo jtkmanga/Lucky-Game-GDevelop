@@ -2,6 +2,8 @@
 
 **Checkpoint ล่าสุด 27 พ.ย. 2026:** Railway Staging Free4 ผ่าน Google 4 บัญชีและเล่นจบจริง พร้อมหลักฐาน +10 คะแนนโดยไม่บันทึกซ้ำ ดูหัวข้อท้ายไฟล์ “Free4 hosted gameplay”. Production ยังไม่เปิด.
 
+**นโยบายปัจจุบัน:** D15 ใน `DECISIONS_TH.md` บนสาขา `docs/lucky-autonomous-backlog` แทนข้อจำกัดด้านกระบวนการ D14 ที่ขัดกัน โดยคงขอบเขต Production/เงินจริง/งบ/ข้อมูลส่วนตัวเดิม.
+
 **Snapshot date:** 2026-11-25 (Asia/Bangkok). **This file is the single authoritative living status.** Update it after every substantial GitHub change and after each independently verified external state change. Do not copy "100%" from older chats.
 
 **สถานะฐานข้อมูลล่าสุด 26 พ.ย. 2026:** ติดตั้ง migrations 001–003 บน staging แล้ว ดู checkpoint ท้ายไฟล์สำหรับ migration IDs และข้อจำกัด ย่อหน้าก่อนหน้านั้นเป็นสถานะตามวันที่บันทึก
@@ -1588,3 +1590,11 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - เพิ่ม validation ก่อนเขียน: หากตำแหน่งหลังเดินถึง Lucky Box ที่ยังไม่เปิด ต้องมี reward; ถ้าเปิดแล้ว เดินลงซ้ำต้องไม่ให้ reward ซ้ำ. กติกาและ UI ไม่เปลี่ยน. Candidate `9ae222030bcf185cece6e57eca0eb1f7e5e98586` ใน `feature/luckybox-earned-reward-guard` ยึดฐาน `bbefbd63` และอัปเดต blob pin. รัน Node suite แบบแยก **11/11 PASS** รวม Free4 กรณีได้รางวัล/ขาดรางวัลและกรณีลงซ้ำ; ไม่แตะฐานข้อมูลขณะรันเทสต์. ยังไม่รวม branch และไม่ Deploy.
 - Railway staging ยังคงใช้ `bbefbd63`; prior `56e41aa8` ยัง retained และ `canRollback=true`. ยังไม่ได้กด Rollback: connector มี Redeploy แต่ยังไม่ยืนยันว่ากู้ทั้ง build และ custom variables แบบ rollback ได้ และยังไม่มีช่องทาง Rollback ที่ยืนยันได้ในรอบนี้. ไม่สลับ build อย่างเดียวหรือแก้ source config ข้าม environment. ยอดบิลจริงยังไม่ยืนยัน.
 - P0–P6 และรวม **65% โค้ด / 63% ทดสอบ / 27% พร้อมจริง** คงเดิม; หลักฐานใหม่เป็น audit ผ่านห้องเดิมและเทสต์แยก ไม่ปิด hosted Lucky Box. ถัดไปตรวจ diff/CI ก่อนรวมผ่าน Integration PR และคืน Staging จาก retained deployment เมื่อเข้าถึง Rollback ได้.
+
+
+## D15 — Full Autonomy & Maximum Performance (27 พ.ย. 2026)
+
+- อำนาจจากเจ้าของ: routine development, parallel isolated QA, staging server/DB changes และ Staging deploy/retest ในงบที่อนุมัติ ไม่ต้องรออนุมัติทีละขั้น. Production/เปิดสาธารณะ/เงินจริง/งบใหม่ยังไม่อนุมัติ และไม่สร้าง Scheduled Task.
+- งานเสร็จ 1 รายการ: ทำให้ D15 สอดคล้องกันในเอกสาร 4 ไฟล์ (4 commits ก่อน checkpoint นี้): AGENTS `54b4b0470dadc033cfeb33145e011174af85cbc6`, Master Plan `4c39238d6f7516eb241faf74e82faac5657dbc67`, Decisions `9e66d341b1911127325f85d3055d2211832fc3f7`, Handoff `1759b382c489694d21bc55be05da8dc68697b35e`. อยู่บน docs branch ไม่แตะ main.
+- ใช้หลักฐาน `9c6de47` และ `fed3332`; ไม่รัน Free4 หรือขอ Google ซ้ำ. หลักฐานเดิม 4 OAuth / 4 ที่นั่ง / 70 rolls / 1 คะแนนชนะ +10. Lucky Box guard `9ae2220` แยก branch, 11/11 offline; hosted Lucky Box ยังไม่ถูกเปิด. สายงานขนาน: ตรวจความเสี่ยง PR/Auto Deploy และงาน QA ที่ทำแยกได้ (รายงานเมื่อได้ผล).
+- P0–P6 คงเดิมจากหลักฐานก่อนหน้า รวม **65% โค้ด / 63% ทดสอบ / 27% พร้อมจริง**. ไม่รันเทสต์ซ้ำจากงานเอกสาร ไม่เปิดเครื่องหรือ Deploy ใน checkpoint นี้; โควต้าแพ็กเกจและยอดบิล Railway จริงยังไม่ยืนยัน.
