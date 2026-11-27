@@ -15,9 +15,15 @@ function readFree4Pilot(env) {
       uids.some(uid => !UUID.test(uid)) || new Set(uids).size !== 4) {
     throw Error('Invalid Free4 pilot configuration');
   }
+  const rawCutoff = env.LUCKY_FREE4_PILOT_CUTOFF_MS;
+  const cutoffMs = Number(rawCutoff);
+  if (typeof rawCutoff !== 'string' || !/^[1-9][0-9]{0,15}$/.test(rawCutoff) ||
+      !Number.isSafeInteger(cutoffMs) || cutoffMs > 8640000000000000) {
+    throw Error('Invalid Free4 pilot cutoff');
+  }
   const allowed = new Set(uids);
   return Object.freeze({
-    roomId,
+    roomId, cutoffMs,
     admits(uid, mode) {
       return mode === 'free' && allowed.has(uid);
     },

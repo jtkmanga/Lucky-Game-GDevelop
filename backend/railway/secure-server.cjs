@@ -29,7 +29,8 @@ const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.
 const {readFree4Pilot}=require('./free4-pilot.cjs');
 const pilot=readFree4Pilot(process.env);
 const supabaseConfig=readConfig();
-const store=createRailwayStore(process.env.DATABASE_URL);
+const store=createRailwayStore(process.env.DATABASE_URL,
+ pilot ? {roomId:pilot.roomId,cutoffMs:pilot.cutoffMs} : null);
 const PORT=Number(process.env.PORT||8080);
 const WEB=path.resolve(__dirname,'public');
 const MAX_CONNECTIONS=500; // conservative until authorized capacity validation
@@ -50,8 +51,59 @@ async function withUidJoinLock(uid,task){
  try{return await current;}
  finally{if(uidJoinLocks.get(uid)===barrier)uidJoinLocks.delete(uid);}
 }
+let pilotQuarantined=false;
+let pilotRecoveryTimer=null,pilotRecoveryAttempts=0;
+// One fixed room only. Four 10s retries cover a prior 30s lease, without
+// spinning or renewing a lease that this process does not own.
+function deferPilotRecovery(){
+ if(!pilot||shuttingDown||pilotQuarantined||pilotRecoveryTimer||pilotRecoveryAttempts>=4)return;
+ pilotRecoveryAttempts++;
+ pilotRecoveryTimer=setTimeout(async()=>{
+  pilotRecoveryTimer=null;
+  if(shuttingDown||pilotQuarantined||rooms.has(pilot.roomId))return;
+  try{await restoreRoom(pilot.roomId);}
+  catch(error){console.error('Pilot recovery retry failed',error.code||error.message);}
+ },RENEW_MS);
+ pilotRecoveryTimer.unref?.();
+}
+async function checkPilot(room){
+ if(pilotQuarantined||room.halted||room.busy)return false;
+ room.busy=true;
+ const fence={roomId:room.id,ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch,expectedRevision:room.revision};
+ try{
+  let status=await store.inspectPilotFence(fence);
+  if(status==='open')return !room.halted && !shuttingDown;
+  if(status==='expired')status=await store.closeExpiredPilot(fence);
+  if(status!=='closed'&&status!=='finished')throw Error('PILOT_FENCE_'+status);
+  haltRoom(room,'PILOT_'+status);
+ }catch(error){
+  pilotQuarantined=true;
+  haltRoom(room,error.code||error.message);
+  if(error.code==='AMBIGUOUS_COMMIT'){
+   try{
+    const row=await store.loadRoom(room.id);
+    console.error('Pilot close acknowledgement lost; read-back',row?.status||'absent');
+   }catch(readError){console.error('Pilot close read-back failed',readError.message);}
+  }
+  throw error;
+ }finally{room.busy=false;}
+ return false;
+}
+function armPilotCutoff(room){
+ if(!pilot||room.halted||room.game.over)return;
+ // Host time sets wake-up frequency. The locked database check decides expiry.
+ const delay=Math.min(RENEW_MS,Math.max(250,pilot.cutoffMs-Date.now()));
+ room.cutoffTimer=setTimeout(async()=>{
+  if(room.halted||room.game.over)return;
+  try{
+   if(!room.busy)await checkPilot(room);
+   armPilotCutoff(room);
+  }catch(error){console.error('Pilot cutoff check failed',error.code||error.message);}
+ },delay);
+ room.cutoffTimer.unref?.();
+}
 async function restoreRoom(roomId){
- if(pilot&&roomId!==pilot.roomId)return null;
+ if(pilot&&(roomId!==pilot.roomId||pendingCreates.has(roomId)))return null;
  if(rooms.has(roomId))return rooms.get(roomId);
  if(restoreTasks.has(roomId))return restoreTasks.get(roomId);
  const task=(async()=>{
@@ -59,13 +111,20 @@ async function restoreRoom(roomId){
    // Check the fixed row and roster before claiming any lease; check again
    // on the leased checkpoint before attaching sessions or starting timers.
    const candidate=await store.loadRoom(roomId);
-   if(!candidate||candidate.status!=='playing'||candidate.mode!=='free'||
-      !pilot.matches(roomId,candidate.seats))return null;
+   if(!candidate||['closed','finished'].includes(candidate.status))return null;
+   if(candidate.status!=='playing'||candidate.mode!=='free'||!pilot.matches(roomId,candidate.seats))
+    throw Error('Invalid Free4 pilot room');
   }
   // Claim ownership BEFORE any local timer/state is reconstructed. If another
   // worker has a valid lease, do not operate the room on this process.
   const claim=await store.acquireRoomLease(roomId,OWNER_ID,LEASE_MS/1000);
-  if(!claim)return null;
+  if(!claim){
+   if(pilot){
+    console.error('Pilot recovery deferred: lease unavailable');
+    deferPilotRecovery();
+   }
+   return null;
+  }
   const row=await store.loadRoom(roomId);
   if(!row||row.status!=='playing'||
      row.lease_owner!==OWNER_ID||
@@ -99,11 +158,13 @@ async function restoreRoom(roomId){
   const room={id:roomId,mode:row.mode,seats:members,game:row.game_state,
     deadline:Number(row.deadline_ms),revision:Number(row.revision),
     timer:null,leaseTimer:null,leaseEpoch:claim.leaseEpoch,busy:false,halted:false};
+  if(pilot && !await checkPilot(room))return null;
   members.forEach((member,i)=>{
     member.roomId=roomId;member.pendingRoomId=null;
     member.index=i;sessions.set(member.uid,member);
   });
   rooms.set(roomId,room);
+  armPilotCutoff(room);
   renewRoomLease(room);
   schedule(room); // expired turns are skipped by authoritative timer, not auto-rolled
   return room;
@@ -163,13 +224,17 @@ async function dispatch(mode){
    });
    pendingCreates.add(id);
    const deadline=Date.now()+TURN_MS;
-   let leaseEpoch;
+   let room,initialized=false;
    try{
-    leaseEpoch=await store.initializeRoom({
+    const leaseEpoch=await store.initializeRoom({
       roomId:id,mode,game,ownerId:OWNER_ID,
       seats:seats.map(s=>({uid:s.uid,name:s.name})),deadlineMs:deadline
     });
+    initialized=true;
+    room={id,mode,seats,game,deadline,revision:0,timer:null,leaseTimer:null,leaseEpoch,busy:false,halted:false};
+    if(pilot && !await checkPilot(room))break;
    }catch(err){
+    if(initialized)throw err;
     // A network/transaction error does not prove the INSERT rolled back.
     // Quarantine reservations, including offline seats, rather than
     // automatically requeue and potentially create duplicate durable rooms.
@@ -180,8 +245,8 @@ async function dispatch(mode){
    }finally{
     pendingCreates.delete(id);
    }
-   const room={id,mode,seats,game,deadline,revision:0,timer:null,leaseTimer:null,leaseEpoch,busy:false,halted:false};
    rooms.set(id,room);
+   armPilotCutoff(room);
    for(const s of seats){s.roomId=id;s.pendingRoomId=null;}
    renewRoomLease(room);
    schedule(room);
@@ -193,6 +258,7 @@ async function dispatch(mode){
 function haltRoom(room,reason){
  if(room.halted)return;
  room.halted=true;
+ clearTimeout(room.cutoffTimer);
  if(room.timer)clearTimeout(room.timer);
  if(room.leaseTimer)clearTimeout(room.leaseTimer);
  console.error('Room halted:',room.id,reason);
@@ -323,12 +389,17 @@ async function advance(room,roll){
   // persisted state will be reconciled by a future valid lease owner.
   if(room.halted)return;
   room.game=next;room.deadline=nextDeadline;room.revision=revision;
+  if(next.over)clearTimeout(room.cutoffTimer);
   if(next.over&&room.leaseTimer)clearTimeout(room.leaseTimer);
   schedule(room);transmit(room,event);
  }catch(e){
   console.error('Turn commit failed',e.code||e.message);
   // Halt before any read or client-visible action; a COMMIT acknowledgement
   // may be lost even when the new state and award rows are persisted.
+  if(pilot && e.message==='LEASE_LOST_OR_STALE_REVISION'){
+   room.busy=false;
+   if(!await checkPilot(room))return;
+  }
   haltRoom(room,e.code==='AMBIGUOUS_COMMIT'?'AMBIGUOUS_COMMIT':'UNCONFIRMED_TURN_COMMIT');
   if(e.code==='AMBIGUOUS_COMMIT' &&
      expectedRevision!==null && expectedGame!==null)
@@ -344,7 +415,7 @@ async function handle(ws,msg){
   if(mode!=='free'&&mode!=='vip')return send(ws,{type:'error',message:'โหมดไม่ถูกต้อง'});
   // Every join and resume must supply a valid Supabase access token.
   const auth=await requirePlayerIdentity(msg);
-  if(pilot&&!pilot.admits(auth.uid,mode))
+  if(pilot&&(pilotQuarantined||!pilot.admits(auth.uid,mode)))
    return send(ws,{type:'error',message:'บัญชีนี้ไม่ได้รับอนุญาตให้เข้าห้องทดสอบ'});
   await requireRoomAccess(auth,mode,store);
   const uid=auth.uid;
@@ -365,6 +436,8 @@ async function handle(ws,msg){
      if(saved.status!=='playing'||saved.mode!=='free'||!pilot.matches(pilot.roomId,saved.seats))
       return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
      savedRoomId=pilot.roomId;
+    }else if(Date.now()>=pilot.cutoffMs){
+     return send(ws,{type:'error',message:'หมดเวลาทดสอบ'});
     }
    }else savedRoomId=await store.findResumableRoomForUid(uid);
    if(savedRoomId){
@@ -384,6 +457,14 @@ async function handle(ws,msg){
   if(existing){
    // No unverified bearer-token resume; the verified UID owns this seat.
    if(ws.readyState!==WebSocket.OPEN||(pilot&&ws.session))return;
+   if(pilot && (existing.roomId||existing.pendingRoomId)){
+    const fixedId=existing.roomId||existing.pendingRoomId;
+    if(pendingCreates.has(fixedId))return send(ws,{type:'error',message:'ห้องทดสอบยังไม่พร้อม'});
+    const room=rooms.get(fixedId)||await restoreRoom(fixedId);
+    if(!room||room.game.over||!await checkPilot(room)||room.halted||room.game.over||
+       ws.readyState!==WebSocket.OPEN||ws.session)
+      return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
+   }
    const last=existing.ws;
    if(last&&last!==ws){last.session=null;last.close(4000,'duplicate session');}
    existing.ws=ws;ws.session=existing;
@@ -455,6 +536,7 @@ async function handle(ws,msg){
  if(msg.type==='roll'){
   const room=rooms.get(s.roomId);
   if(!room||room.game.over||room.halted)return send(ws,{type:'error',message:'ห้องไม่พร้อม'});
+  if(pilot && room.busy)return send(ws,{type:'error',message:'ห้องกำลังตรวจสอบ กรุณาลองใหม่'});
   if(room.game.current!==s.index)return send(ws,{type:'error',message:'ยังไม่ถึงตา'});
   if(Date.now()>=room.deadline)return send(ws,{type:'error',message:'หมดเวลา'});
   await advance(room,crypto.randomInt(1,7));
@@ -523,9 +605,11 @@ wss.on('connection',ws=>{
 // No periodic global scan yet: defer to authenticated reconnect and avoid
 // unexpected database costs while capacity remains untested.
 async function recoverOrphanedRoomsAtStartup(){
- // A dedicated pilot never sweeps ordinary rooms; an approved verified seat
- // triggers recovery of the single configured room on reconnect.
- if(pilot)return;
+ // The pilot startup path visits only its configured fixed row.
+ if(pilot){
+  await restoreRoom(pilot.roomId);
+  return;
+ }
  const candidates=await store.listRecoverableRooms(10);
  for(const item of candidates){
   try{await restoreRoom(item.room_id);}
@@ -551,8 +635,9 @@ process.on('SIGTERM',()=>{
  if(shutdownStarted)return;
  shutdownStarted=true;
  shuttingDown=true;startupReady=false;
+ clearTimeout(pilotRecoveryTimer);
  for(const room of rooms.values()){
-  room.halted=true;clearTimeout(room.timer);clearTimeout(room.leaseTimer);
+  room.halted=true;clearTimeout(room.cutoffTimer);clearTimeout(room.timer);clearTimeout(room.leaseTimer);
  }
  beginSocketShutdown({clients,wss,server,graceMs:3000})
   .catch(()=>{})
