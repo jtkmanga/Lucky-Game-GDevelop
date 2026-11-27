@@ -27,7 +27,7 @@ function section(from, to) {
 }
 
 // Exercise the real controller without loading credentials or opening a listener.
-function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyClaims = 0, beforeInspect, createFailure} = {}) {
+function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyClaims = 0, beforeInspect, createFailure, identity = async msg => ({uid:msg.accessToken})} = {}) {
   let row = initial && structuredClone(initial);
   const calls = [];
   const timers=new Map();
@@ -78,21 +78,25 @@ function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyCl
     listRecoverableRooms(limit) { calls.push(['scan',limit]); return []; }
   };
   const deps = {requireRuleTransition:require('../backend/railway/rule-transition-guard.cjs').requireRuleTransition,Date:clock,Rules, requireRoomAccess, store, pilot, wss, MAX_CONNECTIONS:10,
-    requirePlayerIdentity: async msg => ({uid:msg.accessToken}),
+    requirePlayerIdentity: identity,
     WebSocket:{OPEN:1}, crypto:{randomInt:()=>1,randomUUID:() => uid(20)}, setTimeout:(fn,delay)=>{const key={};timers.set(key,{fn,delay});return key;}, clearTimeout:key=>timers.delete(key)};
   const code = section('const TURN_MS=', '// Readiness reports') +
     section("wss.on('connection'", 'beginListening({');
   const app = Function(...Object.keys(deps), "'use strict';\nlet shuttingDown=false;\n"+code+
-    '\nreturn {handle, rooms, recoverOrphanedRoomsAtStartup, beginTestShutdown:()=>{shuttingDown=true;}};')(...Object.values(deps));
-  async function join(id, extra = {}) {
+    '\nreturn {handle, rooms, waiting, sessions, recoverOrphanedRoomsAtStartup, beginTestShutdown:()=>{shuttingDown=true;}};')(...Object.values(deps));
+  function connect() {
     const ws = Object.assign(new EventEmitter(), {readyState:1, bufferedAmount:0, received:[],
       send(x){this.received.push(JSON.parse(x));},
       close(){this.readyState=3;this.emit('close');}});
     wss.emit('connection', ws);
+    return ws;
+  }
+  async function join(id, extra = {}) {
+    const ws = connect();
     await app.handle(ws, { ...extra, type:'join', mode:extra.mode||'free', accessToken:id });
     return ws;
   }
-  return {...app, join, calls, timers, setTime:value=>now=value, setFence:value=>fence=value, loseClose:()=>lostClose=true, failRead:()=>failRead=true, row:()=>structuredClone(row)};
+  return {...app, connect, join, calls, timers, setTime:value=>now=value, setFence:value=>fence=value, loseClose:()=>lostClose=true, failRead:()=>failRead=true, row:()=>structuredClone(row)};
 }
 
 test('pilot off by default and activation requires staging and four distinct UIDs', () => {
@@ -336,4 +340,94 @@ test('shutdown after inspection starts cannot initiate a fresh close',async()=>{
  resolve();
  await tick;
  assert.equal(f.calls.filter(c=>c[0]==='close').length,0);
+});
+
+
+test('wire join binds only the configured Auth project identity to a Free4 seat', async t => {
+  const { requirePlayerIdentity } = require('../backend/auth/supabase-access-token.cjs');
+  const f = fixture({identity: requirePlayerIdentity});
+  const origin = 'https://llbkxnazkliskzcureec.supabase.co';
+  const key = 'synthetic-publishable-key';
+  const token = label => 'synthetic-offline-test-value-with-no-authority-' + label;
+  const requests = [];
+  const identities = new Map(roster.map((id, index) => [token(index), id]));
+  identities.set(token('outsider'), uid(99));
+  const configKeys = ['SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY'];
+  const previous = configKeys.map(name => process.env[name]);
+  t.after(() => configKeys.forEach((name, index) => {
+    if (previous[index] === undefined) delete process.env[name];
+    else process.env[name] = previous[index];
+  }));
+  process.env.SUPABASE_URL = origin;
+  process.env.SUPABASE_PUBLISHABLE_KEY = key;
+  t.mock.method(globalThis, 'fetch', async (url, opts) => {
+    const bearer = opts.headers.authorization;
+    requests.push([url, opts.method, opts.headers.apikey, bearer]);
+    const presented = bearer.slice('Bearer '.length);
+    if (presented === token('unavailable')) throw Error('synthetic auth outage');
+    const id = identities.get(presented);
+    return id ? Response.json({id, aud:'authenticated'}) : new Response(null, {status:401});
+  });
+
+  async function wireJoin(accessToken) {
+    const socket = f.connect();
+    const handlers = socket.listeners('message');
+    assert.equal(handlers.length, 1);
+    const payload = {type:'join', mode:'free', accessToken, uid:roster[3], roomId:uid(999)};
+    await handlers[0](Buffer.from(JSON.stringify(payload)));
+    return socket;
+  }
+
+  async function rejected(accessToken, expectsFetch) {
+    const before = {
+      calls:f.calls.slice(), queue:f.waiting.free.slice(), sessions:[...f.sessions.entries()],
+      rooms:[...f.rooms.keys()], row:f.row(), requests:requests.length
+    };
+    const socket = await wireJoin(accessToken);
+    assert.equal(socket.received.at(-1)?.type, 'error');
+    assert.equal(socket.session, undefined);
+    assert.deepEqual(f.calls, before.calls);
+    assert.deepEqual(f.waiting.free, before.queue);
+    assert.deepEqual([...f.sessions.entries()], before.sessions);
+    assert.deepEqual([...f.rooms.keys()], before.rooms);
+    assert.deepEqual(f.row(), before.row);
+    assert.equal(requests.length, before.requests + Number(expectsFetch));
+    if (expectsFetch) assert.deepEqual(requests.at(-1),
+      [origin + '/auth/v1/user', 'GET', key, 'Bearer ' + accessToken]);
+    socket.close();
+  }
+
+  await rejected('short', false);
+  process.env.SUPABASE_URL = 'https://syntheticwrongproject.supabase.co';
+  await rejected(token(0), false);
+  process.env.SUPABASE_URL = origin;
+  const sockets = [await wireJoin(token(0))];
+  assert.deepEqual(f.waiting.free.map(s => s.uid), [roster[0]]);
+  for (const reason of ['expired', 'outsider', 'unavailable']) await rejected(token(reason), true);
+  for (const i of [1, 2, 3]) sockets.push(await wireJoin(token(i)));
+  assert.deepEqual(f.row().seats.map(s => s.uid), roster);
+  for (const [i, socket] of sockets.entries()) {
+    const frame = socket.received.at(-1);
+    assert.equal(socket.session.uid, roster[i]);
+    assert.deepEqual([frame.type, frame.roomId, frame.seat], ['state', roomId, i]);
+    assert.ok(requests.some(req => req[0] === origin + '/auth/v1/user' &&
+      req[1] === 'GET' && req[2] === key && req[3] === 'Bearer ' + token(i)));
+  }
+  await rejected(token('unavailable'), true);
+  sockets[1].close();
+  const resumed = await wireJoin(token(1));
+  const frame = resumed.received.at(-1);
+  assert.deepEqual([frame.type,frame.roomId,frame.seat,frame.event.type],
+    ['state',roomId,1,'resume']);
+  assert.equal(resumed.session.uid,roster[1]);
+
+  f.setTime(Number(config.LUCKY_FREE4_PILOT_CUTOFF_MS));
+  f.setFence('expired');
+  const afterCutoff = await wireJoin(token(1));
+  assert.equal(afterCutoff.session,undefined);
+  assert.ok(afterCutoff.received.every(packet=>packet.type!=='state'));
+  assert.equal(afterCutoff.received.at(-1)?.type,'error');
+  assert.equal(f.waiting.free.length,0);
+  assert.deepEqual(requests.at(-1),[origin+'/auth/v1/user','GET',key,'Bearer '+token(1)]);
+  assert.equal(f.calls.filter(([action]) => action === 'create').length, 1);
 });
