@@ -17,6 +17,7 @@ def blob(data):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--offline', action='store_true', required=True)
+    parser.add_argument('--postgres-bin', type=Path)
     for track in ('item', 'leader', 'admin'):
         parser.add_argument(track, type=Path)
     args = parser.parse_args()
@@ -49,6 +50,10 @@ def main():
         print(f'{len(pins)} source inputs verified. Default generated v12 HTML sha256 {digest}', flush=True)
         subprocess.run(['node', lab/'joined.cjs', out, root/'leader', root/'admin'],
                        cwd=root, env=env, check=True)
+        if args.postgres_bin:
+            shutil.copy2(Path(__file__).with_name('native-sql.py'), lab)
+            subprocess.run([sys.executable, lab/'native-sql.py', args.postgres_bin.resolve(),
+                            out, root/'leader', args.admin.resolve()], cwd=root, env=env, check=True)
 
 
 if __name__ == '__main__':
