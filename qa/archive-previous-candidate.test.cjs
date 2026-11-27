@@ -12,9 +12,10 @@ function fixture(mode, opt={}) {
   let stored=opt.stored;
   const pool={connect:async()=>{
     let clocks=0;
+    let status=opt.dirty?'T':'I';
     const seq=[];
     history.push(seq);
-    return {async query(sql,args) {
+    return {getTransactionStatus:opt.missingStatus?undefined:()=>status,async query(sql,args) {
       if(sql.startsWith('WITH sample')) {
         seq.push('clock');
         assert.match(sql,/AS MATERIALIZED \(SELECT clock_timestamp\(\)/);
@@ -26,7 +27,7 @@ function fixture(mode, opt={}) {
       if(sql.includes('pg_try_advisory_lock')) {
         seq.push('gate');assert.deepEqual(args,[ns,key]);return {rows:[{held:!opt.busy}]};
       }
-      if(sql==='BEGIN ISOLATION LEVEL READ COMMITTED') {seq.push('begin');return {command:'BEGIN'};}
+      if(sql==='BEGIN ISOLATION LEVEL READ COMMITTED') {seq.push('begin');if(!opt.badBegin)status='T';return {command:'BEGIN'};}
       if(sql.startsWith('SELECT sum')) {
         assert.deepEqual(seq,['clock','gate','begin','clock']);
         assert.deepEqual(args,[mode,start,end]);
@@ -46,6 +47,7 @@ function fixture(mode, opt={}) {
       }
       assert.equal(sql,'COMMIT');seq.push('commit');
       if(opt.unknown)throw Error('lost acknowledgement');
+      if(!opt.dirtyAfterCommit)status='I';
       return {command:opt.rollbackTag?'ROLLBACK':'COMMIT'};
     },release(destroy){assert.equal(destroy,true);seq.push('discard');}};
   }};
@@ -61,6 +63,8 @@ for(const mode of ['free','vip'])test(mode+' stores the preceding period and val
   assert.deepEqual(f.history[1],['clock','gate','begin','clock','rank','read','commit','discard']);
 });
 for(const [name,opt,error,last] of [
+  ['invalid BEGIN transaction state',{badBegin:true},'ARCHIVE_BEGIN_UNCONFIRMED','begin'],
+  ['COMMIT without idle state',{dirtyAfterCommit:true},'ARCHIVE_COMMIT_UNKNOWN','commit'],
   ['gate busy',{busy:true},'ARCHIVE_GATE_BUSY','gate'],
   ['key mismatch',{invalidKey:true},'ARCHIVE_PERIOD','clock'],
   ['boundary crossed',{cross:true},'ARCHIVE_PERIOD_CHANGED','clock'],
@@ -74,7 +78,7 @@ for(const [name,opt,error,last] of [
   const f=fixture('vip',opt);
   await assert.rejects(archive(f.pool,'vip'),err=>{
     assert.match(err.message,new RegExp(error));
-    if(opt.unknown||opt.rollbackTag) assert.deepEqual(err.period,{mode:'vip',startMs:end-day,endMs:end});
+    if(opt.unknown||opt.rollbackTag||opt.dirtyAfterCommit) assert.deepEqual(err.period,{mode:'vip',startMs:end-day,endMs:end});
     return true;
   });
   assert.equal(f.history.length,1);
@@ -82,4 +86,10 @@ for(const [name,opt,error,last] of [
 });
 test('reject mode before checkout',async()=>{
   await assert.rejects(archive(null,{mode:'free',startMs:0}),/ARCHIVE_MODE/);
+});
+
+for(const opt of [{dirty:true},{missingStatus:true}])test('reject dirty or unverifiable checkout before SQL '+JSON.stringify(opt),async()=>{
+  const f=fixture('vip',opt);
+  await assert.rejects(archive(f.pool,'vip'),/ARCHIVE_CLIENT_NOT_IDLE/);
+  assert.deepEqual(f.history,[['discard']]);
 });

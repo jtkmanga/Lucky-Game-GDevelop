@@ -39,12 +39,14 @@ async function archivePreviousCandidate(pool,mode) {
   // Physical disconnect releases the session lock and rolls back unfinished
   // work, including failures during BEGIN or while acquiring the lock.
   try {
+    if(typeof client.getTransactionStatus!=='function'||client.getTransactionStatus()!=='I')
+      throw Error('ARCHIVE_CLIENT_NOT_IDLE');
     const p=await previous(client,mode);
     const {rows:gate}=await client.query('SELECT pg_try_advisory_lock($1::int,$2::int) AS held',
       [mode==='free'?1279739393:1279739394,p.key]);
     if(gate.length!==1||gate[0].held!==true) throw Error('ARCHIVE_GATE_BUSY');
     const begin=await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
-    if(begin.command!=='BEGIN') throw Error('ARCHIVE_BEGIN_UNCONFIRMED');
+    if(begin?.command!=='BEGIN'||client.getTransactionStatus()!=='T') throw Error('ARCHIVE_BEGIN_UNCONFIRMED');
     if(!isDeepStrictEqual(p,await previous(client,mode))) throw Error('ARCHIVE_PERIOD_CHANGED');
     const bounds=[mode,p.startMs,p.endMs];
     const result=await client.query(RANK,bounds);
@@ -67,7 +69,8 @@ async function archivePreviousCandidate(pool,mode) {
     }
     try {
       const commit=await client.query('COMMIT');
-      if(commit.command!=='COMMIT') throw Error('Unexpected archive transaction tag');
+      if(commit?.command!=='COMMIT'||client.getTransactionStatus()!=='I')
+        throw Error('Unconfirmed archive commit or client transaction status');
     }
     catch(cause){
       const failure=new Error('ARCHIVE_COMMIT_UNKNOWN',{cause});
