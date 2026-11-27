@@ -1547,3 +1547,8 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 ## P4 — Google OAuth readiness: ยืนยันบัญชีทดสอบ C เพิ่ม
 - ภาพจากเจ้าของแสดง Tester C ลงชื่อ Google สำเร็จที่หน้า Staging v12 เดิมก่อนเข้า Lobby. ตรวจเฉพาะสามบัญชีที่อนุญาตแบบอ่านอย่างเดียว: Supabase มี **3 บัญชี Google verified / 3 UID ไม่ซ้ำ**. OAuth readiness **3/4**; ยังไม่ได้ทดสอบเข้าห้องออนไลน์, ไม่ Deploy, ไม่บันทึก email/UID/token/ภาพใน GitHub. คงผล **65% โค้ด / 58% ทดสอบ / 22% พร้อมจริง** จนปิด gate; รอ Tester D ใน app/profile แยก.
+
+## P4 — Google OAuth readiness 4/4; Free4 gameplay ยังไม่เริ่ม
+- Tester D แสดง Google sign-in สำเร็จจากภาพเจ้าของ. Supabase read-only เฉพาะ allowlisted tester ยืนยัน **4/4 Google verified accounts และ 4 UID ไม่ซ้ำ**. ไม่เก็บอีเมล, UID, token หรือภาพใน GitHub. ผล sign-in บน Staging เดิมไม่ใช่ผล gameplay.
+- Owner ยืนยันพร้อมช่วยล็อกอิน แต่ให้ Dot เล่นแทนทั้งหมด. Dot คุมเบราว์เซอร์มือถือที่ผู้ใช้ลงชื่อเองไม่ได้ และหลายแท็บใน Cloud profile ปัจจุบันใช้ storage ร่วมกัน. ยังไม่ย้าย sessions, ไม่ขอ cookies/tokens, ไม่เข้าคิวของ build เดิม. ทำส่วนที่ปลอดภัยต่อ: เตรียม candidate สำหรับแยก session ในแต่ละแท็บของ controlled Staging pilot แล้วให้ owner ยืนยันผ่าน secure browser auth ทีละบัญชี. ถ้าต้อง Deploy จะเสนอ scope/cost/rollback เพื่อขออนุมัติแยกก่อน.
+- P0 100/100/ไม่เกี่ยว · P1 90/85/60 · P2 90/90/25 · P3 65/60/10 · P4 65/55/25 · P5 25/0/0 · P6 0/0/0. ปรับ P1 tests จาก OAuth readiness; รวม **65% โค้ด / 59% ทดสอบ / 22% พร้อมจริง** (ปัดเศษ) ไม่เพิ่มความพร้อมจริงจนผ่าน room/roll/sync/reconnect/finish/score. ไม่มี Deploy หรือ Production mutation.
