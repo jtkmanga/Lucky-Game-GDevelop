@@ -38,7 +38,8 @@ def main():
         log = run.stdout+run.stderr
         markers = {'empty':'LUCKY_COMBINED_EMPTY','denied':'LUCKY_COMBINED_DENIED',
                    'free':'LUCKY_COMBINED_FREE_10','vip':'LUCKY_COMBINED_VIP_20',
-                   'groups':'LUCKY_COMBINED_GROUPS','receipts':'LUCKY_COMBINED_RECEIPTS'}
+                   'groups':'LUCKY_COMBINED_GROUPS','receipts':'LUCKY_COMBINED_RECEIPTS',
+                   'free boundary':'LUCKY_COMBINED_FREE_BOUNDARY','vip boundary':'LUCKY_COMBINED_VIP_BOUNDARY'}
         if re.search(r'\b(ERROR|FATAL|PANIC):',log) or not all(f'= "{m}"' in log for m in markers.values()):
             raise RuntimeError(log)
         print('PostgreSQL 17 single-user PASS:', ', '.join(markers))
@@ -153,6 +154,30 @@ VALUES('{room}','{mode}',{literal(json.dumps(entry['seats']))},'{{"over":false}}
 extract(epoch FROM ('2026-11-28 17:00:00+00'::timestamptz-interval '{days} days'))*1000,
 extract(epoch FROM '2026-11-28 17:00:00+00'::timestamptz)*1000,50);"""]
         expect(mode.upper()+'_'+str(amount),f'(SELECT count(*)=1 AND min(score)={amount} FROM combined_{mode})')
+    blocks += ['RESET ROLE;']
+    # Add only synthetic corrections in the isolated clone. Amounts distinguish
+    # each boundary so a changed inclusive/exclusive predicate cannot pass.
+    days_by_mode = {'free':7, 'vip':1}
+    end = "'2026-11-28 17:00:00+00'::timestamptz"
+    for entry in records:
+        _,winner,mode,room,_,amount = entry['ledger']
+        start = f"({end}-interval '{days_by_mode[mode]} days')"
+        for label,when,delta in [
+          ('before-start',start+"-interval '1 millisecond'",200),
+          ('at-start',start,1),
+          ('at-end',end,400),
+          ('after-end',end+"+interval '1 millisecond'",800),
+        ]:
+            blocks.append(f"INSERT INTO game.score_events(event_id,uid,mode,game_id,kind,points,created_at) "
+                          f"VALUES('{room}:qa-{label}','{winner}','{mode}','{room}','admin',{delta},{when});")
+    blocks.append('SET ROLE lucky_game_runtime;')
+    for entry in records:
+        _,winner,mode,_,_,amount = entry['ledger']
+        start = f"({end}-interval '{days_by_mode[mode]} days')"
+        blocks.append(f"CREATE TEMP TABLE combined_boundary_{mode} AS EXECUTE rank('{mode}',"
+                      f"extract(epoch FROM {start})*1000,extract(epoch FROM {end})*1000,50);")
+        expect(mode.upper()+'_BOUNDARY', f"(SELECT count(*)=1 AND min(score)={amount+1} "
+               f"AND bool_and(uid='{winner}'::uuid) FROM combined_boundary_{mode})")
     blocks += ['RESET ROLE;', 'SET ROLE lucky_count_reader;',
                f"CREATE TEMP TABLE combined_denied AS EXECUTE counts('{identities[0]}');",
                f"CREATE TEMP TABLE combined_groups AS EXECUTE counts('{auditor}');"]
