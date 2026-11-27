@@ -1,6 +1,7 @@
 """Run the optional seventh v12 acceptance case directly with Python."""
 import asyncio
 import json
+import os
 import shutil
 import subprocess
 
@@ -39,7 +40,7 @@ async def run():
                     if len(sockets) < 4:
                         await ws.send_json(dict(type='waiting', joined=len(sockets), needed=4, mode='free'))
                     elif revision:
-                        await send(uid)
+                        await send(uid, dict(type='resume'))
                     else:
                         for member in identities:
                             await send(member)
@@ -91,7 +92,10 @@ async def run():
                 await request.abort()
 
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(executable_path=shutil.which('chromium'))
+            executable = os.environ.get('LUCKY_QA_CHROMIUM')
+            if not executable and not os.path.isfile(pw.chromium.executable_path):
+                executable = shutil.which('chromium')
+            browser = await pw.chromium.launch(executable_path=executable)
             pages, latest = [], {}
 
             def record(uid, data):
@@ -136,7 +140,7 @@ async def run():
                 del latest['B']
                 await pages[1].locator('#matchButton').click()
                 await verify(1, [3, 0, 0, 0], 1)
-                assert latest['B']['event'] is None
+                assert latest['B']['event'] == {'type': 'resume'}
                 assert joins == ['A', 'B', 'C', 'D', 'B'] and rolls == ['A'] and revision == 1
                 assert not errors, errors
                 print('PASS 7 Free4: A rolled 3 once; four views at revision 1; B resumed seat 1 with roll enabled')
