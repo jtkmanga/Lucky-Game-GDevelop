@@ -5,7 +5,7 @@ const { currentLeaderboard } = require('./current-leaderboard.cjs');
 const { v12LeaderboardRows } = require('./v12-leaderboard-rows.cjs');
 
 // Called only after the dispatcher selects the leaderboard path. No listener or provider setup.
-function createLeaderboardHandler({ verifyIdentity, store }) {
+function createProtectedLeaderboardRead({ verifyIdentity, store, read }) {
   return async function leaderboard(req, res) {
     function reply(status, data, headers = {}) {
       res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8',
@@ -32,14 +32,20 @@ function createLeaderboardHandler({ verifyIdentity, store }) {
     } catch {
       return reply(403, { error: 'forbidden' });
     }
-    let rows;
+    let payload;
     try {
-      rows = v12LeaderboardRows(await currentLeaderboard(store, mode));
+      payload = await read(mode);
     } catch {
       return reply(503, { error: 'unavailable' });
     }
-    return reply(200, { rows });
+    return reply(200, payload);
   };
 }
 
-module.exports = { createLeaderboardHandler };
+function createLeaderboardHandler({ verifyIdentity, store }) {
+  return createProtectedLeaderboardRead({ verifyIdentity, store,
+    read: async mode => ({ rows: v12LeaderboardRows(await currentLeaderboard(store, mode)) })
+  });
+}
+
+module.exports = { createLeaderboardHandler, createProtectedLeaderboardRead };
