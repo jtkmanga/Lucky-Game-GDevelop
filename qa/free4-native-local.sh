@@ -35,7 +35,7 @@ log=$base/postgres.log
 port=55437 # Only a name for this private Unix socket; TCP is disabled.
 db=lucky_qa_free4
 user=lucky_qa_owner
-mkdir -- "$host"
+mkdir -m 0700 -- "$host"
 clean() {
   status=$?
   trap - EXIT
