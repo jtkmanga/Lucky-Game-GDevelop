@@ -1544,3 +1544,6 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 ## P4 — Google OAuth readiness: ยืนยันบัญชีทดสอบ B เพิ่ม
 - ภาพจากเจ้าของแสดง Staging v12 เดิมลงชื่อ Google สำเร็จสำหรับ Tester B ก่อนจับคู่. ตรวจ Supabase แบบอ่านอย่างเดียวเฉพาะ 2 บัญชีทดสอบที่ได้รับอนุญาต: **2 บัญชี Google verified → 2 UID ไม่ซ้ำ**. OAuth readiness **2/4**; ยังไม่มี hosted room, ไม่ Deploy และไม่บันทึก email/UID/token/ภาพลง GitHub. ขอให้คงสอง session เดิมและเปิด C/D ใน profile/app แยก. สถานะรวม **65% โค้ด / 58% ทดสอบ / 22% พร้อมจริง** คงเดิม.
+
+## P4 — Google OAuth readiness: ยืนยันบัญชีทดสอบ C เพิ่ม
+- ภาพจากเจ้าของแสดง Tester C ลงชื่อ Google สำเร็จที่หน้า Staging v12 เดิมก่อนเข้า Lobby. ตรวจเฉพาะสามบัญชีที่อนุญาตแบบอ่านอย่างเดียว: Supabase มี **3 บัญชี Google verified / 3 UID ไม่ซ้ำ**. OAuth readiness **3/4**; ยังไม่ได้ทดสอบเข้าห้องออนไลน์, ไม่ Deploy, ไม่บันทึก email/UID/token/ภาพใน GitHub. คงผล **65% โค้ด / 58% ทดสอบ / 22% พร้อมจริง** จนปิด gate; รอ Tester D ใน app/profile แยก.
