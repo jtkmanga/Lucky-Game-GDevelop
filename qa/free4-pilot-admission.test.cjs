@@ -155,6 +155,7 @@ test('never allocate after the configured room is finished or has a mismatched r
     const reboot=fixture({initial});
     const ws=await reboot.join(roster[0]);
     assert.equal(ws.received.at(-1).type,'error');
+    assert.ok(ws.received.every(packet => packet.type !== 'state'));
     assert.deepEqual(reboot.calls,[['load',roomId]]);
   }
 });
@@ -231,6 +232,19 @@ test('last roll in flight serializes cutoff and publishes only acknowledged win'
   await turn;
   assert.equal(attempts.length,1);
   assert.equal(sockets[0].received.filter(x=>x.event?.type==='roll').length,result==='win'?1:0);
+  if(result==='win'){
+   for(const [seat,socket] of sockets.entries()){
+    const packet=socket.received.at(-1);
+    assert.deepEqual([packet.type,packet.roomId,packet.seat,packet.revision,packet.event.type,packet.game.over],
+      ['state',roomId,seat,1,'roll',true]);
+    assert.equal(packet.event.committedWin,undefined);
+   }
+   const blocked=await f.join(roster[0]);
+   assert.equal(blocked.received.at(-1).type,'error');
+   assert.ok(blocked.received.every(packet=>packet.type!=='state'));
+   assert.equal(blocked.session,undefined);
+   assert.equal(room.seats[0].ws,sockets[0]);
+  }
   assert.equal(f.calls.filter(c=>c[0]==='close').length,result==='expired'?1:0);
   assert.equal(f.calls.filter(c=>c[0]==='read-evidence').length,result==='unknown'?1:0);
   assert.equal(room.halted,result!=='win');
@@ -345,7 +359,12 @@ test('shutdown after inspection starts cannot initiate a fresh close',async()=>{
 
 test('wire join binds only the configured Auth project identity to a Free4 seat', async t => {
   const { requirePlayerIdentity } = require('../backend/auth/supabase-access-token.cjs');
-  const f = fixture({identity: requirePlayerIdentity});
+  let acknowledge;
+  const commits = [];
+  const f = fixture({identity: requirePlayerIdentity, commit(args) {
+    commits.push(args);
+    return new Promise(resolve => { acknowledge = resolve; });
+  }});
   const origin = 'https://llbkxnazkliskzcureec.supabase.co';
   const key = 'synthetic-publishable-key';
   const token = label => 'synthetic-offline-test-value-with-no-authority-' + label;
@@ -397,6 +416,7 @@ test('wire join binds only the configured Auth project identity to a Free4 seat'
     socket.close();
   }
 
+  f.setTime(Number(config.LUCKY_FREE4_PILOT_CUTOFF_MS) - 1000);
   await rejected('short', false);
   process.env.SUPABASE_URL = 'https://syntheticwrongproject.supabase.co';
   await rejected(token(0), false);
@@ -414,11 +434,31 @@ test('wire join binds only the configured Auth project identity to a Free4 seat'
       req[1] === 'GET' && req[2] === key && req[3] === 'Bearer ' + token(i)));
   }
   await rejected(token('unavailable'), true);
+  const stateCount = ws => ws.received.filter(packet => packet.type === 'state').length;
+  const counts = sockets.map(stateCount);
+  for (const ws of sockets) assert.equal(ws.received.at(-1).revision, 0);
+  f.setTime(Number(config.LUCKY_FREE4_PILOT_CUTOFF_MS) - 1);
+  const roll = sockets[0].listeners('message')[0](Buffer.from('{"type":"roll"}'));
+  assert.equal(commits.length, 1);
+  assert.equal(commits[0].expectedRevision, 0);
+  assert.deepEqual(sockets.map(stateCount), counts);
+  acknowledge(1);
+  await roll;
+  for (const [seat, ws] of sockets.entries()) {
+    const packet = ws.received.at(-1);
+    assert.equal(stateCount(ws), counts[seat] + 1);
+    assert.deepEqual([packet.type, packet.roomId, packet.seat, packet.event.type, packet.revision],
+      ['state', roomId, seat, 'roll', 1]);
+  }
+  const live = sockets[1].received.at(-1);
   sockets[1].close();
   const resumed = await wireJoin(token(1));
   const frame = resumed.received.at(-1);
   assert.deepEqual([frame.type,frame.roomId,frame.seat,frame.event.type],
     ['state',roomId,1,'resume']);
+  assert.equal(frame.revision, live.revision);
+  assert.deepEqual(frame.game, live.game);
+  assert.equal(frame.deadline, live.deadline);
   assert.equal(resumed.session.uid,roster[1]);
 
   f.setTime(Number(config.LUCKY_FREE4_PILOT_CUTOFF_MS));

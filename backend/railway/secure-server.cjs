@@ -202,7 +202,7 @@ function transmit(room,event){
  catch(error){haltRoom(room,'INVALID_ROOM_BOARD');return;}
  for(let i=0;i<room.seats.length;i++){
   const s=room.seats[i];
-  send(s.ws,{type:'state',roomId:room.id,seat:i,game,
+  send(s.ws,{type:'state',roomId:room.id,revision:room.revision,seat:i,game,
     deadline:room.deadline,event});
  }
 }
@@ -537,7 +537,7 @@ async function handle(ws,msg){
       haltRoom(room,'INVALID_RESUME_BOARD');
       return send(ws,{type:'error',message:'ข้อมูลกระดานห้องเดิมไม่ถูกต้อง'});
      }
-     send(ws,{type:'state',roomId:room.id,seat:existing.index,
+     send(ws,{type:'state',roomId:room.id,revision:room.revision,seat:existing.index,
        game:resumedGame,deadline:room.deadline,event:{type:'resume'}});
    }else if(!existing.roomId){
      if(!waiting[mode].includes(existing))waiting[mode].push(existing);
