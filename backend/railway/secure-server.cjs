@@ -51,8 +51,10 @@ async function withUidJoinLock(uid,task){
  try{return await current;}
  finally{if(uidJoinLocks.get(uid)===barrier)uidJoinLocks.delete(uid);}
 }
-let pilotQuarantined=false;
+let pilotQuarantined=false,pilotCreateUncertain=false;
 let pilotRecoveryTimer=null,pilotRecoveryAttempts=0;
+const isTransientPilotRead=error=>/^08/.test(error?.code||'')||
+ ['57P01','57P02','57P03','ECONNRESET','ECONNREFUSED','ETIMEDOUT','EPIPE'].includes(error?.code);
 // One fixed room only. Four 10s retries cover a prior 30s lease, without
 // spinning or renewing a lease that this process does not own.
 function deferPilotRecovery(){
@@ -62,17 +64,21 @@ function deferPilotRecovery(){
   pilotRecoveryTimer=null;
   if(shuttingDown||pilotQuarantined||rooms.has(pilot.roomId))return;
   try{await restoreRoom(pilot.roomId);}
-  catch(error){console.error('Pilot recovery retry failed',error.code||error.message);}
+  catch(error){
+   console.error('Pilot recovery retry failed',error.code||error.message);
+   if(isTransientPilotRead(error))deferPilotRecovery();
+  }
  },RENEW_MS);
  pilotRecoveryTimer.unref?.();
 }
 async function checkPilot(room){
- if(pilotQuarantined||room.halted||room.busy)return false;
+ if(shuttingDown||pilotQuarantined||room.halted||room.busy)return false;
  room.busy=true;
  const fence={roomId:room.id,ownerId:OWNER_ID,leaseEpoch:room.leaseEpoch,expectedRevision:room.revision};
  try{
   let status=await store.inspectPilotFence(fence);
-  if(status==='open')return !room.halted && !shuttingDown;
+  if(shuttingDown||room.halted)return false;
+  if(status==='open')return true;
   if(status==='expired')status=await store.closeExpiredPilot(fence);
   if(status!=='closed'&&status!=='finished')throw Error('PILOT_FENCE_'+status);
   haltRoom(room,'PILOT_'+status);
@@ -90,7 +96,7 @@ async function checkPilot(room){
  return false;
 }
 function armPilotCutoff(room){
- if(!pilot||room.halted||room.game.over)return;
+ if(!pilot||shuttingDown||room.halted||room.game.over)return;
  // Host time sets wake-up frequency. The locked database check decides expiry.
  const delay=Math.min(RENEW_MS,Math.max(250,pilot.cutoffMs-Date.now()));
  room.cutoffTimer=setTimeout(async()=>{
@@ -111,7 +117,12 @@ async function restoreRoom(roomId){
    // Check the fixed row and roster before claiming any lease; check again
    // on the leased checkpoint before attaching sessions or starting timers.
    const candidate=await store.loadRoom(roomId);
-   if(!candidate||['closed','finished'].includes(candidate.status))return null;
+   if(!candidate){
+    if(pilotCreateUncertain)deferPilotRecovery();
+    return null;
+   }
+   pilotCreateUncertain=false;
+   if(['closed','finished'].includes(candidate.status))return null;
    if(candidate.status!=='playing'||candidate.mode!=='free'||!pilot.matches(roomId,candidate.seats))
     throw Error('Invalid Free4 pilot room');
   }
@@ -231,6 +242,7 @@ async function dispatch(mode){
       seats:seats.map(s=>({uid:s.uid,name:s.name})),deadlineMs:deadline
     });
     initialized=true;
+    if(pilot)pilotCreateUncertain=false;
     room={id,mode,seats,game,deadline,revision:0,timer:null,leaseTimer:null,leaseEpoch,busy:false,halted:false};
     if(pilot && !await checkPilot(room))break;
    }catch(err){
@@ -239,6 +251,7 @@ async function dispatch(mode){
     // Quarantine reservations, including offline seats, rather than
     // automatically requeue and potentially create duplicate durable rooms.
     console.error('Room insert uncertain; reservations quarantined',err.code||err.message);
+    if(pilot){pilotCreateUncertain=true;deferPilotRecovery();} // never replay INSERT here
     for(const s of seats)send(s.ws,{type:'error',
       message:'ไม่สามารถยืนยันการสร้างห้องได้ กรุณาเชื่อมต่อใหม่'});
     break;
@@ -460,10 +473,31 @@ async function handle(ws,msg){
    if(pilot && (existing.roomId||existing.pendingRoomId)){
     const fixedId=existing.roomId||existing.pendingRoomId;
     if(pendingCreates.has(fixedId))return send(ws,{type:'error',message:'ห้องทดสอบยังไม่พร้อม'});
-    const room=rooms.get(fixedId)||await restoreRoom(fixedId);
-    if(!room||room.game.over||!await checkPilot(room)||room.halted||room.game.over||
-       ws.readyState!==WebSocket.OPEN||ws.session)
+    let room=rooms.get(fixedId);
+    if(!room&&existing.pendingRoomId){
+     const saved=await store.loadRoom(fixedId);
+     if(shuttingDown||ws.readyState!==WebSocket.OPEN||ws.session)return;
+     if(existing.pendingRoomId!==fixedId||pendingCreates.has(fixedId))
+      return send(ws,{type:'error',message:'ห้องทดสอบยังไม่พร้อม'});
+     if(!saved){
+      // No automatic second INSERT. An approved reconnect before cutoff may
+      // release the empty reservation for the same immutable room ID only.
+      if(Date.now()>=pilot.cutoffMs)return send(ws,{type:'error',message:'หมดเวลาทดสอบ'});
+      for(const member of sessions.values()){
+       if(member.pendingRoomId!==fixedId)continue;
+       member.pendingRoomId=null;member.index=null;
+       if(member.ws?.readyState===WebSocket.OPEN){
+        if(!waiting[member.mode].includes(member))waiting[member.mode].push(member);
+       }else if(member!==existing){sessions.delete(member.uid);}
+      }
+     }else if(saved.status==='playing'){
+      room=await restoreRoom(fixedId);
+      if(!room)return send(ws,{type:'error',message:'ห้องทดสอบยังไม่พร้อม'});
+     }else return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
+    }
+    if((!room&&existing.roomId)||(room&&(room.game.over||!await checkPilot(room)||room.halted||room.game.over)))
       return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
+    if(shuttingDown||ws.readyState!==WebSocket.OPEN||ws.session)return;
    }
    const last=existing.ws;
    if(last&&last!==ws){last.session=null;last.close(4000,'duplicate session');}

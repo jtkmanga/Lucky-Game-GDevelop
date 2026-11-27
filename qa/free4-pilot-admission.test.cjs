@@ -27,12 +27,12 @@ function section(from, to) {
 }
 
 // Exercise the real controller without loading credentials or opening a listener.
-function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyClaims = 0, beforeInspect} = {}) {
+function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyClaims = 0, beforeInspect, createFailure} = {}) {
   let row = initial && structuredClone(initial);
   const calls = [];
   const timers=new Map();
   let now=Number(config.LUCKY_FREE4_PILOT_CUTOFF_MS)-100;
-  let fence='open',lostClose=false;
+  let fence='open',lostClose=false,failRead=false;
   const clock={now:()=>now};
   const wss = new EventEmitter();
   const store = {
@@ -54,12 +54,18 @@ function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyCl
     },
     player(id) { calls.push(['player', id]); },
     findResumableRoomForUid(id) { calls.push(['ordinary-lookup', id]); return null; },
-    loadRoom(id) { calls.push(['load', id]); return id === roomId && row ? structuredClone(row) : null; },
+    loadRoom(id) {
+      calls.push(['load',id]);
+      if(failRead){failRead=false;throw Object.assign(Error('connection lost'),{code:'ECONNRESET'});}
+      return id===roomId&&row?structuredClone(row):null;
+    },
     initializeRoom(x) {
       calls.push(['create', x.roomId, x.seats.map(s => s.uid)]);
       assert.equal(row, null, 'fixture must never insert a second room');
+      if(createFailure==='absent'){createFailure=null;throw Error('no insert');}
       row = {status:'playing', mode:x.mode, seats:x.seats, game_state:x.game, revision:0,
         deadline_ms:x.deadlineMs, lease_owner:x.ownerId, lease_epoch:1};
+      if(createFailure==='persisted'){createFailure=null;throw Error('lost insert response');}
       return 1;
     },
     acquireRoomLease(id, owner) {
@@ -71,13 +77,13 @@ function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyCl
     },
     listRecoverableRooms(limit) { calls.push(['scan',limit]); return []; }
   };
-  const deps = {requireRuleTransition:require('../backend/railway/rule-transition-guard.cjs').requireRuleTransition,Date:clock,shuttingDown:false,Rules, requireRoomAccess, store, pilot, wss, MAX_CONNECTIONS:10,
+  const deps = {requireRuleTransition:require('../backend/railway/rule-transition-guard.cjs').requireRuleTransition,Date:clock,Rules, requireRoomAccess, store, pilot, wss, MAX_CONNECTIONS:10,
     requirePlayerIdentity: async msg => ({uid:msg.accessToken}),
     WebSocket:{OPEN:1}, crypto:{randomInt:()=>1,randomUUID:() => uid(20)}, setTimeout:(fn,delay)=>{const key={};timers.set(key,{fn,delay});return key;}, clearTimeout:key=>timers.delete(key)};
   const code = section('const TURN_MS=', '// Readiness reports') +
     section("wss.on('connection'", 'beginListening({');
-  const app = Function(...Object.keys(deps), "'use strict';\n"+code+
-    '\nreturn {handle, rooms, recoverOrphanedRoomsAtStartup};')(...Object.values(deps));
+  const app = Function(...Object.keys(deps), "'use strict';\nlet shuttingDown=false;\n"+code+
+    '\nreturn {handle, rooms, recoverOrphanedRoomsAtStartup, beginTestShutdown:()=>{shuttingDown=true;}};')(...Object.values(deps));
   async function join(id, extra = {}) {
     const ws = Object.assign(new EventEmitter(), {readyState:1, bufferedAmount:0, received:[],
       send(x){this.received.push(JSON.parse(x));},
@@ -86,7 +92,7 @@ function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyCl
     await app.handle(ws, { ...extra, type:'join', mode:extra.mode||'free', accessToken:id });
     return ws;
   }
-  return {...app, join, calls, timers, setTime:value=>now=value, setFence:value=>fence=value, loseClose:()=>lostClose=true, row:()=>structuredClone(row)};
+  return {...app, join, calls, timers, setTime:value=>now=value, setFence:value=>fence=value, loseClose:()=>lostClose=true, failRead:()=>failRead=true, row:()=>structuredClone(row)};
 }
 
 test('pilot off by default and activation requires staging and four distinct UIDs', () => {
@@ -278,4 +284,56 @@ test('an expired unused pilot denies admission without allocating any row',async
  }
  assert.deepEqual(f.calls,roster.map(()=>['load',roomId]));
  assert.equal(f.row(),null);
+});
+
+
+async function recoveryTick(f){
+ const [key,timer]=f.timers.entries().next().value;
+ f.timers.delete(key);
+ await timer.fn();
+}
+test('uncertain INSERT reconciles the fixed row; only explicit reconnect retries absent create',async()=>{
+ for(const createFailure of ['absent','persisted']){
+  const f=fixture({createFailure});
+  for(const id of roster)await f.join(id);
+  assert.equal(f.calls.filter(c=>c[0]==='create').length,1);
+  if(createFailure==='persisted')f.setFence('expired');
+  await recoveryTick(f);
+  assert.equal(f.calls.filter(c=>c[0]==='create').length,1);
+  if(createFailure==='persisted'){
+   assert.equal(f.row().status,'closed');
+   assert.equal(f.rooms.size,0);
+  }else{
+   const ws=await f.join(roster[0]);
+   assert.equal(ws.received.at(-1).event.type,'start');
+   assert.equal(f.calls.filter(c=>c[0]==='create').length,2);
+  }
+ }
+});
+test('transient startup read preserves remaining recovery attempts',async()=>{
+ const seed=fixture();
+ for(const id of roster)await seed.join(id);
+ const f=fixture({initial:seed.row(),denyClaims:1});
+ f.setFence('expired');
+ await f.recoverOrphanedRoomsAtStartup();
+ f.failRead();
+ await recoveryTick(f);
+ assert.equal(f.timers.size,1);
+ await recoveryTick(f);
+ assert.equal(f.row().status,'closed');
+});
+test('shutdown after inspection starts cannot initiate a fresh close',async()=>{
+ let resolve,entered;
+ const blocking=new Promise(r=>resolve=r), inCheck=new Promise(r=>entered=r);
+ let armed=false;
+ const f=fixture({beforeInspect:()=>{if(armed){entered();return blocking;}}});
+ for(const id of roster)await f.join(id);
+ f.setFence('expired');
+ armed=true;
+ const tick=f.timers.get(f.rooms.get(roomId).cutoffTimer).fn();
+ await inCheck;
+ f.beginTestShutdown();
+ resolve();
+ await tick;
+ assert.equal(f.calls.filter(c=>c[0]==='close').length,0);
 });
