@@ -6,7 +6,53 @@ const {poolConnectionOptions}=require('./pg-tls-config.cjs');
 const {createRoomLeaseStore,pilotBinding,publicRow,storedGame}=require('./room-lease-store.cjs');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function mustUid(uid){if(typeof uid!=='string'||!UUID.test(uid))throw Error('Invalid Supabase UID');return uid;}
-function createRailwayStore(connectionString,config=null){
+// Only a trusted constructor caller may opt in after the private SQL gate exists.
+async function createLockedVipRoom(pool, uids, insert, reservationCurrent){
+ let client, reusable=false, disconnected=false;
+ const onDisconnect=()=>{disconnected=true;};
+ function checkReservation(){
+  if(disconnected || reservationCurrent()!==true)throw Error('VIP reservation lost');
+ }
+ try{
+  client=await pool.connect();
+  client.on('error',onDisconnect);
+  client.on('end',onDisconnect);
+  if(client.getTransactionStatus()!=='I')throw Error('Expected idle checkout');
+  const begin=await client.query('BEGIN');
+  if(begin.command!=='BEGIN'||client.getTransactionStatus()!=='T')throw Error('BEGIN unconfirmed');
+  const gate=await client.query('SELECT game.lock_vip_pair($1::uuid,$2::uuid) AS admitted',uids);
+  checkReservation();
+  if(client.getTransactionStatus()!=='T' || gate.command!=='SELECT' || gate.rowCount!==1 || typeof gate.rows[0]?.admitted!=='boolean')throw Error('Invalid VIP gate response');
+  if(!gate.rows[0].admitted){
+   const rollback=await client.query('ROLLBACK');
+   checkReservation();
+   if(rollback.command!=='ROLLBACK'||client.getTransactionStatus()!=='I')throw Error('ROLLBACK unconfirmed');
+   reusable=true;
+   throw Object.assign(Error('VIP pair denied'),{code:'VIP_PAIR_DENIED'});
+  }
+  const epoch=await insert(client);
+  checkReservation();
+  if(epoch!==1 || client.getTransactionStatus()!=='T')throw Error('VIP room insert unconfirmed');
+  const commit=await client.query('COMMIT');
+  checkReservation();
+  if(commit.command!=='COMMIT'||client.getTransactionStatus()!=='I')throw Error('COMMIT unconfirmed');
+  reusable=true;
+  return epoch;
+ }catch(error){
+  if(reusable)throw error;
+  // Discarding the connection aborts an open transaction. COMMIT may already
+  // have succeeded; only reconciliation may resolve the immutable room ID.
+  throw Object.assign(Error('VIP room outcome unconfirmed',{cause:error}),{code:'VIP_CREATE_UNCERTAIN'});
+ }finally{
+  if(client){
+   client.removeListener('error',onDisconnect);
+   client.removeListener('end',onDisconnect);
+   try{client.release(!reusable);}
+   catch(error){throw Object.assign(Error('VIP checkout release unconfirmed',{cause:error}),{code:'VIP_CREATE_UNCERTAIN'});}
+  }
+ }
+}
+function createRailwayStore(connectionString,config=null,{atomicVip=false}={}){
  if(!connectionString)throw Error('DATABASE_URL required');
  const pilot=pilotBinding(config);
  const pool=new Pool(poolConnectionOptions(connectionString));
@@ -51,7 +97,7 @@ function createRailwayStore(connectionString,config=null){
    if(!r.rowCount)return null;
    return {uid:r.rows[0].uid,status:r.rows[0].status,tier:'vip',expiresAtMs:new Date(r.rows[0].expires_at).getTime()};
   },
-  async initializeRoom({roomId,mode,seats,game,deadlineMs,ownerId}){
+  async initializeRoom({roomId,mode,seats,game,deadlineMs,ownerId,reservationCurrent}){
    if(!UUID.test(roomId)||!['free','vip'].includes(mode)||!Array.isArray(seats)||
     seats.length!==(mode==='vip'?2:4)||new Set(seats.map(s=>s.uid)).size!==seats.length||
     seats.some(s=>!UUID.test(s.uid)))throw Error('Invalid verified seats');
@@ -59,16 +105,27 @@ function createRailwayStore(connectionString,config=null){
    const isPilot=pilot?.roomId===roomId;
    if(pilot && (!isPilot||mode!=='free'))throw Error('Unexpected pilot room');
    const state=storedGame(game,pilot,roomId);
-   const r=await pool.query(
-     `INSERT INTO game.rooms(room_id,mode,seats,game_state,deadline_ms,status,lease_owner,lease_epoch,lease_until)
-       ${isPilot?`SELECT $1::uuid,$2::text,$3::jsonb,$4::jsonb,$5::bigint,'playing',$6::uuid,1,clock_timestamp()+interval '30 seconds'
-         WHERE extract(epoch FROM clock_timestamp())*1000 < $7::bigint`:
-         `VALUES($1,$2,$3::jsonb,$4::jsonb,$5,'playing',$6::uuid,1,clock_timestamp()+interval '30 seconds')`}
-       RETURNING lease_epoch`,
-     [roomId,mode,JSON.stringify(seats.map(s=>({uid:s.uid,name:s.name}))),JSON.stringify(state),deadlineMs,ownerId,...(isPilot?[pilot.cutoffMs]:[])]
-   );
-   if(!r.rowCount)throw Error('Pilot creation expired');
-   return Number(r.rows[0].lease_epoch);
+   const roster=seats.map(({uid,name})=>({uid,name}));
+   const rosterJson=JSON.stringify(roster);
+   const insert=async executor=>{
+    const r=await executor.query(
+      `INSERT INTO game.rooms(room_id,mode,seats,game_state,deadline_ms,status,lease_owner,lease_epoch,lease_until)
+        ${isPilot?`SELECT $1::uuid,$2::text,$3::jsonb,$4::jsonb,$5::bigint,'playing',$6::uuid,1,clock_timestamp()+interval '30 seconds'
+          WHERE extract(epoch FROM clock_timestamp())*1000 < $7::bigint`:
+          `VALUES($1,$2,$3::jsonb,$4::jsonb,$5,'playing',$6::uuid,1,clock_timestamp()+interval '30 seconds')`}
+        RETURNING lease_epoch`,
+      [roomId,mode,rosterJson,JSON.stringify(state),deadlineMs,ownerId,...(isPilot?[pilot.cutoffMs]:[])]
+    );
+    if(executor!==pool && (r.command!=='INSERT'||r.rowCount!==1))throw Error('VIP insert unconfirmed');
+    if(!r.rowCount)throw Error('Pilot creation expired');
+    return Number(r.rows[0].lease_epoch);
+   };
+   if(mode==='vip' && atomicVip===true){
+    const ids=roster.map(s=>s.uid);
+    if(new Set(ids.map(uid=>uid.toLowerCase())).size!==2 || typeof reservationCurrent!=='function')throw Error('Invalid VIP reservation');
+    return createLockedVipRoom(pool,ids,insert,reservationCurrent);
+   }
+   return insert(pool);
   },
   async findResumableRoomForUid(uid){
    mustUid(uid);

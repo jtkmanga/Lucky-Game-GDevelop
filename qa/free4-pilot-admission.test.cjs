@@ -27,7 +27,7 @@ function section(from, to) {
 }
 
 // Exercise the real controller without loading credentials or opening a listener.
-function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlement, commit, denyClaims = 0, beforeInspect, createFailure, identity = async msg => ({uid:msg.accessToken})} = {}) {
+function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlement, initializeRoom, commit, denyClaims = 0, beforeInspect, createFailure, identity = async msg => ({uid:msg.accessToken})} = {}) {
   let row = initial && structuredClone(initial);
   const calls = [];
   const timers=new Map();
@@ -78,6 +78,7 @@ function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlem
     },
     listRecoverableRooms(limit) { calls.push(['scan',limit]); return []; }
   };
+  if(initializeRoom)store.initializeRoom=initializeRoom;
   const deps = {requireRuleTransition:require('../backend/railway/rule-transition-guard.cjs').requireRuleTransition,Date:clock,Rules, requireRoomAccess, requireVipExpiry, store, pilot, wss, MAX_CONNECTIONS:10,
     requirePlayerIdentity: identity,
     WebSocket:{OPEN:1}, crypto:{randomInt:()=>1,randomUUID:() => uid(20)}, setTimeout:(fn,delay)=>{const key={};timers.set(key,{fn,delay});return key;}, clearTimeout:key=>timers.delete(key)};
@@ -640,5 +641,118 @@ for (const event of ['expires during lookup', 'revoked', 'unavailable', 'cancel'
       assert.equal(first.received.some(p => p.type === 'state'), false);
       assert.equal(calls.get(roster[0]), 4);
     }
+  });
+}
+
+function atomicStoreFixture(scenario, onGate) {
+  const calls = [];
+  let state = 'I', persisted = false;
+  const inserted = p => {
+    assert.equal(p[0], uid(20));
+    assert.deepEqual(JSON.parse(p[2]).map(s => s.uid), roster.slice(0, p[1]==='vip'?2:4));
+    return {command:'INSERT', rowCount:1, rows:[{lease_epoch:'1'}]};
+  };
+  const client = Object.assign(new EventEmitter(), {
+    getTransactionStatus:() => state,
+    release(discard) { calls.push(discard?'discard':'release'); },
+    async query(sql, params) {
+      const op = sql.split(/\s/)[0];
+      calls.push(op);
+      if (op === 'BEGIN') state = 'T';
+      if (op === 'SELECT') {
+        assert.equal(sql,'SELECT game.lock_vip_pair($1::uuid,$2::uuid) AS admitted');
+        assert.deepEqual(params,roster.slice(0,2));
+        onGate();
+        if(scenario==='query loss')throw Error('lost gate response');
+        if(scenario==='client disconnect')this.emit('error',Error('connection lost'));
+        return {command:op,rowCount:1,rows:[{admitted:!['deny','rollback loss','rollback not idle'].includes(scenario)}]};
+      }
+      if (op === 'INSERT') {
+        if(scenario==='insert loss')throw Error('lost insert acknowledgement');
+        return inserted(params);
+      }
+      if (op === 'COMMIT') {
+        persisted=true;
+        if(scenario==='commit loss')throw Error('lost commit acknowledgement');
+      }
+      if (op === 'ROLLBACK' && scenario==='rollback loss')throw Error('lost rollback acknowledgement');
+      if (op !== 'BEGIN' && scenario!=='rollback not idle')state='I';
+      return {command:op};
+    }
+  });
+  const pool = {
+    async connect() { calls.push('checkout'); return client; },
+    async query(sql, params) {
+      assert.match(sql,/^INSERT INTO game\.rooms/);
+      calls.push('pool INSERT');
+      persisted=true;
+      return inserted(params);
+    }
+  };
+  const moduleStub={exports:{}};
+  const code=readFileSync(require.resolve('../backend/supabase/game-store.cjs'),'utf8');
+  Function('module','require',code)(moduleStub, name => {
+    if(name==='pg')return {Pool:class {constructor(){return pool;}}};
+    if(name==='./pg-tls-config.cjs')return {poolConnectionOptions:()=>({})};
+    if(name==='./room-lease-store.cjs')return require('../backend/supabase/room-lease-store.cjs');
+    throw Error(name);
+  });
+  const opts=scenario==='default VIP'?undefined:{atomicVip:true};
+  return {calls,persisted:()=>persisted,store:moduleStub.exports.createRailwayStore('offline',null,opts)};
+}
+
+for(const scenario of ['allow','deny','query loss','insert loss','commit loss','client disconnect','socket close',
+                        'rollback loss','rollback not idle','default VIP','ordinary Free4']){
+  test('atomic VIP creation / '+scenario,async()=>{
+    let first;
+    const db=atomicStoreFixture(scenario,()=>{if(scenario==='socket close')first.close();});
+    const f=fixture({pilot:null,initializeRoom:db.store.initializeRoom,
+      getVipEntitlement:async id=>({uid:id,tier:'vip',status:'active',expiresAtMs:Date.UTC(2099,0)})});
+    const mode=scenario==='ordinary Free4'?'free':'vip';
+    async function wire(i){
+      const ws=f.connect();
+      await ws.listeners('message')[0](Buffer.from(JSON.stringify({
+        type:'join',mode,accessToken:roster[i],uid:uid(999)
+      })));
+      return ws;
+    }
+    first=await wire(0);
+    const second=await wire(1);
+    if(mode==='free'){await wire(2);await wire(3);}
+    await new Promise(resolve=>setImmediate(resolve));
+    if(scenario==='default VIP'||mode==='free'){
+      assert.deepEqual(db.calls,['pool INSERT']);
+      assert.equal(second.received.at(-1).type,'state');
+      return;
+    }
+    const prefix=['checkout','BEGIN','SELECT'];
+    if(scenario==='allow'){
+      assert.deepEqual(db.calls,[...prefix,'INSERT','COMMIT','release']);
+      assert.equal(db.persisted(),true);
+      assert.equal(second.received.at(-1).type,'state');
+      return;
+    }
+    assert.equal(second.received.some(packet=>packet.type==='state'),false);
+    assert.equal(f.rooms.size,0);
+    if(scenario==='deny'){
+      assert.deepEqual(db.calls,[...prefix,'ROLLBACK','release']);
+      assert.equal(f.sessions.size,0);
+      assert.equal(second.session,null);
+      assert.equal(db.persisted(),false);
+      return;
+    }
+    const afterGate=scenario==='commit loss'?['INSERT','COMMIT']:
+      scenario==='insert loss'?['INSERT']:scenario.startsWith('rollback')?['ROLLBACK']:[];
+    const expected=[...prefix,...afterGate,'discard'];
+    assert.deepEqual(db.calls,expected);
+    assert.equal(db.persisted(),scenario==='commit loss');
+    for(const id of roster.slice(0,2)){
+      assert.equal(f.sessions.get(id).pendingRoomId,uid(20));
+      assert.equal(f.sessions.get(id).vipCreateUncertain,true);
+    }
+    const again=await wire(0);
+    assert.equal(again.received.at(-1).type,'error');
+    assert.deepEqual(db.calls,expected);
+    assert.deepEqual(f.waiting.vip,[]);
   });
 }

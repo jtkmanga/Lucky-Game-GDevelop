@@ -263,8 +263,12 @@ async function dispatch(mode){
    const deadline=Date.now()+TURN_MS;
    let room,initialized=false;
    try{
+    const sockets=mode==='vip'?seats.map(s=>s.ws):null;
     const leaseEpoch=await store.initializeRoom({
       roomId:id,mode,game,ownerId:OWNER_ID,
+      ...(sockets && {reservationCurrent:()=>!shuttingDown && seats.every((s,i)=>
+       sessions.get(s.uid)===s && s.pendingRoomId===id && s.ws===sockets[i] &&
+       s.ws?.readyState===WebSocket.OPEN && s.ws.session===s)}),
       seats:seats.map(s=>({uid:s.uid,name:s.name})),deadlineMs:deadline
     });
     initialized=true;
@@ -273,6 +277,18 @@ async function dispatch(mode){
     if(pilot && !await checkPilot(room))break;
    }catch(err){
     if(initialized)throw err;
+    if(mode==='vip' && err.code==='VIP_PAIR_DENIED'){
+     for(const s of seats){
+      if(s.ws?.session===s)s.ws.session=null;
+      if(sessions.get(s.uid)===s)sessions.delete(s.uid);
+      s.pendingRoomId=null;s.index=null;
+      send(s.ws,{type:'error',message:'ไม่สามารถยืนยันสิทธิ์ VIP ได้'});
+     }
+     continue;
+    }
+    if(mode==='vip' && err.code==='VIP_CREATE_UNCERTAIN'){
+     for(const s of seats)s.vipCreateUncertain=true;
+    }
     // A network/transaction error does not prove the INSERT rolled back.
     // Quarantine reservations, including offline seats, rather than
     // automatically requeue and potentially create duplicate durable rooms.
@@ -528,6 +544,7 @@ async function handle(ws,msg){
       return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
     if(shuttingDown||ws.readyState!==WebSocket.OPEN||ws.session)return;
    }
+   if(existing.vipCreateUncertain)return send(ws,{type:'error',message:'ห้อง VIP รอการตรวจสอบ'});
    const last=existing.ws;
    if(last&&last!==ws){last.session=null;last.close(4000,'duplicate session');}
    existing.ws=ws;ws.session=existing;
