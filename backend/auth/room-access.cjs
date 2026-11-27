@@ -39,20 +39,25 @@ async function requireRoomAccess(identity, mode, storage) {
   }
   if (mode === 'free') return true;
   if (mode !== 'vip') throw new Error('Invalid room mode');
+  await requireVipExpiry(identity.uid, storage);
+  return true;
+}
+
+async function requireVipExpiry(uid, storage) {
   if (!storage || typeof storage.getVipEntitlement !== 'function') {
     throw new VipAccessDeniedError();
   }
   let record;
   try {
-    record = await storage.getVipEntitlement(identity.uid);
+    record = await storage.getVipEntitlement(uid);
   } catch {
     // Do not allow VIP on DB failure.
     throw new VipAccessDeniedError();
   }
-  if (!validEntitlement(record, identity.uid, Date.now())) {
+  if (!validEntitlement(record, uid, Date.now())) {
     throw new VipAccessDeniedError();
   }
-  return true;
+  return record.expiresAtMs;
 }
 
-module.exports = { requireRoomAccess, VipAccessDeniedError };
+module.exports = { requireRoomAccess, requireVipExpiry, VipAccessDeniedError };

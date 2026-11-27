@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { EventEmitter } = require('node:events');
 const Rules = require('../backend/railway/multi-board-rules.cjs');
-const { requireRoomAccess } = require('../backend/auth/room-access.cjs');
+const { requireRoomAccess, requireVipExpiry } = require('../backend/auth/room-access.cjs');
 const { readFree4Pilot } = require('../backend/railway/free4-pilot.cjs');
 
 const uid = n => '11111111-1111-4111-8111-' + String(n).padStart(12, '0');
@@ -78,7 +78,7 @@ function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlem
     },
     listRecoverableRooms(limit) { calls.push(['scan',limit]); return []; }
   };
-  const deps = {requireRuleTransition:require('../backend/railway/rule-transition-guard.cjs').requireRuleTransition,Date:clock,Rules, requireRoomAccess, store, pilot, wss, MAX_CONNECTIONS:10,
+  const deps = {requireRuleTransition:require('../backend/railway/rule-transition-guard.cjs').requireRuleTransition,Date:clock,Rules, requireRoomAccess, requireVipExpiry, store, pilot, wss, MAX_CONNECTIONS:10,
     requirePlayerIdentity: identity,
     WebSocket:{OPEN:1}, crypto:{randomInt:()=>1,randomUUID:() => uid(20)}, setTimeout:(fn,delay)=>{const key={};timers.set(key,{fn,delay});return key;}, clearTimeout:key=>timers.delete(key)};
   const code = section('const TURN_MS=', '// Readiness reports') +
@@ -497,10 +497,12 @@ test('VIP2 wire admission uses verified UID and strict server expiry', async t =
 
   const lookups = [];
   let rows = [];
+  const records = new Map();
   const pool = {connect() {throw Error('Unexpected connection');}, async query(sql, params) {
     lookups.push([sql, params]);
     if (rows === null) throw Error('offline lookup unavailable');
-    return {rowCount:rows.length, rows};
+    const result = records.get(params[0]) ?? rows;
+    return {rowCount:result.length, rows:result};
   }};
   // Instantiate the shipped adapter with a recording pool. No pg driver or connection.
   const source = readFileSync(require.resolve('../backend/supabase/game-store.cjs'), 'utf8');
@@ -514,6 +516,7 @@ test('VIP2 wire admission uses verified UID and strict server expiry', async t =
   const store = mod.exports.createRailwayStore('offline-fixture');
   const {requirePlayerIdentity} = require('../backend/auth/supabase-access-token.cjs');
   const f = fixture({pilot:null, identity:requirePlayerIdentity, getVipEntitlement:store.getVipEntitlement});
+  f.setTime(now);
   async function join(i, mode = 'vip') {
     const ws = f.connect();
     await ws.listeners('message')[0](Buffer.from(JSON.stringify({
@@ -544,8 +547,10 @@ test('VIP2 wire admission uses verified UID and strict server expiry', async t =
   rows = record(roster[0], 1);
   const first = await join(0);
   assert.deepEqual(f.waiting.vip.map(s => s.uid), [roster[0]]);
+  records.set(roster[0], rows);
   rows = record(roster[1], 1);
   const second = await join(1);
+  await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(f.row().seats.map(s => s.uid), roster.slice(0, 2));
   assert.equal(f.row().mode, 'vip');
   assert.deepEqual(f.waiting.free.map(s => s.uid), [roster[2]]);
@@ -555,12 +560,85 @@ test('VIP2 wire admission uses verified UID and strict server expiry', async t =
     assert.deepEqual([packet.type, packet.seat, packet.game.players.length], ['state', seat, 2]);
     assert.equal(Object.hasOwn(packet.game, 'matchItems'), false);
   }
+  records.delete(roster[0]);
   rows = record(roster[0], 0);
   assert.equal((await join(0)).received.at(-1).type, 'error');
   assert.equal(f.sessions.get(roster[0]).ws, first);
   assert.equal(Object.hasOwn(f.row().game_state, 'matchItems'), false);
   assert.deepEqual(lookups.map(([,params]) => params),
-    [...Array(7).fill(roster[0]), roster[1], roster[0]].map(id => [id]));
+    [...Array(7).fill(roster[0]), roster[1], roster[0], roster[1], roster[0]].map(id => [id]));
   assert.ok(lookups.every(([sql]) => sql ===
     'SELECT uid,status,expires_at FROM game.vip_entitlements WHERE uid=$1'));
 });
+
+for (const event of ['expires during lookup', 'revoked', 'unavailable', 'cancel', 'close', 'takeover']) {
+  test('VIP2 queued recheck: ' + event, async t => {
+    let now = Date.UTC(2030, 1, 1);
+    t.mock.method(Date, 'now', () => now);
+    const calls = new Map();
+    let releaseLookup, signalStarted;
+    const gate = new Promise(resolve => { releaseLookup = resolve; });
+    const started = new Promise(resolve => { signalStarted = resolve; });
+    const f = fixture({pilot:null, async getVipEntitlement(id) {
+      const count = (calls.get(id) || 0) + 1;
+      calls.set(id, count);
+      let status = 'active', expiresAtMs = now + 10000;
+      if (id === roster[0] && count === 2) {
+        if (event === 'expires during lookup') expiresAtMs = now + 1;
+        if (event === 'revoked' || event === 'takeover') status = 'revoked';
+        if (event === 'unavailable') throw Error('fixture outage');
+      }
+      if (id === roster[1] && count === 2) {
+        signalStarted();
+        await gate;
+      }
+      return {uid:id, tier:'vip', status, expiresAtMs};
+    }});
+    f.setTime(now);
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+    async function wire(ws, message) {
+      await ws.listeners('message')[0](Buffer.from(JSON.stringify(message)));
+    }
+    async function join(i) {
+      const ws = f.connect();
+      await wire(ws, {type:'join', mode:'vip', accessToken:roster[i]});
+      return ws;
+    }
+    const first = await join(0);
+    const second = await join(1);
+    assert.equal(f.row(), null, 'VIP room inserted without a fresh entitlement check');
+    let timeout;
+    try {
+      await Promise.race([started, new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(Error('VIP allocation recheck did not start')), 1000);
+      })]);
+    } finally { clearTimeout(timeout); }
+    // A third join invokes dispatch while the second lookup is unresolved.
+    const third = await join(2);
+    now += 100;
+    f.setTime(now);
+    let replacement;
+    if (event === 'cancel') await wire(second, {type:'cancel'});
+    if (event === 'close') first.close();
+    if (event === 'takeover') replacement = await join(0);
+    assert.equal(f.row(), null);
+    assert.equal(f.calls.filter(c => c[0] === 'create').length, 0);
+    releaseLookup();
+    await settle();
+    const expected = event === 'takeover' ? [0,1] : event === 'cancel' ? [0,2] : [1,2];
+    const seats = expected.map(i => roster[i]);
+    assert.deepEqual(f.row().seats.map(s => s.uid), seats);
+    assert.deepEqual(f.calls.filter(c => c[0] === 'create').map(c => c[2]), [seats]);
+    assert.deepEqual(f.waiting.vip.map(s => s.uid), event === 'takeover' ? [roster[2]] : []);
+    const sockets = [replacement || first, second, third];
+    for (const [i, ws] of sockets.entries()) {
+      assert.equal(ws.received.filter(p => p.type === 'state').length, Number(expected.includes(i)));
+      assert.equal(f.sessions.has(roster[i]), expected.includes(i) || event === 'takeover');
+    }
+    if (replacement) {
+      assert.equal(f.sessions.get(roster[0]).ws, replacement);
+      assert.equal(first.received.some(p => p.type === 'state'), false);
+      assert.equal(calls.get(roster[0]), 4);
+    }
+  });
+}

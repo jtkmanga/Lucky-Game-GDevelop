@@ -18,7 +18,7 @@ const {WebSocket,WebSocketServer}=require('ws');
 const Rules=require('./multi-board-rules.cjs');
 const {requireRuleTransition}=require('./rule-transition-guard.cjs');
 const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
-const {requireRoomAccess}=require('../auth/room-access.cjs');
+const {requireRoomAccess,requireVipExpiry}=require('../auth/room-access.cjs');
 const {createRailwayStore}=require('../supabase/game-store.cjs');
 const {respondHealth}=require('./health-http-handler.cjs');
 const {beginListening}=require('./startup-lifecycle.cjs');
@@ -213,12 +213,38 @@ function reportWaiting(mode){
  waiting[mode].forEach((s,i)=>send(s.ws,
   {type:'waiting',mode,joined:i+1,needed:capacity(mode)}));
 }
+// Keep VIP joins responsive to cancel and takeover while the queue worker awaits storage.
+async function dispatchAfterJoin(mode){
+ if(mode==='vip'){
+  dispatch(mode).catch(error=>console.error('VIP dispatch failed',error.code||error.message));
+ }else await dispatch(mode);
+}
 async function dispatch(mode){
  if(dispatchBusy[mode])return;
  dispatchBusy[mode]=true;
  try{
   const q=waiting[mode];
   while(q.length>=capacity(mode)){
+   if(mode==='vip'){
+    // Leave the FIFO intact while reading. Socket takeover can reuse the same session.
+    const selected=q.slice(0,capacity(mode)).map(session=>({session,ws:session.ws}));
+    const checks=await Promise.allSettled(selected.map(({session})=>requireVipExpiry(session.uid,store)));
+    if(shuttingDown)return;
+    const now=Date.now();
+    for(const [i,{session,ws}] of selected.entries()){
+     if(!q.includes(session)||session.ws!==ws)continue;
+     const owned=sessions.get(session.uid)===session;
+     const connected=owned && ws && ws.session===session && ws.readyState===WebSocket.OPEN;
+     if(connected && checks[i].status==='fulfilled' && checks[i].value>now)continue;
+     takeOut(q,session);
+     if(owned)sessions.delete(session.uid);
+     if(ws && ws.session===session)ws.session=null;
+     session.ws=null;
+     if(connected)send(ws,{type:'error',message:'ไม่สามารถยืนยันสิทธิ์ VIP ได้'});
+    }
+    // A changed queue head or replacement socket requires a fresh selection and read.
+    if(selected.some(({session,ws},i)=>q[i]!==session||session.ws!==ws))continue;
+   }
    const seats=q.splice(0,capacity(mode));
    if(seats.some(s=>s.ws?.readyState!==WebSocket.OPEN)){ // lost queue member
     for(const s of seats)if(s.ws?.readyState===WebSocket.OPEN)q.unshift(s);
@@ -464,7 +490,10 @@ async function handle(ws,msg){
    if(existing.mode!==mode && (existing.roomId||existing.pendingRoomId))
      return send(ws,{type:'error',message:'กำลังอยู่ในห้องอื่นหรืออยู่ระหว่างสร้างห้อง'});
    if(existing.mode!==mode){
-     takeOut(waiting[existing.mode],existing);existing=null;
+     takeOut(waiting[existing.mode],existing);
+     sessions.delete(uid);
+     if(existing.ws){existing.ws.session=null;existing.ws.close(4000,'duplicate session');}
+     existing=null;
    }
   }
   if(existing){
@@ -541,7 +570,7 @@ async function handle(ws,msg){
        game:resumedGame,deadline:room.deadline,event:{type:'resume'}});
    }else if(!existing.roomId){
      if(!waiting[mode].includes(existing))waiting[mode].push(existing);
-     reportWaiting(mode);await dispatch(mode);
+     reportWaiting(mode);await dispatchAfterJoin(mode);
    }else{
      // Room restoration failure must never create a fresh match for this UID.
      send(ws,{type:'error',message:'ไม่สามารถกู้คืนห้องเดิมได้'});
@@ -557,7 +586,7 @@ async function handle(ws,msg){
   const session={uid,mode,name,avatar,ws,roomId:null,pendingRoomId:null,index:null};
   ws.session=session;sessions.set(uid,session);
   waiting[mode].push(session);
-  await dispatch(mode);
+  await dispatchAfterJoin(mode);
   }); // UID lock held through DB lookup, seat recovery and queue registration
   return;
  }
