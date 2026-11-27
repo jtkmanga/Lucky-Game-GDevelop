@@ -10,15 +10,15 @@
 >
 > **สถาปัตยกรรมที่ตกลงแล้ว:** GitHub/Codespaces = เกม UI v12 + Admin + งานพัฒนา; Railway = Multiplayer Node.js WebSocket; Supabase = Google Login ผ่าน Supabase Auth และ PostgreSQL คะแนน/VIP/ห้อง/ข้อมูลผู้เล่น ไม่มี Firebase เป็นบริการล็อกอินหลัก ไม่สร้าง Railway Postgres ซ้ำ ไม่ใช้ Render/GDevelop เป็นเส้นทางเปิดเกมหลัก
 >
-> **ทรัพยากรที่มีแล้ว:** Railway private project `Lucky-Game-GDevelop` ID `5d695e45-30fe-4b08-b0d0-0b0d250937eb`, environment `staging` ID `e0202327-924e-4913-9a3b-6c4493b2c31b` (**ยังไม่มี service/deploy**); Supabase project `Lucky-Game` ID `llbkxnazkliskzcureec`, Singapore `ap-southeast-1` (**ACTIVE_HEALTHY แต่ยังไม่ตั้งค่า Google OAuth/schema สำหรับเกม**). GitHub Repository เดิมมีไฟล์ ZIP, ร่าง Firebase/D1 และร่าง Railway/Postgres ซึ่งยังต้องแปลงเป็น Supabase Auth/PostgreSQL จริง
+> **ทรัพยากรปัจจุบัน:** ใช้ Railway Staging เดิมและ Supabase Auth/PostgreSQL เดิมเท่านั้นตาม checkpoint ที่ตรวจล่าสุด; ดู SHA/migrations/ผล OAuth ที่ยืนยันใน `PROJECT_STATUS_TH.md` บน `docs/lucky-autonomous-backlog` ไม่ใช้ข้อมูลทรัพยากรเก่าจาก main.
 >
 > **ข้อบังคับ:** รักษา UI v12 เหมือนเดิมทุกตำแหน่งและสี; กติกา Free 4 / VIP 2, ลูกเต๋าเซิร์ฟเวอร์ 1–6, 20 วินาทีไม่ทอยให้เอง, ชนะเมื่อถึงหรือเกิน 100 ได้ +10, Lucky Box 1 กล่อง, 5 แผนที่, Resume UID, Free reset วันอาทิตย์/VIP ทุกวันเที่ยงคืนไทย, Admin แยก, จ่าย VIP จริงเมื่อได้รับอนุมัติ
 >
-> **Standing approval D14:** เทสต์ที่จำเป็นใน Codex Cloud แบบแยกและเทสต์เกมบน Railway Staging เดิมด้วยบัญชีทดสอบที่อนุญาตเท่านั้น โดยไม่มีค่าใช้จ่ายเพิ่ม ไม่ใช้ผู้เล่นจริงหรือเงินจริง ขาดบัญชี Google ให้ใช้ mock/fixtures เฉพาะในระบบแยก ห้าม Deploy ใหม่ ห้าม Merge เข้า main ที่อาจ Deploy อัตโนมัติ ห้ามแก้/ลบข้อมูล Production และห้ามเผย secrets
+> **นโยบายปัจจุบัน D15:** ตัดสินใจและดำเนินงานเทคนิคเอง รวมเปิดเครื่องทดสอบและ Deploy/ทดสอบซ้ำใน Staging ภายในงบเดิม; ไม่ต้องขออนุมัติรายขั้นตอน ไม่สร้าง Scheduled Task ไม่ Touch Production ไม่เปิดสาธารณะ ไม่รับเงินจริง ไม่เปิดเผย secrets.
 >
-> **เริ่มจากงานค้างอันดับแรก** ใน checkpoint ล่าสุดของ `PROJECT_STATUS_TH.md` และ `PROJECT_AUTONOMOUS_BACKLOG_TH.md` บนสาขาเอกสาร หากยังไม่ได้รวมเข้า main ให้อ่านทั้งสองชุด ใช้ Codex ทำงานใน feature branch ตรวจ diff/ผลเทสต์ และบันทึกหลักฐานกับ SHA จริงกลับ GitHub โดยไม่ Deploy
+> **เริ่มจากงานค้างอันดับแรก** ที่ `PROJECT_STATUS_TH.md` บน `docs/lucky-autonomous-backlog`; ใช้ feature/Integration branch ตามความเสี่ยง ตรวจ diff/CI/ผลจริง และบันทึก SHA, งาน, เวลา, โควต้า, ค่าใช้จ่าย และ P0–P6 กลับ GitHub.
 >
-> ให้ดำเนินงานภายในสิทธิ์เชื่อมต่อ GitHub/Railway/Supabase ที่มีอยู่โดยอัตโนมัติให้มากที่สุด ลดการถามซ้ำ และอย่าสร้างขั้นตอนใหม่ที่ไม่จำเป็น ไม่ต้องขอให้ผมทดสอบด้วยตัวเอง หากต้องใช้การยืนยันบัญชีจริง/ค่าใช้จ่าย/Deploy/การชำระเงินจริงให้หยุดเฉพาะจุดนั้นแล้วทำงานที่ไม่ติดเงื่อนไขต่อทันที
+> ให้ทำงานที่ไม่ติดก่อนและขอความช่วยเหลือจากเจ้าของเฉพาะยืนยันตัวตน เพิ่มสิทธิ์ เพิ่มงบ หรือการกระทำนอกขอบเขต. ไม่ให้เจ้าของเล่นเทสต์แทน.
 
 ## How to use
 Copy the message above to a **new chat**. No need to paste all prior chat messages, screenshots or ZIP contents as the linked GitHub repository holds the project files and authoritative instructions.
