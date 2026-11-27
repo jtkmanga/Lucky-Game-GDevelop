@@ -6,8 +6,9 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const Rules=require('../backend/railway/rules.js');
 const {requireRuleTransition}=require('../backend/railway/rule-transition-guard.cjs');
-function scene({pos=0,roll=1,gift=null}={}){
- const before=Rules.create(['Alice','Bob'],'vip',()=>0.25);
+function scene({pos=0,roll=1,gift=null,giftUsed=false,mode='vip'}={}){
+ const before=Rules.create(mode==='free'?['A','B','C','D']:['A','B'],mode,()=>0.25);
+ before.giftUsed=giftUsed;
  before.players[0].pos=pos;
  if(gift!==null)before.gift=gift;
  const after=structuredClone(before);
@@ -72,4 +73,26 @@ test('timeout cannot move a player or pretend to roll',()=>{
  assert.throws(()=>requireRuleTransition(before,after,{
   type:'timeout',actorIndex:0,dice:null,outcome:{}
  },[]),/RULE_TRANSITION_MISMATCH/);
+});
+
+test('Free4 must persist an earned Lucky Box reward on the unused gift square',()=>{
+ const x=scene({pos:14,roll:1,gift:15,mode:'free'});
+ assert.equal(x.receipt.outcome.position,15);
+ assert.equal(x.receipt.outcome.reward,10);
+ assert.doesNotThrow(()=>requireRuleTransition(x.before,x.after,x.receipt,x.awards));
+ const after=structuredClone(x.after);
+ after.giftUsed=false;
+ after.players[0].score=x.before.players[0].score;
+ after.players[0].luckyEarned=x.before.players[0].luckyEarned;
+ const receipt={...x.receipt,outcome:{...x.receipt.outcome,reward:0}};
+ assert.throws(()=>requireRuleTransition(x.before,after,receipt,[]),
+  /RULE_TRANSITION_MISMATCH:LUCKY_BOX_REWARD_REQUIRED/);
+});
+test('landing on a previously used Lucky Box does not award a second reward',()=>{
+ const x=scene({pos:14,roll:1,gift:15,giftUsed:true,mode:'free'});
+ assert.equal(x.receipt.outcome.position,15);
+ assert.equal(x.receipt.outcome.reward,0);
+ assert.equal(x.after.giftUsed,true);
+ assert.equal(x.awards.length,0);
+ assert.doesNotThrow(()=>requireRuleTransition(x.before,x.after,x.receipt,x.awards));
 });
