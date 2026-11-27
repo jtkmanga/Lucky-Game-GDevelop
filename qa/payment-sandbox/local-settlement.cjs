@@ -14,13 +14,9 @@ function sameOrder(a, b) {
     a.providerReference === b.providerReference;
 }
 
-function createLocalSettlement(orderRows, lookupProvider) {
-  const secret = randomBytes(32);
-  const signFixture = raw => createHmac('sha256', secret).update(raw).digest('hex');
+function validatedFixtureOrders(orderRows) {
   const orders = new Map();
   const byProvider = new Set();
-  const events = new Map();
-  const ledger = new Set(); // Synthetic order IDs only; never grants a user a product.
   for (const order of orderRows) {
     if (!order || !orderId(order.orderId) || !paymentId(order.providerReference) ||
         !token(order.uid, /^lab-uid-[a-z0-9]+$/) || !products.has(order.productCode) ||
@@ -37,6 +33,14 @@ function createLocalSettlement(orderRows, lookupProvider) {
     byProvider.add(order.providerReference);
   }
 
+  return orders;
+}
+
+function createSettlementWithStore(store, lookupProvider) {
+  if (typeof lookupProvider !== 'function') throw Error('INVALID_FIXTURE_PROVIDER');
+  const secret = randomBytes(32);
+  const signFixture = raw => createHmac('sha256', secret).update(raw).digest('hex');
+
   function accept(raw, signature) {
     const reject = reason => ({ outcome: 'rejected', reason });
     if (!Buffer.isBuffer(raw) || raw.length > 2048 ||
@@ -50,41 +54,54 @@ function createLocalSettlement(orderRows, lookupProvider) {
     if (!event || Object.keys(event).length !== 4 || !eventId(event.eventId) ||
         !orderId(event.orderId) || !paymentId(event.providerReference) ||
         !['settled', 'refunded'].includes(event.kind)) return reject('invalid-event');
-    // Store accepted event identity, not just the current state. An old replay
-    // after a refund returns duplicate and cannot restore the synthetic grant.
-    const fingerprint = JSON.stringify([event.orderId, event.providerReference, event.kind]);
-    if (events.has(event.eventId)) {
-      return events.get(event.eventId) === fingerprint ? { outcome: 'duplicate' } : reject('event-conflict');
-    }
-    const order = orders.get(event.orderId);
-    if (!order || event.providerReference !== order.providerReference) return reject('unknown-order');
-    let payment;
-    try { payment = lookupProvider(event.providerReference); }
-    catch { return reject('provider-unavailable'); }
-    // The event asserts neither payment completion nor order attributes. Only
-    // the trusted synthetic provider lookup and stored order can verify those.
-    if (!payment || !sameOrder(order, payment) || payment.state !== event.kind) {
-      return reject('provider-mismatch');
-    }
-    if (event.kind === 'refunded' && payment.refundMinor !== order.amountMinor) {
-      return reject('partial-or-unverified-refund');
-    }
-    if (event.kind === 'settled' && order.status === 'refunded') return reject('refunded-order');
-    const status = event.kind === 'settled' ? 'paid' : 'refunded';
-    const changed = order.status !== status;
-    // This in-memory fixture is synchronous; all real writes must instead be
-    // atomic on a DB transaction with unique event and provider references.
-    if (changed) {
-      orders.set(order.orderId, Object.freeze({ ...order, status }));
-      if (status === 'paid') ledger.add(order.orderId);
-      else ledger.delete(order.orderId);
-    }
-    events.set(event.eventId, fingerprint);
-    return { outcome: changed ? status : 'duplicate' };
+    return store.transact(() => {
+      // Same signed identity across outages never restores a refunded order.
+      const fingerprint = JSON.stringify([event.orderId, event.providerReference, event.kind]);
+      const previous = store.findEvent(event.eventId);
+      if (previous !== undefined) {
+        return previous === fingerprint ? { outcome: 'duplicate' } : reject('event-conflict');
+      }
+      const order = store.findOrder(event.orderId);
+      if (!order || event.providerReference !== order.providerReference) return reject('unknown-order');
+      let payment;
+      try { payment = lookupProvider(event.providerReference); }
+      catch { return reject('provider-unavailable'); }
+      if (!payment || !sameOrder(order, payment) || payment.state !== event.kind) {
+        return reject('provider-mismatch');
+      }
+      if (event.kind === 'refunded' && payment.refundMinor !== order.amountMinor) {
+        return reject('partial-or-unverified-refund');
+      }
+      if (event.kind === 'settled' && order.status === 'refunded') return reject('refunded-order');
+      const status = event.kind === 'settled' ? 'paid' : 'refunded';
+      const changed = order.status !== status;
+      store.recordVerified({ order, event, status, changed, fingerprint });
+      return { outcome: changed ? status : 'duplicate' };
+    });
   }
 
+  return { signFixture, accept };
+}
+
+function createLocalSettlement(orderRows, lookupProvider) {
+  const orders = validatedFixtureOrders(orderRows);
+  const events = new Map();
+  const ledger = new Set(); // Synthetic order IDs only; never grants a user a product.
+  const lab = createSettlementWithStore({
+    transact: fn => fn(),
+    findEvent: id => events.get(id),
+    findOrder: id => orders.get(id),
+    recordVerified: ({ order, event, status, changed, fingerprint }) => {
+      if (changed) {
+        orders.set(order.orderId, Object.freeze({ ...order, status }));
+        if (status === 'paid') ledger.add(order.orderId);
+        else ledger.delete(order.orderId);
+      }
+      events.set(event.eventId, fingerprint);
+    }
+  }, lookupProvider);
   return {
-    signFixture, accept,
+    ...lab,
     inspectFixture: () => ({
       orderStates: [...orders].map(([id, order]) => [id, order.status]),
       syntheticFulfillments: [...ledger],
@@ -93,4 +110,4 @@ function createLocalSettlement(orderRows, lookupProvider) {
   };
 }
 
-module.exports = { createLocalSettlement };
+module.exports = { createLocalSettlement, createSettlementWithStore, validatedFixtureOrders };
