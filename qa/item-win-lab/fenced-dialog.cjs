@@ -18,14 +18,14 @@ const dialog=section(html,'function showResult(', '\nfunction ')+
  section(html,'function onlineWinPoints','async function onlineConnect')+
  section(html,"$('rollDice').addEventListener('click',e=>","$('restartGame').addEventListener");
 const uuid=n=>'aaaaaaaa-0000-4000-8000-'+String(n).padStart(12,'0');
-const id=uuid(9), owner=uuid(8),actor=2;
-function scriptedPg(seats,lost){
+const owner=uuid(8);
+function scriptedPg(seats,mode,lost){
  const calls=[];
  const client={
   async query(sql,params){
    const op=sql.trim().split(/\s+/).slice(0,3).join(' ');
    calls.push([op,params]);
-   if(op==='UPDATE game.rooms SET')return {rowCount:1,rows:[{revision:'8',mode:'free',seats}]};
+   if(op==='UPDATE game.rooms SET')return {rowCount:1,rows:[{revision:'8',mode,seats}]};
    if(['INSERT INTO game.score_events(event_id,uid,mode,game_id,kind,points)',
        'INSERT INTO game.turn_receipts'].includes(op))return {rowCount:1};
    if(op==='COMMIT'&&lost)throw Error('fixture lost acknowledgement');
@@ -35,16 +35,18 @@ function scriptedPg(seats,lost){
  };
  return {calls,pool:{query:()=>assert.fail('unexpected pool query'),connect:async()=>client}};
 }
-function runCase(kind){
+function runCase(kind,mode='free'){
  return async()=>{
-  const seats=Array.from({length:4},(_,index)=>({index,uid:uuid(index+1),verified:true,ws:{},roomId:id}));
+  const names=mode==='vip'?['A','B']:['A','B','C','D'];
+  const id=uuid(mode==='vip'?10:9),actor=mode==='vip'?1:2;
+  const seats=Array.from({length:names.length},(_,index)=>({index,uid:uuid(index+1),verified:true,ws:{},roomId:id}));
   for(const seat of seats)seat.ws.session=seat;
-  const game=Rules.create(['A','B','C','D'],'free');
+  const game=Rules.create(names,mode,()=>0.5);
   game.current=actor;game.players[actor].pos=99;game.players[actor].score=55;
   if(kind!=='ordinary')game.matchItems={version:1,players:seats.map((_,i)=>({
    shieldRemaining:0,winMultiplier:i===actor?(kind==='bad item'?3:2):1}))};
-  const room={id,seats,game,mode:'free',revision:7,leaseEpoch:4,deadline:Date.now()+20000};
-  const {pool,calls}=scriptedPg(seats,kind==='lost ack');
+  const room={id,seats,game,mode,revision:7,leaseEpoch:4,deadline:Date.now()+20000};
+  const {pool,calls}=scriptedPg(seats,mode,kind==='lost ack');
   const lease=createRoomLeaseStore(pool);
   let reconciled=false,haltReason,storeError;
   const store={async commitFencedTurn(args){
@@ -93,19 +95,19 @@ function runCase(kind){
   const update=calls[1][1],ledger=calls[2][1],receipt=calls[3][1];
   assert.deepEqual(update.slice(0,4),[id,owner,4,7]);
   assert.deepEqual(update.slice(5),[null,'finished']);
-  assert.deepEqual(ledger,[id+':win',seats[actor].uid,'free',id,'win',points]);
+  assert.deepEqual(ledger,[id+':win',seats[actor].uid,mode,id,'win',points]);
   assert.deepEqual(receipt.slice(0,7),[id,8,7,4,'roll',actor,1]);
   assert.equal(JSON.parse(receipt[7]).gameOver,true);
   assert.deepEqual(JSON.parse(receipt[8]),JSON.parse(update[4]));
   assert.equal(JSON.parse(receipt[8]).players[actor].score,55+points);
-  assert.deepEqual(JSON.parse(receipt[9]),[{eventId:ledger[0],uid:ledger[1],mode:'free',kind:'win',points}]);
+  assert.deepEqual(JSON.parse(receipt[9]),[{eventId:ledger[0],uid:ledger[1],mode,kind:'win',points}]);
   assert.equal(calls[5][1],kind==='lost ack');
   if(kind==='lost ack'){
    assert.equal(haltReason,'AMBIGUOUS_COMMIT');assert.equal(reconciled,true);
    assert.equal(room.revision,7);assert.deepEqual(packets,[]);assert.equal($('gameResultOverlay').hidden,true);
    return;
   }
-  assert.equal(room.revision,8);assert.equal(packets.length,4);
+  assert.equal(room.revision,8);assert.equal(packets.length,seats.length);
   for(const packet of packets){
    assert.equal(Object.hasOwn(packet.game,'matchItems'),false);
    assert.equal(packet.revision,8);
@@ -113,8 +115,10 @@ function runCase(kind){
   }
   receive(packets[actor]);
   assert.equal($('gameResultOverlay').hidden,false);
-  assert.equal($('resultMessage').textContent,'C คุณชนะได้รับคะแนน +'+points+' คะแนน');
+  assert.equal($('resultMessage').textContent,names[actor]+' คุณชนะได้รับคะแนน +'+points+' คะแนน');
+  return {update,ledger,receipt,packets,seats:seats.map(({uid})=>({uid})),at:Date.now()};
  };
 }
-for(const kind of ['double','ordinary','bad item','bad winner','bad amount','bad UID','lost ack'])
+module.exports={runCase};
+if(require.main===module)for(const kind of ['double','ordinary','bad item','bad winner','bad amount','bad UID','lost ack'])
  test('fenced live win: '+kind,runCase(kind));
