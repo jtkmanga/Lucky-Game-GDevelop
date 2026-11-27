@@ -53,7 +53,7 @@ replaceOnce('return {...room.game,board:', 'return {...publicGame,board:');
 const uids = 'abcd'.split('').map(c => c.repeat(8) + '-0000-4000-8000-000000000000');
 function server(store, readEntitlements) {
   const dependencies = { store, readEntitlements, items, Rules, requireRuleTransition,
-    crypto: { randomUUID: crypto.randomUUID, randomInt: () => 1 }, WebSocket: { OPEN: 1 },
+    crypto: { randomUUID: crypto.randomUUID, randomInt: () => 1, randomBytes: size => Buffer.alloc(size) }, WebSocket: { OPEN: 1 },
     requireRoomAccess: require('../backend/auth/room-access.cjs').requireRoomAccess,
     requirePlayerIdentity: async msg => {
       const uid = uids[msg.accessToken];
@@ -164,4 +164,77 @@ test('verified admission, shield consumption, cold resume and guarded winner cre
   const win = db.turns[1];
   assert.equal(win.game.players[0].score, 20);
   assert.deepEqual(win.awards, [{ eventId: db.row.id+':win', gameId: db.row.id, mode: 'free', uid: uids[0], kind: 'win', points: 20 }]);
+});
+
+test('synthetic windows across successive admissions and cold resume', async () => {
+  const source = require('./fixtures/synthetic-item-windows.cjs');
+  const start = Date.UTC(2030, 0, 1);
+  const end = start + 24 * 60 * 60 * 1000;
+  const grants = [
+    {uid:uids[0], item:'shield', startMs:start, endMs:end},
+    {uid:uids[1], item:'doubleWin', startMs:start-100, endMs:end+100}
+  ];
+  let instant = start, samples = 0;
+  const reader = source(async ids => {
+    assert.deepEqual(ids, uids);
+    samples++;
+    return {complete:true, atMs:instant, windows:grants};
+  });
+  async function create() {
+    const db = database();
+    await fill(server(db, reader));
+    assert.equal(db.creates.length, 1);
+    assert.equal(db.row.mode, 'free');
+    return db;
+  }
+  async function rollAfterResume(db, seat, position) {
+    db.row.game_state.current = seat;
+    db.row.game_state.players[seat].pos = position;
+    const cold = server(db, reader);
+    const ws = await join(cold, seat);
+    assert.equal(ws.messages.at(-1).event.type, 'resume');
+    await cold.handle(ws, {type:'roll'});
+    return db.turns.at(-1);
+  }
+  for (const [index, at] of [start,end-1].entries()) {
+    instant = at;
+    const db = await create();
+    assert.deepEqual(db.row.game_state.matchItems.players.map(p => [p.shieldRemaining,p.winMultiplier]),
+      [[1,1],[0,2],[0,1],[0,1]]);
+    assert.equal((await rollAfterResume(db,0,36)).receipt.outcome.type, 'shield');
+    // The second match crosses expiry before a cold restore.
+    if (index === 1) instant = end;
+    const spent = await rollAfterResume(db,0,36);
+    assert.equal(spent.receipt.outcome.type, 'snake');
+    assert.equal(spent.game.matchItems.players[0].shieldRemaining, 0);
+    const box = await rollAfterResume(db,1,db.row.game_state.gift-1);
+    assert.deepEqual(box.awards.map(a => [a.kind,a.points,a.uid]), [['lucky_box',10,uids[1]]]);
+    const win = await rollAfterResume(db,1,99);
+    assert.deepEqual(win.awards.map(a => [a.kind,a.points,a.uid]), [['win',20,uids[1]]]);
+    assert.equal(win.game.players[1].score, 30);
+    assert.equal(samples, index+1);
+  }
+  instant = end;
+  const expired = await create();
+  assert.deepEqual(expired.row.game_state.matchItems.players.map(p => [p.shieldRemaining,p.winMultiplier]),
+    [[0,1],[0,2],[0,1],[0,1]]);
+  assert.equal(samples, 3);
+  for (const [atMs,shield,doubleWin] of [[start-101,false,false],[start-100,false,true],[end+100,false,false]]) {
+    const rows = await source(() => ({complete:true, atMs, windows:grants}))(uids);
+    assert.deepEqual(rows, uids.map((uid,i) => ({uid,shield:i===0 && shield,doubleWin:i===1 && doubleWin})));
+  }
+  const empty = await source(() => ({complete:true,atMs:start,windows:[]}))(uids);
+  assert.deepEqual(empty, uids.map(uid => ({uid,shield:false,doubleWin:false})));
+  for (const readBatch of [
+    () => { throw Error('unavailable'); },
+    () => ({complete:false,atMs:start,windows:[]}),
+    () => ({complete:true,atMs:NaN,windows:[]}),
+    () => ({complete:true,atMs:start,windows:[{...grants[0],endMs:start}]}),
+    () => ({complete:true,atMs:start,windows:[grants[0],grants[0]]})
+  ]) {
+    const db = database();
+    const sockets = await fill(server(db, source(readBatch)));
+    assert.equal(db.creates.length, 0);
+    assert.ok(sockets.every(ws => ws.session === null && ws.messages.at(-1).type === 'error'));
+  }
 });
