@@ -44,6 +44,14 @@ async function lockPilot(client,pilot){
  return row;
 }
 function createRoomLeaseStore(pool,config=null) {
+ return buildRoomLeaseStore(pool,config,null);
+}
+// Review candidate only. Existing construction and packaging keep the default path.
+function createArchiveWriterCandidate(pool,config=null) {
+ const {beginAwardPeriod}=require('./award-period-fence.cjs');
+ return buildRoomLeaseStore(pool,config,beginAwardPeriod);
+}
+function buildRoomLeaseStore(pool,config,beginAwardPeriod) {
  const pilot=pilotBinding(config);
  if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')throw Error('PostgreSQL connection pool required');
  return {
@@ -193,6 +201,8 @@ function createRoomLeaseStore(pool,config=null) {
       !receipt.outcome||typeof receipt.outcome!=='object'||
       Array.isArray(receipt.outcome))
     throw Error('Invalid authoritative turn receipt');
+   // Freeze the authority decision across await points, even for an empty list.
+   if(beginAwardPeriod)awards=structuredClone(awards);
    const kinds=new Set();
    for(const award of awards){
     if(!award||typeof award!=='object'||Array.isArray(award)||
@@ -206,10 +216,15 @@ function createRoomLeaseStore(pool,config=null) {
       throw Error('Winner award requires a completed game (+10)');
     kinds.add(award.kind);
    }
+   const fencedAward=Boolean(beginAwardPeriod && awards.length);
+   const boundMode=fencedAward ? awards[0].mode : null;
+   if(fencedAward && awards.some(a=>a.mode!==boundMode))throw Error('Mixed award modes');
    const client=await pool.connect();
    let begun=false,commitIssued=false,destroyClient=false;
    try{
-    await client.query('BEGIN');begun=true;
+    if(fencedAward)await beginAwardPeriod(client,boundMode);
+    else await client.query('BEGIN');
+    begun=true;
     const isPilot=pilot?.roomId===roomId;
     if(pilot && !isPilot)throw Error('Unexpected pilot room');
     if(isPilot)await lockPilot(client,pilot);
@@ -228,6 +243,7 @@ function createRoomLeaseStore(pool,config=null) {
     );
     if(row.rowCount!==1)throw Error('LEASE_LOST_OR_STALE_REVISION');
     const {mode,seats}=row.rows[0];
+    if(fencedAward && mode!==boundMode)throw Error('Locked period differs from room mode');
     if(!Array.isArray(seats))throw Error('Invalid persisted seat list');
     if(receipt.actorIndex>=seats.length)
      throw Error('Turn receipt actor index exceeds room seat count');
@@ -283,7 +299,9 @@ function createRoomLeaseStore(pool,config=null) {
     // "committed but response lost" from "not committed". Do not retry the
     // turn, roll a second die, or return this client to the pool.
     commitIssued=true;
-    await client.query('COMMIT');begun=false;
+    const committed=await client.query('COMMIT');
+    if(fencedAward && (committed?.command!=='COMMIT' || client.getTransactionStatus()!=='I'))throw Error('Unconfirmed award COMMIT');
+    begun=false;
     return Number(row.rows[0].revision);
    }catch(error){
     if(commitIssued){
@@ -301,9 +319,9 @@ function createRoomLeaseStore(pool,config=null) {
     throw error;
    }finally{
     // pg client.release(true) discards a potentially broken connection.
-    client.release(destroyClient);
+    client.release(fencedAward || destroyClient);
    }
   }
  };
 }
-module.exports={createRoomLeaseStore,pilotBinding,publicRow,storedGame};
+module.exports={createRoomLeaseStore,createArchiveWriterCandidate,pilotBinding,publicRow,storedGame};

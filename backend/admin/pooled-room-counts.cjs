@@ -37,7 +37,12 @@ const CHECK_SESSION = `
     AND NOT EXISTS (
       SELECT 1 FROM pg_catalog.pg_roles AS identity
       WHERE identity.rolname IN (session_user, current_user) AND (
-        pg_catalog.has_function_privilege(identity.oid,'game.set_room_count_grant(uuid,boolean)','EXECUTE')
+        EXISTS (
+          SELECT FROM pg_catalog.pg_proc AS routine
+          WHERE routine.pronamespace = 'game'::pg_catalog.regnamespace
+            AND routine.proname = 'set_room_count_grant'
+            AND pg_catalog.has_function_privilege(identity.oid,routine.oid,'EXECUTE')
+        )
         OR pg_catalog.has_any_column_privilege(identity.oid,'game.rooms','INSERT,UPDATE')
         OR pg_catalog.has_table_privilege(identity.oid,'game.rooms','DELETE,TRUNCATE')
         OR EXISTS (

@@ -29,3 +29,7 @@ python3 tools/prepare_railway_secure.py
 ### เก็บคำสั่งซื้อ/สิทธิ์แยกตามต้นทาง (SQLite ใน QA เท่านั้น)
 
 ดู `qa/payment-sandbox/DURABLE_LEDGER_TH.md` และรันเทสต์เฉพาะชุด sandbox. มีไฟล์ SQLite ชั่วคราวและธุรกรรมจริงในเครื่องทดสอบ แต่ไม่ใช่ PostgreSQL หรือระบบรับเงิน และไม่มีส่วนใดถูก mount เข้ากับเกมหรือเปลี่ยน UI v12.
+
+### Admin reader และ candidate ป้องกันคะแนนผิดรอบ
+
+Admin reader ตรวจสิทธิ์ EXECUTE ของทั้ง login และ effective role บนทุก overload ของ `game.set_room_count_grant` ตรวจด้วย SQL จาก entry point จริงใน PostgreSQL single-user แบบสังเคราะห์เท่านั้น. ดู `qa/award-period-fence-TH.md` สำหรับ Free/VIP writer ที่แยก opt-in และยังไม่เปิดใช้งาน; การรอ PostgreSQL หลาย session และ predicate ที่เห็น snapshot ครบยังไม่เปลี่ยนสถานะ.
