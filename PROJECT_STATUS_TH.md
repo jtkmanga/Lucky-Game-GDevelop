@@ -1,5 +1,7 @@
 # Lucky Game — Canonical Project Status / Resume Checkpoint
 
+**Checkpoint ล่าสุด 27 พ.ย. 2026:** Railway Staging Free4 ผ่าน Google 4 บัญชีและเล่นจบจริง พร้อมหลักฐาน +10 คะแนนโดยไม่บันทึกซ้ำ ดูหัวข้อท้ายไฟล์ “Free4 hosted gameplay”. Production ยังไม่เปิด.
+
 **Snapshot date:** 2026-11-25 (Asia/Bangkok). **This file is the single authoritative living status.** Update it after every substantial GitHub change and after each independently verified external state change. Do not copy "100%" from older chats.
 
 **สถานะฐานข้อมูลล่าสุด 26 พ.ย. 2026:** ติดตั้ง migrations 001–003 บน staging แล้ว ดู checkpoint ท้ายไฟล์สำหรับ migration IDs และข้อจำกัด ย่อหน้าก่อนหน้านั้นเป็นสถานะตามวันที่บันทึก
@@ -1567,3 +1569,14 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - เจ้าของยกเลิกเพดาน $0.25 / 60 นาที / จำนวนรอบเดิม และอนุมัติ staging-only testing กับค่าใช้จ่ายสมเหตุสมผลโดยไม่ขอซ้ำ. คง fixed allowlist 4 UID และหนึ่ง isolated pilot room ต่อรอบ; ไม่เก็บ UID/email/credential ใน GitHub. ตั้ง safety cutoff ภายในรอบ (ไม่มี Scheduled Task).
 - Railway Staging เดิม `lucky-game-staging` เท่านั้น: staged patch `c3e9cf3a-679f-4ad1-9606-e1e9207138ac` มีเฉพาะ exact source branch/SHA และ 4 ตัวแปร pilot. Deployment `d41351f8-13b5-40cf-b891-c1cffe188e40` SHA `bbefbd63a50c5cb742827edf3ec0d676978f85ef` **SUCCESS**, 1 replica running, ไม่มี pending work. ก่อนย้อนกลับยังต้องยืนยัน pilot row absent/closed/finished; deployment เดิม `ec4df7e7-10fe-4b7c-89e5-be984c0b141a`.
 - ยังไม่ยืนยัน OAuth พร้อมกัน/เริ่มเล่นใน candidate. ยอดเรียกเก็บรอข้อมูล usage; ไม่ได้เพิ่ม service/database/volume, ไม่เปิด payment, ไม่ Merge main/แตะ Production. รวม **65% โค้ด / 59% ทดสอบ / 22% พร้อมจริง** คงเดิมจนมีหลักฐานการเล่น.
+
+
+## P4 — Free4 hosted gameplay: 4 Google accounts, normal finish, durable award (27 พ.ย. 2026)
+
+- **สภาพแวดล้อม:** Railway Staging เดิม 1 replica, deployment `d41351f8-13b5-40cf-b891-c1cffe188e40`, integration SHA `bbefbd63a50c5cb742827edf3ec0d676978f85ef`. ไม่มีการเปลี่ยน UI v12, Production, main, payment หรือ Scheduled Task. ไม่ใส่อีเมล/UID/รหัสห้อง/token ในหลักฐาน.
+- **PASS:** Google OAuth จริง 4/4 พร้อมกันในแท็บแยกและยังเป็นบัญชีเดิมครบหลัง reload; Supabase count-only พบ Google verified UID ไม่ซ้ำ 4. OAuth รอบแรกของบัญชีสุดท้ายหมดอายุ (`bad_oauth_state`); เริ่ม OAuth ใหม่ด้วยบัญชีที่ยืนยัน Google แล้วและกลับเข้า Staging สำเร็จ โดยไม่ใช้ auth mock.
+- **PASS:** Free4 จับคู่ 4/4 เข้าห้องเดียวกัน เริ่ม 15:06:25 UTC และจบ 15:10:04 UTC; กระดาน/ตำแหน่งและผลทอยตรงกันทั้ง 4 แท็บ; ทอยผ่านเซิร์ฟเวอร์ครบทั้ง 4 ที่นั่ง ผู้เล่นหนึ่งราย reload ช่วงเกมกำลังเล่นแล้วกลับห้องเดิม กระดานและผลทอยตรงกันทั้งหมด. ปล่อยหมดเวลา 20 วินาทีและเห็นข้ามตาโดยไม่ทอยอัตโนมัติ.
+- **PASS:** จบตามกติกาที่ช่อง 100 และแสดงผู้ชนะ +10 บนกระดาน; ปุ่มทอยถูกปิดทั้ง 4 แท็บ. Supabase อ่านเฉพาะ pilot room: status `finished` revision 73, receipts 73 / 73 revision ไม่ซ้ำ, roll 70 ครั้งจาก 4 ที่นั่ง, `win` 1 รายการ / 1 ผู้รับ / 10 คะแนน. ทดลองเชื่อมใหม่หลังจบแล้วกลับ Lobby ไม่กลับกระดานผลเดิม; อ่านซ้ำได้ terminal revision/receipts/score events เท่าเดิมทุกค่า. ผลนี้ยืนยันไม่มีคะแนนซ้ำจาก flow นี้ ไม่ใช่การทดสอบทุกกรณี replay. Lucky Box ไม่ถูกรางวัลในรอบนี้ จึงยังไม่ผ่าน hosted Lucky Box gate.
+- **ค่าใช้จ่าย:** Railway metrics 1 ชั่วโมงของ Staging service เท่านั้น (61 samples): CPU เฉลี่ย 0.0017, RAM เฉลี่ย 0.0590 GB. ยังไม่มีตัวเลข invoice จริงหรือส่วนเพิ่มจาก baseline ที่แยกได้; ไม่รายงาน $0 เป็นยอดยืนยัน. ไม่มีการเปิด Codespace หรือเพิ่ม service/replica/database/volume.
+- **P0–P6 (โค้ด / ทดสอบ / พร้อมจริง):** P0 100/100/ไม่เกี่ยว · P1 90/90/65 · P2 90/95/35 · P3 65/60/10 · P4 65/65/35 · P5 25/0/0 · P6 0/0/0. น้ำหนักเดิม 5/15/20/20/20/10/10, readiness ตัด P0; รวม **65% โค้ด / 63% ทดสอบ / 27% พร้อมจริง** (ปัดเศษ 65/62.50/27.11). หลักฐานใหม่เฉพาะ OAuth/session, gameplay/score และ hosted integration; ไม่ปิด P4 ทั้งหมดหรืออนุมัติเปิด Production.
+- **ถัดไป:** ห้อง pilot จบและยืนยันไม่เปลี่ยนหลัง reconnect; ตรวจการคืน deployment Staging รุ่น `56e41aa` ตามแผนโดยไม่ผูก auto-deploy ใหม่. เก็บข้อสังเกตหลังจบห้องและทดสอบต่อเฉพาะช่องที่ยังขาด เช่น hosted Lucky Box, VIP2/ไอเทม, leaderboard/Admin และ sandbox โดยไม่ทำรายการเงินจริง. ยอดบิลจริงและ rollback ยังไม่ได้ยืนยัน ณ checkpoint นี้.
