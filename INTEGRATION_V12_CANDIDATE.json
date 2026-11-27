@@ -4,7 +4,7 @@
   "heads": {
     "vip": "94f60fc7c0158c6b0f8c523a2963e085cc744c22",
     "items": "aeab052258e06af4efe270e7e5edae2ab107024a",
-    "admin": "07b088772075a30e4e60f83a92a77aab7d1a0edc",
+    "admin": "3bb945f5900825d38fb72a00fda182b7fec44171",
     "payment": "628934089a28916f44ff0db21d66f27e8be6f707",
     "leader": "755aebe210cdba9518a6c896f3e4a16822a37fa3",
     "combined": "19103043cdac32f927d54b41d97472873e19de23"
@@ -129,6 +129,18 @@
     "qa/pg-item-entitlements.test.cjs": {
       "track": "items",
       "git_blob": "223cc4f81cebd493aec1ad816269a46d2f063051"
+    },
+    "backend/admin/proposals/room-count-actor.sql": {
+      "track": "admin",
+      "git_blob": "c67b3b4fb4d79c06b2ce055f9af686f427ae9baf"
+    },
+    "qa/admin-room-count-actor.sql": {
+      "track": "admin",
+      "git_blob": "7000845e9bcb05d899b79d7518b0b95eccf1ea8f"
+    },
+    "qa/ADMIN_ROOM_COUNT_ACTOR_TH.md": {
+      "track": "admin",
+      "git_blob": "0e9dc3b8a8dd2affea60926defdb9a3eca266b8e"
     }
   }
 }
