@@ -38,7 +38,9 @@ const pinned={
   'room-lease-store.cjs':'780cca5ebbe1a7e8863f605e62e7edbb16b22a56',
   '001_game_private_schema.sql':'b7439dfb87b1ed4d90d0d9d2a63a5749ee5070f6',
   '002_room_lease_draft.sql':'1e0f66daf316c839ba7c92acf83bd8602802fedf',
-  '003_turn_receipts_draft.sql':'bf63b6ec4c7ed916833d8a886c59bf8d199ea0af'
+  '003_turn_receipts_draft.sql':'bf63b6ec4c7ed916833d8a886c59bf8d199ea0af',
+  '004_railway_runtime_access_PROPOSAL.sql':'1a50dd0da9b2ac2e8a2399d5cbac77dab2c141b7',
+  '005_restricted_login_no_password.sql':'baa14f19ae0b2d912b6ccd96d432fdcc5787c9a7'
 };
 function source(name){
   const data=fs.readFileSync(path.join(__dirname,'..','backend','supabase',name));
@@ -47,18 +49,31 @@ function source(name){
   return data.toString();
 }
 for(const name of Object.keys(pinned))source(name);
-// Run the pinned store body with only its production TLS connection factory replaced.
+// Supply the same warmed socket pool to both unbound and pilot-bound store adapters.
 // Every Pool, SQL query, transaction, lock and receipt goes to native PostgreSQL.
-function localStore(label,binding){
+const login='lucky_game_server_login';
+function runtimePool(label){
+  return new Pool({...opts,user:login,application_name:label});
+}
+function localStore(pool,binding){
   const module={exports:{}};
   const localRequire=id=>{
-    if(id==='pg')return {Pool};
+    if(id==='pg')return {Pool:function LocalPool(){return pool;}};
     if(id==='./room-lease-store.cjs')return require('../backend/supabase/room-lease-store.cjs');
     assert.equal(id,'./pg-tls-config.cjs');
-    return {poolConnectionOptions:()=>({...opts,application_name:label})};
+    return {poolConnectionOptions:()=>({})};
   };
   Function('require','module',source('game-store.cjs'))(localRequire,module);
   return module.exports.createRailwayStore('unix-socket-fixture',binding);
+}
+async function checkRuntime(pool){
+  await localStore(pool).health();
+  const tables=['players','vip_entitlements','rooms','score_events','turn_receipts',
+    'orders','admin_audit','leaderboard_archives'];
+  const {rows}=await pool.query(`SELECT name, row_security_active(('game.' || name)::regclass) AS active
+    FROM unnest($1::text[]) AS t(name)`,[tables]);
+  assert.equal(rows.length,tables.length);
+  for(const {name,active} of rows)assert.equal(active,true,'RLS inactive on game.'+name);
 }
 const observer=client('qa_observer');
 const blocker=client('qa_blocker');
@@ -92,17 +107,22 @@ async function setup(){
 }
 const settle=promise=>promise.then(value=>({value}),error=>({error}));
 async function run(kind){
-  const roomId=randomUUID(),ownerId=randomUUID(),cutoffMs=await now()+2500;
-  const binding={roomId,cutoffMs},turn=localStore('qa_turn',binding),close=localStore('qa_close',binding);
+  const roomId=randomUUID(),ownerId=randomUUID();
+  const turnPool=runtimePool('qa_turn'),closePool=runtimePool('qa_close');
   const reader=client('qa_readback');
   const seats=Array.from({length:4},(_,i)=>({uid:randomUUID(),name:'Player '+roomId+' '+i}));
   const game={over:false},final={over:true,winner:0};
   let locked=false;
   try{
+    await checkRuntime(turnPool);
+    await checkRuntime(closePool);
+    const seed=localStore(turnPool);
     for(const seat of seats){
       await observer.query('INSERT INTO auth.users VALUES($1)',[seat.uid]);
-      await turn.player(seat.uid,seat.name);
+      await seed.player(seat.uid,seat.name);
     }
+    const cutoffMs=await now()+2500;
+    const binding={roomId,cutoffMs},turn=localStore(turnPool,binding),close=localStore(closePool,binding);
     const leaseEpoch=await turn.initializeRoom({roomId,ownerId,mode:'free',seats,game,deadlineMs:cutoffMs+5000});
     assert.equal(leaseEpoch,1);
     const fence={roomId,ownerId,leaseEpoch,expectedRevision:0};
@@ -150,7 +170,7 @@ async function run(kind){
     console.log('PASS',kind,'status='+room.status,'revision='+room.revision,'receipts='+receipts.length,'awards='+ledger.length);
   }finally{
     if(locked)await blocker.query('ROLLBACK');
-    await Promise.allSettled([turn.close(),close.close(),reader.end()]);
+    await Promise.allSettled([turnPool.end(),closePool.end(),reader.end()]);
   }
 }
 async function main(){
