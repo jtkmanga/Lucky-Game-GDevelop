@@ -23,6 +23,7 @@ const {createRailwayStore}=require('../supabase/game-store.cjs');
 const {respondHealth}=require('./health-http-handler.cjs');
 const {beginListening}=require('./startup-lifecycle.cjs');
 const {beginSocketShutdown}=require('./socket-shutdown.cjs');
+const {startSocketHeartbeat}=require('./socket-heartbeat.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
@@ -655,6 +656,7 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(filename).pipe(res);
 });
 const wss=new WebSocketServer({server,path:'/ws',maxPayload:16384,perMessageDeflate:false});
+const socketHeartbeat=startSocketHeartbeat({wss,open:WebSocket.OPEN});
 wss.on('connection',ws=>{
  if(clients.size>=MAX_CONNECTIONS){ws.close(1013,'Server capacity gate');return;}
  clients.add(ws);
@@ -716,6 +718,7 @@ process.on('SIGTERM',()=>{
  if(shutdownStarted)return;
  shutdownStarted=true;
  shuttingDown=true;startupReady=false;
+ socketHeartbeat.stop();
  clearTimeout(pilotRecoveryTimer);
  for(const room of rooms.values()){
   room.halted=true;clearTimeout(room.cutoffTimer);clearTimeout(room.timer);clearTimeout(room.leaseTimer);
