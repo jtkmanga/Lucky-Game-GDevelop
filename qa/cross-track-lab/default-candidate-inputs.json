@@ -4,7 +4,7 @@
   "backend/supabase/game-store.cjs": "67172b51b20eaef3aa985999c408c5e024eb73cf",
   "backend/supabase/room-lease-store.cjs": "c52759f1421ff2aa68fc42e3c2dbadfd72b67c6f",
   "backend/railway/multi-board-rules.cjs": "c68f9c164501c2431a388c8ae661596640d9411c",
-  "backend/railway/rule-transition-guard.cjs": "c07cedebf9e273a17a50de3613d9d78ab5d2d936",
+  "backend/railway/rule-transition-guard.cjs": "84771f762f86b121682a1dc1b0eb63cb68d1dec7",
   "backend/railway/rules.js": "e5436edac8fe597b726a166e7fcd08df09a73bd8",
   "backend/railway/board-maps.cjs": "ab28689023f34192e8291dc54a3a2c6fea5f80c9",
   "backend/railway/board-definitions.json": "76175a8c291e3315a0bf857755973b640cead70d",
