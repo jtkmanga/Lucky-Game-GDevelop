@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "base": "94f60fc7c0158c6b0f8c523a2963e085cc744c22",
+  "heads": {
+    "vip": "94f60fc7c0158c6b0f8c523a2963e085cc744c22",
+    "items": "aeab052258e06af4efe270e7e5edae2ab107024a",
+    "admin": "07b088772075a30e4e60f83a92a77aab7d1a0edc",
+    "payment": "628934089a28916f44ff0db21d66f27e8be6f707",
+    "leader": "755aebe210cdba9518a6c896f3e4a16822a37fa3",
+    "combined": "19103043cdac32f927d54b41d97472873e19de23"
+  },
+  "overlays": {
+    "backend/admin/pg-room-counts.cjs": {
+      "track": "admin",
+      "git_blob": "7bb72ceb85424a4b640a0018c216bdfc810d1534"
+    },
+    "backend/admin/pooled-room-counts.cjs": {
+      "track": "admin",
+      "git_blob": "debf7369cfcdda58ddd684a2bf54401b9f51ac6f"
+    },
+    "backend/admin/proposals/room-count-operator.sql": {
+      "track": "admin",
+      "git_blob": "dbf6851bc801c170208d125a6d698353f36fe182"
+    },
+    "backend/admin/proposals/room-count-roles.sql": {
+      "track": "admin",
+      "git_blob": "d12d1c824c9191b90dff1c4a8d981a1ee42fb919"
+    },
+    "backend/admin/room-count-grant-command.cjs": {
+      "track": "admin",
+      "git_blob": "66c364652dbac8f3b98527f2532ee693d4e777c3"
+    },
+    "backend/admin/room-counts.cjs": {
+      "track": "admin",
+      "git_blob": "04d38d57e8df9ed9a37bf3fefb8eb2275cdd8986"
+    },
+    "backend/railway/archive-previous-candidate.cjs": {
+      "track": "leader",
+      "git_blob": "869ea24ca1e1707917ecc019db37bc20d3c17fd7"
+    },
+    "backend/railway/historical-leaderboard.cjs": {
+      "track": "leader",
+      "git_blob": "db30c3ee7cfe07239371c14052924a878f1b26f7"
+    },
+    "backend/railway/match-item-admission.cjs": {
+      "track": "items",
+      "git_blob": "7f5c5fb158b306f387bbf8865896026d971ef406"
+    },
+    "backend/railway/match-item-effects.cjs": {
+      "track": "items",
+      "git_blob": "e665ff90c933fa7ede708ad6d5ddf5ec6be25a96"
+    },
+    "backend/railway/pg-item-entitlements.cjs": {
+      "track": "items",
+      "git_blob": "b3ed0480b1b1369ba6976acf3cef47deccc79c6b"
+    },
+    "backend/railway/previous-leaderboard-http-handler.cjs": {
+      "track": "leader",
+      "git_blob": "9e8ab1ffa911e89205fc239516f5e3afa6bfbbba"
+    },
+    "backend/railway/v12-leaderboard-rows.cjs": {
+      "track": "leader",
+      "git_blob": "5154aaa260f9a77e9ebf769023c7346ecbf04888"
+    },
+    "backend/storage/score-periods.cjs": {
+      "track": "leader",
+      "git_blob": "3c305490864150a2184ab3d46a3b41fea7792796"
+    },
+    "LEADERBOARD_ARCHIVE_DECISION_TH.md": {
+      "track": "leader",
+      "git_blob": "a7c0c7edfe0e8a50aeef807280ba00b3ab6a1215"
+    },
+    "qa/admin-room-count-grant-command.test.cjs": {
+      "track": "admin",
+      "git_blob": "a8c5088452c7d28be725b7625f281e005fa67f05"
+    },
+    "qa/archive-previous-candidate-TH.md": {
+      "track": "leader",
+      "git_blob": "12612c7f7da1d8a806aec9539e37edaa2af7138a"
+    },
+    "qa/archive-previous-candidate.test.cjs": {
+      "track": "leader",
+      "git_blob": "5a958c37a96a98c09260801cde0146bf581733bc"
+    },
+    "qa/cross-track-lab/joined.cjs": {
+      "track": "combined",
+      "git_blob": "1c1d65ec64c4c865442d964acdf234ffc2dce6d8"
+    },
+    "qa/cross-track-lab/latest-source-blobs.json": {
+      "track": "combined-repinned-to-vip",
+      "git_blob": "c3282b7b711d69b1d06e69d3eb1753f2b339f95d"
+    },
+    "qa/cross-track-lab/README_LATEST_TH.md": {
+      "track": "combined",
+      "git_blob": "ef78afb5e563a4126e4405fd2800a6a03032c1d5"
+    },
+    "qa/cross-track-lab/run-latest.py": {
+      "track": "combined",
+      "git_blob": "7f4772f2a9843c160a81d38d933999d3353d4e9c"
+    },
+    "qa/item-reader/proposal.sql": {
+      "track": "items",
+      "git_blob": "b8a1a515daaa5c34277d89833e3561a2451626f4"
+    },
+    "qa/item-reader/README_TH.md": {
+      "track": "items",
+      "git_blob": "4ca5b3dcc3b63fcd2ac2dcffdae5734bab3371da"
+    },
+    "qa/item-reader/run.py": {
+      "track": "items",
+      "git_blob": "9fe3be4516e4b21a1724f7bcd08328a3dd7d8c23"
+    },
+    "qa/leaderboard-period-key-check.py": {
+      "track": "leader",
+      "git_blob": "029cea2528a7758be0ff9fd0c2f178605e9c1e04"
+    },
+    "qa/payment-sandbox/local-settlement.cjs": {
+      "track": "payment",
+      "git_blob": "9c503cd626e29d8f39c0927ee660b486739aacee"
+    },
+    "qa/payment-sandbox/local-settlement.test.cjs": {
+      "track": "payment",
+      "git_blob": "58e6f5329cedf9ec40c03a96c3dc69c4aa80ccbe"
+    },
+    "qa/payment-sandbox/README_TH.md": {
+      "track": "payment",
+      "git_blob": "60b3fdf7ce047c0ac924df3d061d1e301690173e"
+    },
+    "qa/pg-item-entitlements.test.cjs": {
+      "track": "items",
+      "git_blob": "223cc4f81cebd493aec1ad816269a46d2f063051"
+    }
+  }
+}
