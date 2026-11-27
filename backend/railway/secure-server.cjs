@@ -14,7 +14,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const {WebSocket,WebSocketServer}=require('ws');
-// Multi-board adapter deliberately defaults to board 1 until client board rendering is reviewed.
+// Deployed rooms retain board 1; alternate board matchmaking is an isolated QA path.
 const Rules=require('./multi-board-rules.cjs');
 const {requireRuleTransition}=require('./rule-transition-guard.cjs');
 const {requirePlayerIdentity,readConfig}=require('../auth/supabase-access-token.cjs');
@@ -255,7 +255,15 @@ async function dispatch(mode){
    const id=pilot?.roomId||crypto.randomUUID();
    if(pilot&&(mode!=='free'||!pilot.matches(id,seats)||rooms.has(id)))
     throw Error('Invalid Free4 pilot allocation');
-   const game=Rules.create(seats.map(s=>s.name),mode);
+   // Do not change deployed or fixed-pilot room allocation for this QA path.
+   // Neither the join packet nor the player may choose a board.
+   const randomBoards=mode==='free' && !pilot && process.env.NODE_ENV==='test' &&
+     process.env.LUCKY_QA_RANDOM_BOARDS==='true' &&
+     !Object.hasOwn(process.env,'RAILWAY_ENVIRONMENT_NAME') &&
+     !Object.hasOwn(process.env,'RAILWAY_ENVIRONMENT_ID') &&
+     !Object.hasOwn(process.env,'RAILWAY_PROJECT_ID');
+   const game=Rules.create(seats.map(s=>s.name),mode,undefined,
+    randomBoards ? Rules.selectRandomBoard() : 1);
    seats.forEach((s,i)=>{
      s.index=i;s.pendingRoomId=id;game.players[i].avatar=s.avatar;
    });
