@@ -3,13 +3,14 @@
 // No schema was applied; no database credentials here. Draft, untested.
 const {Pool}=require('pg');
 const {poolConnectionOptions}=require('./pg-tls-config.cjs');
-const {createRoomLeaseStore}=require('./room-lease-store.cjs');
+const {createRoomLeaseStore,pilotBinding,publicRow,storedGame}=require('./room-lease-store.cjs');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function mustUid(uid){if(typeof uid!=='string'||!UUID.test(uid))throw Error('Invalid Supabase UID');return uid;}
-function createRailwayStore(connectionString){
+function createRailwayStore(connectionString,config=null){
  if(!connectionString)throw Error('DATABASE_URL required');
+ const pilot=pilotBinding(config);
  const pool=new Pool(poolConnectionOptions(connectionString));
- const leases=createRoomLeaseStore(pool);
+ const leases=createRoomLeaseStore(pool,pilot);
  return {
   async health(){
    // Startup must confirm the actual session uses the restricted DB role;
@@ -28,6 +29,8 @@ function createRailwayStore(connectionString){
    if(!receipts.rows[0]?.receipts)throw Error('Supabase turn receipt schema 003 missing; do not start');
   },
   acquireRoomLease:leases.acquire,
+  inspectPilotFence:leases.inspectPilotFence,
+  closeExpiredPilot:leases.closeExpiredPilot,
   renewRoomLease:leases.renew,
   releaseRoomLease:leases.release,
   listRecoverableRooms:leases.listRecoverable,
@@ -53,12 +56,18 @@ function createRailwayStore(connectionString){
     seats.length!==(mode==='vip'?2:4)||new Set(seats.map(s=>s.uid)).size!==seats.length||
     seats.some(s=>!UUID.test(s.uid)))throw Error('Invalid verified seats');
    mustUid(ownerId);
+   const isPilot=pilot?.roomId===roomId;
+   if(pilot && (!isPilot||mode!=='free'))throw Error('Unexpected pilot room');
+   const state=storedGame(game,pilot,roomId);
    const r=await pool.query(
      `INSERT INTO game.rooms(room_id,mode,seats,game_state,deadline_ms,status,lease_owner,lease_epoch,lease_until)
-       VALUES($1,$2,$3::jsonb,$4::jsonb,$5,'playing',$6::uuid,1,clock_timestamp()+interval '30 seconds')
+       ${isPilot?`SELECT $1::uuid,$2::text,$3::jsonb,$4::jsonb,$5::bigint,'playing',$6::uuid,1,clock_timestamp()+interval '30 seconds'
+         WHERE extract(epoch FROM clock_timestamp())*1000 < $7::bigint`:
+         `VALUES($1,$2,$3::jsonb,$4::jsonb,$5,'playing',$6::uuid,1,clock_timestamp()+interval '30 seconds')`}
        RETURNING lease_epoch`,
-     [roomId,mode,JSON.stringify(seats.map(s=>({uid:s.uid,name:s.name}))),JSON.stringify(game),deadlineMs,ownerId]
+     [roomId,mode,JSON.stringify(seats.map(s=>({uid:s.uid,name:s.name}))),JSON.stringify(state),deadlineMs,ownerId,...(isPilot?[pilot.cutoffMs]:[])]
    );
+   if(!r.rowCount)throw Error('Pilot creation expired');
    return Number(r.rows[0].lease_epoch);
   },
   async findResumableRoomForUid(uid){
@@ -71,7 +80,7 @@ function createRailwayStore(connectionString){
   },
   async loadRoom(roomId){
    const r=await pool.query('SELECT * FROM game.rooms WHERE room_id=$1',[roomId]);
-   return r.rows[0]||null;
+   return publicRow(r.rows[0],pilot)||null;
   },
   // Consistent forensic snapshot: both reads use one repeatable-read,
   // read-only transaction on one PostgreSQL connection. No mutation and
@@ -104,7 +113,7 @@ function createRailwayStore(connectionString){
      [roomId,expectedRevision+1]
     );
     await client.query('COMMIT');begun=false;
-    return {room:roomResult.rows[0]||null,ledger:ledgerResult.rows,
+    return {room:publicRow(roomResult.rows[0],pilot)||null,ledger:ledgerResult.rows,
       receipts:receiptsResult.rows};
    }catch(error){
     if(begun){
