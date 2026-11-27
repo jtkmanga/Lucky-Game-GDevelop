@@ -112,4 +112,59 @@ DO $$ DECLARE s record; BEGIN
  BEGIN PERFORM event FROM lab_ledger.audit; RAISE EXCEPTION 'reader sees history';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
+-- next backend
+SET SESSION AUTHORIZATION lab_verified_fixture;
+BEGIN;
+SELECT public.fixture('refundrolledback',2,'refunded');
+ROLLBACK;
+-- next backend
+SET SESSION AUTHORIZATION lab_receipt_lookup;
+DO $$ BEGIN
+ BEGIN PERFORM lab_ledger.reconcile_verified('lab-event-r','lab-order-1','refunded','lab-uid-a','shield','lab-ref-1',123,'THB',123);
+ RAISE EXCEPTION 'writable transaction accepted';
+ EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'fresh read-only fixture lookup required' THEN RAISE; END IF; END;
+ BEGIN PERFORM event FROM lab_ledger.audit; RAISE EXCEPTION 'raw audit readable';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN PERFORM public.fixture('forbidden',2,'refunded'); RAISE EXCEPTION 'lookup can settle';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+-- next backend
+BEGIN ISOLATION LEVEL READ COMMITTED READ ONLY;
+SET LOCAL SESSION AUTHORIZATION lab_receipt_lookup;
+DO $$ DECLARE v record; result text; BEGIN
+ FOR v IN SELECT * FROM (VALUES
+  ('a','1','settled',123,NULL::integer,'committed_exact'),
+  ('b','1','settled',123,NULL,'committed_exact'), -- previously recorded no-op
+  ('r','1','refunded',123,123,'committed_exact'),
+  ('r','1','refunded',123,122,'conflict'),
+  ('r','1','refunded',123,NULL,'conflict'),
+  ('r','1','refunded',122,122,'conflict'),
+  ('r','1','settled',123,NULL,'conflict'),
+  ('a','2','settled',123,NULL,'conflict'),
+  ('outer','1','settled',123,NULL,'absent_unknown'),
+  ('refundrolledback','2','refunded',123,123,'absent_unknown')
+ ) x(event,ord,action,amount,refund,expected) LOOP
+  result:=lab_ledger.reconcile_verified('lab-event-'||v.event,'lab-order-'||v.ord,v.action,
+    'lab-uid-a','shield','lab-ref-'||v.ord,v.amount,'THB',v.refund);
+  IF result IS DISTINCT FROM v.expected THEN RAISE EXCEPTION 'lookup case % expected %, got %',v.event,v.expected,result; END IF;
+ END LOOP;
+ IF lab_ledger.reconcile_verified('lab-event-a','lab-order-1','settled','lab-uid-other','shield','lab-ref-1',123,'THB',NULL)
+  IS DISTINCT FROM 'conflict' THEN RAISE EXCEPTION 'UID not bound'; END IF;
+END $$;
+COMMIT;
+-- next backend
+BEGIN READ ONLY;
+SET LOCAL SESSION AUTHORIZATION lab_item_snapshot_fixture;
+DO $$ BEGIN
+ BEGIN PERFORM lab_ledger.reconcile_verified('lab-event-a','lab-order-1','settled','lab-uid-a','shield','lab-ref-1',123,'THB',NULL);
+ RAISE EXCEPTION 'snapshot role can reconcile';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+COMMIT;
+-- next backend
+DO $$ BEGIN
+ IF (SELECT count(*) FROM lab_ledger.audit)<>6 OR (SELECT count(*) FROM lab_ledger.origins)<>3
+ OR (SELECT status FROM lab_ledger.orders WHERE id='lab-order-2')<>'paid'
+ THEN RAISE EXCEPTION 'post-lookup footprint'; END IF;
+END $$;
 SELECT 'LEDGER_CHECKS_PASSED';

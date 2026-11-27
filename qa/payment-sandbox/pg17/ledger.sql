@@ -11,6 +11,7 @@ END $guard$;
 CREATE ROLE lab_ledger_owner NOLOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE lab_verified_fixture NOLOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE lab_item_snapshot_fixture NOLOGIN NOINHERIT NOBYPASSRLS;
+CREATE ROLE lab_receipt_lookup NOLOGIN NOINHERIT NOBYPASSRLS;
 CREATE SCHEMA lab_ledger AUTHORIZATION lab_ledger_owner;
 SET LOCAL ROLE lab_ledger_owner;
 REVOKE ALL ON SCHEMA lab_ledger FROM PUBLIC;
@@ -90,9 +91,36 @@ BEGIN
   CROSS JOIN sampled s WHERE o.uid=target_uid AND o.status='paid'
   AND g.refund_event IS NULL AND g.starts_at<=s.at AND s.at<g.expires_at;
 END $read$;
-REVOKE ALL ON ALL TABLES IN SCHEMA lab_ledger FROM PUBLIC,lab_verified_fixture,lab_item_snapshot_fixture;
+-- Trusted synthetic verification runs upstream. The caller supplies the entire
+-- verified tuple. Use a fresh lookup-only session and BEGIN READ ONLY.
+CREATE FUNCTION lab_ledger.reconcile_verified(e text,o text,k text,u text,i text,r text,a integer,c text,refund integer)
+RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $lookup$
+DECLARE answer text;
+BEGIN
+ IF session_user <> 'lab_receipt_lookup' OR current_setting('transaction_read_only') <> 'on'
+    OR current_setting('transaction_isolation') <> 'read committed' THEN
+  RAISE EXCEPTION 'fresh read-only fixture lookup required';
+ END IF;
+ IF e IS NULL OR e !~ '^lab-event-[a-z0-9]+$' OR o IS NULL OR o !~ '^lab-order-[a-z0-9]+$'
+    OR u IS NULL OR u !~ '^lab-uid-[a-z0-9]+$' OR r IS NULL OR r !~ '^lab-ref-[a-z0-9]+$'
+    OR k IS NULL OR k NOT IN ('settled','refunded') OR i IS NULL OR i NOT IN ('shield','double_win')
+    OR a IS NULL OR a<=0 OR c IS DISTINCT FROM 'THB' THEN
+  RAISE EXCEPTION 'invalid synthetic lookup facts';
+ END IF;
+ SELECT CASE WHEN ROW(h.order_id,h.action,h.amount_minor,h.refund_minor,
+                      ord.uid,ord.item,ord.ref,ord.amount,ord.currency)
+                IS NOT DISTINCT FROM ROW(o,k,a,refund,u,i,r,a,c)
+             THEN 'committed_exact' ELSE 'conflict' END INTO answer
+ FROM lab_ledger.audit h JOIN lab_ledger.orders ord ON ord.id=h.order_id
+ WHERE h.event=e;
+ RETURN coalesce(answer,'absent_unknown');
+END $lookup$;
+REVOKE ALL ON ALL TABLES IN SCHEMA lab_ledger FROM PUBLIC,lab_verified_fixture,lab_item_snapshot_fixture,lab_receipt_lookup;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA lab_ledger FROM PUBLIC;
 GRANT USAGE ON SCHEMA lab_ledger TO lab_verified_fixture,lab_item_snapshot_fixture;
 GRANT EXECUTE ON FUNCTION lab_ledger.apply_verified(text,text,text,text,text,text,integer,text,integer) TO lab_verified_fixture;
 GRANT EXECUTE ON FUNCTION lab_ledger.snapshot_fixture(text) TO lab_item_snapshot_fixture;
+GRANT USAGE ON SCHEMA lab_ledger TO lab_receipt_lookup;
+GRANT EXECUTE ON FUNCTION lab_ledger.reconcile_verified(text,text,text,text,text,text,integer,text,integer)
+ TO lab_receipt_lookup;
 COMMIT;
