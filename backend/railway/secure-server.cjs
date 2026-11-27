@@ -632,6 +632,7 @@ const server=http.createServer((req,res)=>{
   const config={
    url:supabaseConfig.origin,
    publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY,
+   ...(pilot ? {pilotTabIsolation:true} : {}),
    mode:'supabase'
   };
   if(!config.publishableKey){res.writeHead(503);res.end('Supabase web config missing');return;}

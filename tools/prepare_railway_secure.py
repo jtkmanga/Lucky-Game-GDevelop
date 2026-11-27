@@ -71,6 +71,31 @@ bootstrap="""<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.4
 <script>
 'use strict';
 // Authentication wiring only; original Lucky Game layout and styles unchanged.
+let luckyPilotTab=false;
+function luckyPilotAuth(){
+ if(window.top!==window.self)throw Error('Pilot requires a top-level tab');
+ const storage=window.sessionStorage;
+ const marker='lucky-free4-tab-v1';
+ if(window.opener){
+  storage.setItem(marker,'blocked-opener');
+  throw Error('Open a fresh independent pilot tab');
+ }
+ let id=storage.getItem(marker);
+ if(id===null){
+  if(new URL(location.href).searchParams.has('code'))throw Error('Pilot callback lost its tab');
+  id=window.crypto.randomUUID();
+ }
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id))
+  throw Error('Invalid pilot tab identifier');
+ storage.setItem(marker,id);
+ if(storage.getItem(marker)!==id)throw Error('Pilot tab storage unavailable');
+ return {storage,storageKey:marker+'-'+id,flowType:'pkce'};
+}
+function luckyGoogleOptions(){
+ const options={redirectTo:location.origin+location.pathname};
+ if(luckyPilotTab)options.queryParams={prompt:'select_account'};
+ return options;
+}
 let luckyClientPromise = fetch('/api/supabase-config',{cache:'no-store'})
  .then(async response=>{
    if(!response.ok)throw Error('Supabase configuration unavailable');
@@ -79,6 +104,10 @@ let luckyClientPromise = fetch('/api/supabase-config',{cache:'no-store'})
  .then(config=>{
    if(!window.supabase || !window.supabase.createClient)throw Error('Supabase JS unavailable');
    if(!config.url || !config.publishableKey)throw Error('Missing Supabase public config');
+   if(config.pilotTabIsolation===true){
+    luckyPilotTab=true;
+    return window.supabase.createClient(config.url,config.publishableKey,{auth:luckyPilotAuth()});
+   }
    return window.supabase.createClient(config.url,config.publishableKey);
  });
 let luckyNameUid=null;
@@ -147,7 +176,7 @@ window.luckyGetAccessToken=async ()=>{
  // page and clicks the existing Online button again to join a room.
  const result=await client.auth.signInWithOAuth({
    provider:'google',
-   options:{redirectTo:location.origin+location.pathname}
+   options:luckyGoogleOptions()
  });
  if(result.error)throw result.error;
  throw Error('OAuth redirect started; connect again after returning');
@@ -204,7 +233,7 @@ function luckyMountGoogleControls(){
   try{
    const client=await luckyClientPromise;
    const {error}=await client.auth.signInWithOAuth({
-    provider:'google',options:{redirectTo:location.origin+location.pathname}
+    provider:'google',options:luckyGoogleOptions()
    });
    if(error)throw error;
   }catch{

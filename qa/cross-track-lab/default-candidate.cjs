@@ -75,7 +75,9 @@ for(const [relative,expected] of Object.entries(pins)){
   assert.equal(hash('sha1').update('blob '+data.length+'\0').update(data).digest('hex'),expected,relative);
 }
 const digest=require('node:crypto').createHash('sha256').update(html).digest('hex');
-assert.equal(digest,'2f3e23aeb338c202a198b54aca4f7b30006ad2472aebc0a6aad47c9daeedef97');
+assert.equal(digest,'a7edbf3783972e25ee134180af46f9ce5d763a318de63e0aa2cc4b8f5f76c35e');
+const skin=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>\s*/gi,'');
+assert.equal(hash('sha256').update(skin).digest('hex'),'9b780821a1e2ca569056131a52251ba6044743bbd00a82e2074a89cdab63f5c6');
 function section(source,start,end){
   const i=source.indexOf(start), j=source.indexOf(end,i+start.length);
   assert.ok(i>=0 && j>i,start);
