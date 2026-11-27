@@ -30,6 +30,9 @@ app = runtime / 'backend/railway'
 shutil.copy2(out / 'backend/railway/match-item-effects.cjs', app)
 server = app / 'secure-server.cjs'
 s = server.read_text()
+# Rules.turn and requireRuleTransition validate the server-owned item snapshot.
+s = once(s, "uid:target.uid,kind:'win',points:10", """uid:target.uid,kind:'win',
+     points:old.matchItems ? 10*old.matchItems.players[actor].winMultiplier : 10""")
 s = once(s, "if(Object.hasOwn(room.game,'board'))return room.game;", """const {matchItems,...publicGame}=room.game;
  if(Object.hasOwn(publicGame,'board'))return publicGame;""")
 s = once(s, "return {...room.game,board:", "return {...publicGame,board:")
