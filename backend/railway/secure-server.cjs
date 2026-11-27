@@ -26,6 +26,8 @@ const {beginSocketShutdown}=require('./socket-shutdown.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
+const {readFree4Pilot}=require('./free4-pilot.cjs');
+const pilot=readFree4Pilot(process.env);
 const supabaseConfig=readConfig();
 const store=createRailwayStore(process.env.DATABASE_URL);
 const PORT=Number(process.env.PORT||8080);
@@ -49,9 +51,17 @@ async function withUidJoinLock(uid,task){
  finally{if(uidJoinLocks.get(uid)===barrier)uidJoinLocks.delete(uid);}
 }
 async function restoreRoom(roomId){
+ if(pilot&&roomId!==pilot.roomId)return null;
  if(rooms.has(roomId))return rooms.get(roomId);
  if(restoreTasks.has(roomId))return restoreTasks.get(roomId);
  const task=(async()=>{
+  if(pilot){
+   // Check the fixed row and roster before claiming any lease; check again
+   // on the leased checkpoint before attaching sessions or starting timers.
+   const candidate=await store.loadRoom(roomId);
+   if(!candidate||candidate.status!=='playing'||candidate.mode!=='free'||
+      !pilot.matches(roomId,candidate.seats))return null;
+  }
   // Claim ownership BEFORE any local timer/state is reconstructed. If another
   // worker has a valid lease, do not operate the room on this process.
   const claim=await store.acquireRoomLease(roomId,OWNER_ID,LEASE_MS/1000);
@@ -62,6 +72,8 @@ async function restoreRoom(roomId){
      Number(row.lease_epoch)!==claim.leaseEpoch)
     throw Error('Room lease changed during restore');
   const sourceSeats=row.seats;
+  if(pilot&&(row.mode!=='free'||!pilot.matches(roomId,sourceSeats)))
+   throw Error('Invalid Free4 pilot room');
   if(!['free','vip'].includes(row.mode)||!Array.isArray(sourceSeats)||
     sourceSeats.length!==capacity(row.mode)||!Number.isSafeInteger(Number(row.revision))||
     !row.game_state||typeof row.game_state!=='object'||!Number.isFinite(Number(row.deadline_ms)))
@@ -142,7 +154,10 @@ async function dispatch(mode){
    }
    // Seats must be reserved BEFORE the DB call. A disconnect while INSERT is
    // pending must not return a seat to matchmaking (or create two rooms).
-   const id=crypto.randomUUID(), game=Rules.create(seats.map(s=>s.name),mode);
+   const id=pilot?.roomId||crypto.randomUUID();
+   if(pilot&&(mode!=='free'||!pilot.matches(id,seats)||rooms.has(id)))
+    throw Error('Invalid Free4 pilot allocation');
+   const game=Rules.create(seats.map(s=>s.name),mode);
    seats.forEach((s,i)=>{
      s.index=i;s.pendingRoomId=id;game.players[i].avatar=s.avatar;
    });
@@ -329,17 +344,29 @@ async function handle(ws,msg){
   if(mode!=='free'&&mode!=='vip')return send(ws,{type:'error',message:'โหมดไม่ถูกต้อง'});
   // Every join and resume must supply a valid Supabase access token.
   const auth=await requirePlayerIdentity(msg);
+  if(pilot&&!pilot.admits(auth.uid,mode))
+   return send(ws,{type:'error',message:'บัญชีนี้ไม่ได้รับอนุญาตให้เข้าห้องทดสอบ'});
   await requireRoomAccess(auth,mode,store);
   const uid=auth.uid;
   // Different sockets for the SAME verified UID may authenticate concurrently.
   // Serialize all seat registration and takeover changes for this UID.
   await withUidJoinLock(uid,async()=>{
-   if(ws.readyState!==WebSocket.OPEN)return;
+   if(ws.readyState!==WebSocket.OPEN||(pilot&&ws.session))return;
    let existing=sessions.get(uid);
   // On process restart, locate the unfinished verified UID seat in PostgreSQL.
   // The same-process cache remains the fast path. No guest bearer-token resume.
   if(!existing){
-   const savedRoomId=await store.findResumableRoomForUid(uid);
+   let savedRoomId;
+   if(pilot){
+    // Read only the configured room. A previously used or malformed room ID
+    // may not fall through to normal matchmaking or create a second room.
+    const saved=await store.loadRoom(pilot.roomId);
+    if(saved){
+     if(saved.status!=='playing'||saved.mode!=='free'||!pilot.matches(pilot.roomId,saved.seats))
+      return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
+     savedRoomId=pilot.roomId;
+    }
+   }else savedRoomId=await store.findResumableRoomForUid(uid);
    if(savedRoomId){
      const recovered=await restoreRoom(savedRoomId);
      if(!recovered)return send(ws,{type:'error',
@@ -356,7 +383,7 @@ async function handle(ws,msg){
   }
   if(existing){
    // No unverified bearer-token resume; the verified UID owns this seat.
-   if(ws.readyState!==WebSocket.OPEN)return;
+   if(ws.readyState!==WebSocket.OPEN||(pilot&&ws.session))return;
    const last=existing.ws;
    if(last&&last!==ws){last.session=null;last.close(4000,'duplicate session');}
    existing.ws=ws;ws.session=existing;
@@ -387,6 +414,7 @@ async function handle(ws,msg){
    }
    const room=rooms.get(existing.roomId);
    if(room){
+     if(pilot&&room.game.over)return send(ws,{type:'error',message:'ห้องทดสอบจบแล้ว'});
      if(room.halted)return send(ws,{type:'error',message:'ห้องถูกพักเพราะข้อมูลไม่ตรงกัน'});
      let resumedGame;
      try{resumedGame=verifiedRoomSnapshot(room);}
@@ -410,7 +438,7 @@ async function handle(ws,msg){
   await store.player(uid,name);
   // The socket may close while the database operation is pending. Never leave
   // a ghost player in matchmaking or a stale active-session registry.
-  if(ws.readyState!==WebSocket.OPEN)return;
+  if(ws.readyState!==WebSocket.OPEN||(pilot&&ws.session))return;
   const session={uid,mode,name,avatar,ws,roomId:null,pendingRoomId:null,index:null};
   ws.session=session;sessions.set(uid,session);
   waiting[mode].push(session);
@@ -495,6 +523,9 @@ wss.on('connection',ws=>{
 // No periodic global scan yet: defer to authenticated reconnect and avoid
 // unexpected database costs while capacity remains untested.
 async function recoverOrphanedRoomsAtStartup(){
+ // A dedicated pilot never sweeps ordinary rooms; an approved verified seat
+ // triggers recovery of the single configured room on reconnect.
+ if(pilot)return;
  const candidates=await store.listRecoverableRooms(10);
  for(const item of candidates){
   try{await restoreRoom(item.room_id);}
