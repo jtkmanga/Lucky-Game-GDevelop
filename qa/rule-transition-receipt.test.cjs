@@ -5,10 +5,10 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const Rules=require('../backend/railway/rules.js');
+const MultiBoardRules=require('../backend/railway/multi-board-rules.cjs');
 const {requireRuleTransition}=require('../backend/railway/rule-transition-guard.cjs');
-function scene({pos=0,roll=1,gift=null,giftUsed=false,mode='vip'}={}){
- const before=Rules.create(mode==='free'?['A','B','C','D']:['A','B'],mode,()=>0.25);
- before.giftUsed=giftUsed;
+function scene({pos=0,roll=1,gift=null}={}){
+ const before=Rules.create(['Alice','Bob'],'vip',()=>0.25);
  before.players[0].pos=pos;
  if(gift!==null)before.gift=gift;
  const after=structuredClone(before);
@@ -75,24 +75,39 @@ test('timeout cannot move a player or pretend to roll',()=>{
  },[]),/RULE_TRANSITION_MISMATCH/);
 });
 
-test('Free4 must persist an earned Lucky Box reward on the unused gift square',()=>{
- const x=scene({pos:14,roll:1,gift:15,mode:'free'});
- assert.equal(x.receipt.outcome.position,15);
- assert.equal(x.receipt.outcome.reward,10);
- assert.doesNotThrow(()=>requireRuleTransition(x.before,x.after,x.receipt,x.awards));
- const after=structuredClone(x.after);
- after.giftUsed=false;
- after.players[0].score=x.before.players[0].score;
- after.players[0].luckyEarned=x.before.players[0].luckyEarned;
- const receipt={...x.receipt,outcome:{...x.receipt.outcome,reward:0}};
- assert.throws(()=>requireRuleTransition(x.before,after,receipt,[]),
-  /RULE_TRANSITION_MISMATCH:LUCKY_BOX_REWARD_REQUIRED/);
-});
-test('landing on a previously used Lucky Box does not award a second reward',()=>{
- const x=scene({pos:14,roll:1,gift:15,giftUsed:true,mode:'free'});
- assert.equal(x.receipt.outcome.position,15);
- assert.equal(x.receipt.outcome.reward,0);
- assert.equal(x.after.giftUsed,true);
- assert.equal(x.awards.length,0);
- assert.doesNotThrow(()=>requireRuleTransition(x.before,x.after,x.receipt,x.awards));
-});
+function free4LuckyBoxScene(boardId,giftUsed){
+ const before=MultiBoardRules.create(['A','B','C','D'],'free',()=>0.25,boardId);
+ // Square 16 is an eligible non-transition gift tile on both tested maps.
+ before.gift=16;before.giftUsed=giftUsed;before.players[0].pos=15;
+ assert.equal(MultiBoardRules.assertRoomBoard(before).id,boardId);
+ const after=structuredClone(before);
+ const outcome=MultiBoardRules.turn(after,1,()=>0);
+ const receipt={type:'roll',actorIndex:0,dice:1,outcome};
+ const awards=outcome.reward>0?[{kind:'lucky_box',points:outcome.reward}]:[];
+ return {before,after,receipt,awards};
+}
+for(const boardId of [1,2]){
+ test(`Free4 map ${boardId} must record a Lucky Box reward on an unused gift square`,()=>{
+  const x=free4LuckyBoxScene(boardId,false);
+  assert.equal(x.receipt.outcome.position,16);
+  assert.equal(x.receipt.outcome.reward,10);
+  assert.equal(x.after.giftUsed,true);
+  assert.deepEqual(x.awards,[{kind:'lucky_box',points:10}]);
+  assert.doesNotThrow(()=>requireRuleTransition(x.before,x.after,x.receipt,x.awards));
+  const after=structuredClone(x.after);
+  after.giftUsed=false;
+  after.players[0].score=x.before.players[0].score;
+  after.players[0].luckyEarned=x.before.players[0].luckyEarned;
+  const receipt={...x.receipt,outcome:{...x.receipt.outcome,reward:0}};
+  assert.throws(()=>requireRuleTransition(x.before,after,receipt,[]),
+   /RULE_TRANSITION_MISMATCH:LUCKY_BOX_REWARD_REQUIRED/);
+ });
+ test(`Free4 map ${boardId} does not award a second reward on a used gift square`,()=>{
+  const x=free4LuckyBoxScene(boardId,true);
+  assert.equal(x.receipt.outcome.position,16);
+  assert.equal(x.receipt.outcome.reward,0);
+  assert.equal(x.after.giftUsed,true);
+  assert.deepEqual(x.awards,[]);
+  assert.doesNotThrow(()=>requireRuleTransition(x.before,x.after,x.receipt,x.awards));
+ });
+}
