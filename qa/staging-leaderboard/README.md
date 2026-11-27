@@ -20,6 +20,24 @@ application adapter keeps the normal verified identity and VIP checks;
 it never uses the normal game store for rank reads. A missing or failed
 dedicated pool returns HTTP 503 after access checks.
 
+The optional TCP rehearsal needs a local copy of `pg` (or an absolute path to
+the installed driver in `LUCKY_PG17_DRIVER`) and uses a fresh cluster bound only
+to 127.0.0.1 with generated SCRAM credentials and no Unix sockets:
+
+```sh
+LUCKY_PG17_BIN=/absolute/path/to/pg17/bin node --test qa/isolated-test-leaderboard-pg17-tcp.test.cjs
+```
+
+The rehearsal uses a non-superuser installer. In this fixture the installer
+can create roles and a schema, owns the score table and has reference grants
+for the registry's foreign keys plus grantable usage on the game schema.
+Ownership transfer needs temporary SET ROLE capability and schema CREATE
+for the new owner; the proposal revokes both before commit and restricts
+EXECUTE to the dedicated login. This is a tested fixture, not proof of the
+managed provider's migration privileges. The TCP test makes a separate real
+SCRAM connection through `pg.Pool` as that login. It does not use TLS or a
+managed connection pooler.
+
 Hosted follow-up remains on hold until there is evidence of a dedicated
 Staging database/corpus, with exact target identity and synthetic-only rows.
 Before enabling anything, independently verify the live reader's role and

@@ -48,7 +48,15 @@ BEGIN
     LIMIT max_rows;
 END;
 $read$;
+-- PostgreSQL 17 requires SET ROLE and CREATE in the target schema for
+-- ownership transfer by a non-superuser. Keep both inside this transaction.
+GRANT lucky_qa_rank_owner TO CURRENT_USER WITH INHERIT FALSE, SET TRUE;
+GRANT CREATE ON SCHEMA lucky_rank_qa TO lucky_qa_rank_owner;
 ALTER FUNCTION lucky_rank_qa.read_current(text,bigint,bigint,integer) OWNER TO lucky_qa_rank_owner;
+SET LOCAL ROLE lucky_qa_rank_owner;
 REVOKE ALL ON FUNCTION lucky_rank_qa.read_current(text,bigint,bigint,integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION lucky_rank_qa.read_current(text,bigint,bigint,integer) TO lucky_qa_rank_reader;
+RESET ROLE;
+REVOKE CREATE ON SCHEMA lucky_rank_qa FROM lucky_qa_rank_owner;
+REVOKE lucky_qa_rank_owner FROM CURRENT_USER;
 COMMIT;
