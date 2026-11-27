@@ -37,11 +37,11 @@ A player opens the existing visual UI v12, signs in with Google via Supabase Aut
 5. [ ] Payment provider integration only when owner approves; verify signed webhook/slip provider status and idempotency before granting VIP/items; refunds/duplicates handled.
 **Exit:** DB/scheduler/Admin/payment flow complete in code and eligible for full staging tests; avoid collecting real money until verified.
 
-## Phase P4 — Staging deployment & automated acceptance (PARTIAL: existing staging and scoped tests allowed; new deploy blocked)
-1. [ ] Budget approval for Railway staging service, egress and limits. Supabase free project already exists; do not create another DB.
+## Phase P4 — Staging deployment & automated acceptance (PARTIAL; D15 governs approved Staging work)
+1. [ ] Track Railway Staging usage and stay inside approved terms; escalate only if a new budget is needed. No duplicate game database.
 2. [ ] Configure Railway service from GitHub with least privilege and sensitive variables (never commit secrets). Set Supabase provider redirect/authorized domain; preserve app routing.
-3. [ ] Within D14, run necessary static/unit/integration tests in isolated Codex Cloud without additional cost: Google/mock identity, Free/VIP, 5 maps, 20s skip, scores and resets, admin authorization, payment sandbox, disconnect/reconnect, duplicate awards.
-4. [ ] Run limited staging browser/real Google OAuth verification; 1–2 genuine login samples may need manual account consent due provider anti-automation. Payment production requires actual payment flow approval.
+3. [ ] Within D15, run necessary isolated or scoped Staging suites for Google, Free/VIP, 5 maps, 20s skip, scores/resets, admin, payment Sandbox and reconnect. Preserve evidence distinctions.
+4. [ ] Run hosted browser scenarios with authorized Google users. Reuse verified Free4 evidence; request owner action only for necessary provider verification.
 5. [ ] Document test run IDs, commit SHA, Railway service URL, Supabase schema version, results/cost before marking gate PASS.
 **Exit:** all mandatory user-facing flows pass real staging conditions, secrets protected, zero known blocking defects.
 
@@ -62,5 +62,5 @@ A player opens the existing visual UI v12, signs in with Google via Supabase Aut
 ## Work execution policy / anti-rework
 - Use `PROJECT_STATUS_TH.md` as the single live dashboard, not old chat claims. Advance only an eligible checkbox; update exact evidence and blocker after each commit.
 - Never widen scope beyond the features above without an explicit request. Prefer the smallest dependency-unblocking unit of work.
-- Necessary isolated tests and existing-staging tests with authorized accounts are allowed within D14. No new deployment, unsafe main merge, paid resources, or production data changes. An untested implementation is **code written**, never a passed milestone.
+- D15 replaces conflicting process restrictions; approved-budget Staging deployments and test infrastructure changes are permitted. Never touch Production or real payments. An untested implementation is code written, not a passed milestone.
 - Read provider connector state only when affected; no whole-project re-audit for every fresh chat.
