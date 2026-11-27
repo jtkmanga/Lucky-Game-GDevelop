@@ -27,7 +27,7 @@ function section(from, to) {
 }
 
 // Exercise the real controller without loading credentials or opening a listener.
-function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyClaims = 0, beforeInspect, createFailure, identity = async msg => ({uid:msg.accessToken})} = {}) {
+function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlement, commit, denyClaims = 0, beforeInspect, createFailure, identity = async msg => ({uid:msg.accessToken})} = {}) {
   let row = initial && structuredClone(initial);
   const calls = [];
   const timers=new Map();
@@ -36,6 +36,7 @@ function fixture({pilot = readFree4Pilot(config), initial = null, commit, denyCl
   const clock={now:()=>now};
   const wss = new EventEmitter();
   const store = {
+    getVipEntitlement,
     commitFencedTurn:commit,
     readRoomAndAwards(){calls.push(['read-evidence']);throw Error('offline evidence unavailable');},
     async inspectPilotFence(args){
@@ -470,4 +471,96 @@ test('wire join binds only the configured Auth project identity to a Free4 seat'
   assert.equal(f.waiting.free.length,0);
   assert.deepEqual(requests.at(-1),[origin+'/auth/v1/user','GET',key,'Bearer '+token(1)]);
   assert.equal(f.calls.filter(([action]) => action === 'create').length, 1);
+});
+
+test('VIP2 wire admission uses verified UID and strict server expiry', async t => {
+  const now = Date.UTC(2030, 1, 1);
+  t.mock.method(Date, 'now', () => now);
+  const origin = 'https://llbkxnazkliskzcureec.supabase.co';
+  for (const [name, value] of Object.entries({
+    SUPABASE_URL: origin, SUPABASE_PUBLISHABLE_KEY: 'offline-test-key'
+  })) {
+    const original = process.env[name];
+    process.env[name] = value;
+    t.after(() => {
+      if (original === undefined) delete process.env[name];
+      else process.env[name] = original;
+    });
+  }
+  const token = i => 'offline-synthetic-identity-with-no-authority-' + i;
+  const accounts = new Map(roster.map((id, i) => ['Bearer ' + token(i), id]));
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, origin + '/auth/v1/user');
+    const id = accounts.get(options.headers.authorization);
+    return id ? Response.json({id, aud:'authenticated'}) : new Response(null, {status:401});
+  });
+
+  const lookups = [];
+  let rows = [];
+  const pool = {connect() {throw Error('Unexpected connection');}, async query(sql, params) {
+    lookups.push([sql, params]);
+    if (rows === null) throw Error('offline lookup unavailable');
+    return {rowCount:rows.length, rows};
+  }};
+  // Instantiate the shipped adapter with a recording pool. No pg driver or connection.
+  const source = readFileSync(require.resolve('../backend/supabase/game-store.cjs'), 'utf8');
+  const mod = {exports:{}};
+  Function('module', 'require', source)(mod, name => {
+    if (name === 'pg') return {Pool:class {constructor() {return pool;}}};
+    if (name === './pg-tls-config.cjs') return {poolConnectionOptions:() => ({})};
+    if (name === './room-lease-store.cjs') return require('../backend/supabase/room-lease-store.cjs');
+    throw Error('Unexpected adapter dependency ' + name);
+  });
+  const store = mod.exports.createRailwayStore('offline-fixture');
+  const {requirePlayerIdentity} = require('../backend/auth/supabase-access-token.cjs');
+  const f = fixture({pilot:null, identity:requirePlayerIdentity, getVipEntitlement:store.getVipEntitlement});
+  async function join(i, mode = 'vip') {
+    const ws = f.connect();
+    await ws.listeners('message')[0](Buffer.from(JSON.stringify({
+      type:'join', mode, accessToken:token(i), uid:roster[3], vip:true,
+      verified:true, shield:true, doubleWin:true, matchItems:{version:1}
+    })));
+    return ws;
+  }
+  function record(id, offset, status = 'active') {
+    return [{uid:id, status, expires_at:new Date(now + offset).toISOString()}];
+  }
+  const free = await join(2, 'free');
+  assert.equal(free.session.uid, roster[2]);
+  assert.equal((await join('unknown')).received.at(-1).type, 'error');
+  assert.equal(lookups.length, 0);
+
+  for (rows of [[], null, record(roster[0], 1, 'revoked'), record(roster[3], 1),
+                record(roster[0], -1), record(roster[0], 0)]) {
+    const before = f.calls.length;
+    const denied = await join(0);
+    denied.close();
+    assert.equal(denied.received.at(-1).type, 'error');
+    assert.equal(denied.session, undefined);
+    assert.equal(f.calls.length, before);
+    assert.equal(f.waiting.vip.length, 0);
+    assert.equal(f.sessions.has(roster[0]), false);
+  }
+  rows = record(roster[0], 1);
+  const first = await join(0);
+  assert.deepEqual(f.waiting.vip.map(s => s.uid), [roster[0]]);
+  rows = record(roster[1], 1);
+  const second = await join(1);
+  assert.deepEqual(f.row().seats.map(s => s.uid), roster.slice(0, 2));
+  assert.equal(f.row().mode, 'vip');
+  assert.deepEqual(f.waiting.free.map(s => s.uid), [roster[2]]);
+  assert.equal(free.received.some(p => p.type === 'state'), false);
+  for (const [seat, ws] of [first, second].entries()) {
+    const packet = ws.received.at(-1);
+    assert.deepEqual([packet.type, packet.seat, packet.game.players.length], ['state', seat, 2]);
+    assert.equal(Object.hasOwn(packet.game, 'matchItems'), false);
+  }
+  rows = record(roster[0], 0);
+  assert.equal((await join(0)).received.at(-1).type, 'error');
+  assert.equal(f.sessions.get(roster[0]).ws, first);
+  assert.equal(Object.hasOwn(f.row().game_state, 'matchItems'), false);
+  assert.deepEqual(lookups.map(([,params]) => params),
+    [...Array(7).fill(roster[0]), roster[1], roster[0]].map(id => [id]));
+  assert.ok(lookups.every(([sql]) => sql ===
+    'SELECT uid,status,expires_at FROM game.vip_entitlements WHERE uid=$1'));
 });
