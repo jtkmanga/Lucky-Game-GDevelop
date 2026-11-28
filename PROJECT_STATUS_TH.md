@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** Google Provider เปิดแล้ว แต่การทดสอบ isolated OAuth ถูก Google ปฏิเสธด้วย `400 redirect_uri_mismatch`; ให้เพิ่ม exact callback ของ Supabase Staging ใน Google Web OAuth client ตัวเดียวกับ Client ID ใน Supabase. ยังไม่ enroll บัญชีหรือ Deploy candidate.
+- **งานถัดไป:** Google ยอมรับ callback ของ Supabase Staging แล้วและถึงหน้าเลือกบัญชี; ยังไม่ได้ยืนยันการแลก code หรือ enroll. เตรียมหน้าลงทะเบียน private และยืนยันบัญชีทดสอบทั้ง 4 ก่อนสลับ Railway.
 
 ---
 
@@ -1830,3 +1830,8 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 - เจ้าของสร้าง Client Secret ใหม่และเปิด provider. ตรวจใน Dashboard ของโปรเจกต์แยกแล้วว่า Google เป็น Enabled โดยไม่อ่านหรือบันทึก Secret. ทำ browser redirect probe บน Supabase Auth ของโปรเจกต์แยก โดยใช้ PKCE challenge และ exact Staging redirect; Google ตอบ `400: redirect_uri_mismatch` ก่อนหน้าเลือกบัญชี. การเปลี่ยน Secret อย่างเดียวไม่แก้ URI mismatch. ยังไม่ได้ยืนยันแลก code หรือ Google sign-in end-to-end.
 - ขั้นถัดไป: เพิ่ม `https://tpwmcozkzlvolehozzri.supabase.co/auth/v1/callback` ใน **Authorized redirect URIs** ของ Google Web OAuth client ที่ตรงกับ Client ID ใน Supabase Staging. คง URL และ secrets เดิมของ client ไว้ถ้ามีระบบอื่นใช้งาน; ห้ามหมุน/ปิด production secret. ตรวจ probe ซ้ำก่อนเริ่ม enrollment, Codespaces หรือเปลี่ยน Railway; รอบนี้ไม่มีการเปลี่ยน Railway/Auth/ข้อมูลจาก Dot.
+
+
+### D15 — Google redirect probe ผ่าน (28 พ.ย. 2026)
+
+- หลังเจ้าของบันทึก Authorized redirect URI ทดสอบใหม่จาก Supabase Staging ด้วย PKCE probe: Google เปิดหน้าเลือกบัญชี `/v3/signin/accountchooser` และ `redirect_uri` ที่ส่งตรง callback ของโปรเจกต์ใหม่. ไม่พบ 400 ในรอบนี้. ปิด probe โดยไม่เลือกบัญชี; ไม่ได้ลงทะเบียนบัญชีหรือแลก code และยังไม่เริ่มเกมทดสอบ. ไม่เปลี่ยน Railway/Auth/Production ในการตรวจนี้.
