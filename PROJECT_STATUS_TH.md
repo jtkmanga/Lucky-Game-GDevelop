@@ -12,7 +12,7 @@
 ## สถานะปัจจุบัน / เริ่มงานจากตรงนี้ (28 พ.ย. 2026, เวลาไทย)
 
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
-- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `8c3db3ab90b50b312188125b0b8de2de4aba00bc`. อย่าปะปน SHA ทั้งสาม.
+- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e16b2972ec59bbb02123d9c6b951a69c344b5b49`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
 - **งานถัดไป:** ใช้ PostgreSQL ชั่วคราวแบบแยกทดสอบเปลี่ยนสอง process จริงขณะมีห้องที่เล่นอยู่ วัดเวลา UID/seat/revision เดิมกลับมา และเช็ก receipt/score ไม่ซ้ำทั้ง SIGTERM กับ SIGKILL. ยังไม่มีหลักฐานว่าเปลี่ยน instance บน Railway หรือคืน lease เร็วได้ ตรวจการแยก DB ควบคู่เมื่อจะเปิด hosted gate.
 
@@ -1739,3 +1739,9 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - เทสต์รวม **48/48 PASS** (~0.89 s): 11 checkpoint, 2 process recovery, 35 regressions ที่เกี่ยวข้อง. Harness ห้าแผนที่จากคนละ candidate มี 5 failures เหมือนกันบนทั้งฐานและหลัง patch; ไม่ใช้ผลนี้อ้างว่าเปิดสุ่มห้าแผนที่ใน candidate นี้. สถิติรวมยัง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง** เพราะยังไม่มี hosted/native recovery gate ใหม่.
 - รอบนี้ Dot ลงมือและแยกสองงานภายใน; ไม่พบ PostgreSQL server binaries/แพ็กเกจใน environment ที่มีและไม่ได้สร้างฐานบนบริการจริง. ทดลอง Codex CLI แบบอ่านอย่างเดียว แต่เริ่ม session ไม่ผ่านข้อกำหนด socket sandbox (ไม่ใช่โควต้าหมด); ไม่ได้รัน Work/Codex Cloud. 2 งาน / 5 commits รวม checkpoint, ไม่ Deploy, ไม่แตะ Production/Supabase, ไม่มีรายการจ่ายใหม่หรือ Scheduled Task, ยอดบิลและโควต้าไม่ได้วัด.
 - **ถัดไป:** ใช้ฐาน PostgreSQL แยกเมื่อมี native runtime พร้อม ยืนยันช่วง lease จริง, race ตอน commit และ ledger ไม่ซ้ำ; อย่าเปิด hosted write จนยืนยันขอบเขตฐาน/สิทธิ์ทดสอบได้. ไม่ต้องให้เจ้าของล็อกอินใหม่ในขั้นนี้.
+
+
+### D15 — รวมหลักฐานห้าแผนที่เข้ากับ recovery candidate (เฉพาะ lab)
+
+- นำ QA gate ที่เคยอยู่แยกมารวม: เซิร์ฟเวอร์เลือกกระดานเมื่อ Free4 เป็นการทดสอบ local เท่านั้น (NODE_ENV=test, เปิด flag และไม่มีตัวระบุ Railway); default/Railway/pilot ยังคงกระดาน 1. ไม่รับเลขกระดานจากผู้เล่น. Source `67c0d42d94ede528c707af3c49225d0b217e9329`, pin `ac8004f495c0770dba4127bcf5374494defa1546`, QA/head `e16b2972ec59bbb02123d9c6b951a69c344b5b49`. GitHub compare รวมรอบนี้ **7 source/QA commits / 5 files** เทียบ `67478b9`.
+- ชุดรวมสุดท้าย **55/55 PASS** (~0.96 s), รวมจับคู่ ทอย และคืนห้องครบกระดาน 1–5, default/Railway ปักกระดาน 1, guard ตรวจ checkpoint และสอง process. HTML v12 hash ตรงเดิม. การสุ่มห้ากระดานบน Staging ยังไม่เปิด; ไม่มีเทสต์ PostgreSQL native หรือ hosted ใหม่. สรุปรอบ 3 งาน / 9 commits รวม checkpoints; ตัวเลข **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง** คงเดิม. ไม่ Deploy ไม่แก้ Railway/Supabase และไม่เปิดงานตั้งเวลา.
