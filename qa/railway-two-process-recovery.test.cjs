@@ -56,7 +56,8 @@ replace('supabase/game-store.cjs',{createRailwayStore:()=>store});
 replace('auth/supabase-access-token.cjs',{
  readConfig:()=>({origin:'http://127.0.0.1'}),
  requirePlayerIdentity:async msg=>{
-  const uid=roster.find((_,i)=>msg.accessToken===tokenPrefix+i);
+  const uid=msg.accessToken===tokenPrefix+4?'aaaaaaaa-0000-4000-8000-000000000099':
+   roster.find((_,i)=>msg.accessToken===tokenPrefix+i);
   if(!uid)throw Error('fixture token does not match');
   return {uid};
  }
@@ -263,10 +264,20 @@ for(const scope of ['synthetic','postgres17'])for(const signal of ['SIGTERM','SI
   // Start B while A still owns a live lease and the first write is committed,
   // but its acknowledgement has not reached process A.
   const b=await launch('B');
+  const outsider=await connect(b);
+  outsider.send({...join(4),resumeRoomId:start.roomId});
+  const outsiderDenied=await outsider.waitFor(p=>p.type==='error');
+  assert.equal(outsiderDenied.roomId,undefined);
+  assert.equal(data.blockedClaims,0,'a verified account outside the room cannot claim its lease');
   const claimant=await connect(b);
-  claimant.send(join(0));
+  claimant.send({...join(0),resumeRoomId:roster[3]});
   const denial=await claimant.waitFor(p=>p.type==='error');
   assert.match(denial.message,/ห้องเดิม/);
+  assert.equal(data.blockedClaims,0,'wrong requested room did not claim any lease');
+  await delay(120);
+  claimant.send({...join(0),resumeRoomId:start.roomId});
+  const wait=await claimant.waitFor(p=>p.type==='resume_wait');
+  assert.deepEqual(wait,{type:'resume_wait',roomId:start.roomId});
   assert.equal(data.blockedClaims,1);
   assert.equal(old[0].packets.some(p=>p.event?.type==='roll'),false);
   const terminatedAt=performance.now();
@@ -278,10 +289,10 @@ for(const scope of ['synthetic','postgres17'])for(const signal of ['SIGTERM','SI
   // Advance only the synthetic storage clock past the old lease; wall clock
   // and the server's real turn deadline remain unchanged.
   await afterExpiry();
+  await delay(120); // do not bypass the actual socket's 100 ms message limiter
   const elapsedStart=performance.now();
-  const resumed=await connect(b);
-  resumed.send(join(0));
-  const packet=await resumed.waitFor(p=>p.event?.type==='resume');
+  claimant.send({...join(0),resumeRoomId:start.roomId});
+  const packet=await claimant.waitFor(p=>p.event?.type==='resume');
   assert.equal(packet.roomId,start.roomId);
   assert.equal(packet.seat,0);
   assert.equal(packet.revision,1);
