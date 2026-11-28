@@ -67,7 +67,7 @@ html=html.replace(connect,"async function onlineConnect(){",1)
 check=""" if(!/^https?:$/.test(location.protocol)){toast('ต้องเปิดผ่าน http หรือ https');return;}"""
 if html.count(check)!=1:
     raise RuntimeError('Online Connect guard changed; manual review required')
-html=html.replace(check,check+"""\n if(luckyAuthPending || movementRunning)return;\n const attempt=++luckyConnectAttempt;\n luckyAuthPending=true;\n let authenticatedAccessToken;\n try{authenticatedAccessToken=await window.luckyGetAccessToken();}\n catch(error){if(attempt===luckyConnectAttempt)toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}\n finally{if(attempt===luckyConnectAttempt)luckyAuthPending=false;}\n if(attempt!==luckyConnectAttempt || movementRunning)return;""",1)
+html=html.replace(check,check+"""\n if(luckyAuthPending || movementRunning)return;\n const resume=luckyResumeTarget;\n if(resume && resume.mode!==state.mode){luckyEndOnline();return;}\n const attempt=++luckyConnectAttempt;\n luckyAuthPending=true;\n let authenticatedAccessToken;\n try{if(!resume)authenticatedAccessToken=await window.luckyGetAccessToken();}\n catch(error){if(attempt===luckyConnectAttempt)toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}\n finally{if(attempt===luckyConnectAttempt)luckyAuthPending=false;}\n if(attempt!==luckyConnectAttempt || movementRunning)return;""",1)
 legacy="""let token=null;try{token=localStorage.getItem('lucky-online-test-token')}catch{}
   onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],token});"""
 secure="""onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],accessToken:authenticatedAccessToken});"""
@@ -177,11 +177,17 @@ async function luckyPersistPlayerName(name){
   return false;
  }
 }
-window.luckyGetAccessToken=async ()=>{
+window.luckyGetAccessToken=async (resumeUid=null)=>{
  const client=await luckyClientPromise;
  const {data,error}=await client.auth.getSession();
  if(error)throw error;
- if(data.session?.access_token)return data.session.access_token;
+ const session=data.session;
+ if(resumeUid!==null && session?.user?.id!==resumeUid)throw Error('Resume account changed');
+ if(session?.access_token){
+  window.luckySessionUid=session.user?.id||null;
+  return session.access_token;
+ }
+ if(resumeUid!==null)throw Error('Resume session unavailable');
  // Browser navigates to Supabase/Google OAuth; the user returns to the same
  // page and clicks the existing Online button again to join a room.
  const result=await client.auth.signInWithOAuth({
@@ -225,6 +231,9 @@ function luckyMountGoogleControls(){
  parent.insertBefore(login,strip);
  parent.insertBefore(accountBar,strip);
  function show(user){
+  const uid=user?.id||null;
+  if(window.luckySessionUid && window.luckySessionUid!==uid)window.luckyCancelRoomRetry?.();
+  window.luckySessionUid=uid;
   luckyUseNameForAccount(user);
   const signed=!!user;
   login.style.display=signed?'none':'block';
@@ -373,7 +382,13 @@ replace_hook("$('enterLobby').addEventListener('click',()=>{$('welcomeName').tex
 
 replace_hook("function onlineSend(message){", """let luckyConnectAttempt=0;
 let luckyAuthPending=false;
+let luckyResumeTarget=null,luckyRetryTimer=null,luckyRetryExpiry=null;
+function luckyClearRetry(){
+ clearTimeout(luckyRetryTimer);clearTimeout(luckyRetryExpiry);
+ luckyRetryTimer=null;luckyRetryExpiry=null;luckyResumeTarget=null;
+}
 function luckyEndOnline(){
+ ++luckyConnectAttempt;luckyAuthPending=false;luckyClearRetry();
  const previous=onlineSocket;
  onlineSocket=null;
  previous?.close();
@@ -389,13 +404,17 @@ function luckyEndOnline(){
  $('matchButton').textContent='🌐 เชื่อมต่อใหม่ / จับคู่ใหม่ ➜';
  navigate('lobby');
 }
+window.luckyCancelRoomRetry=()=>{if(luckyResumeTarget||onlineSocket||luckyAuthPending)luckyEndOnline();};
 function onlineSend(message){""")
 replace_hook("onlineSocket?.close();onlineSocket=null;onlineActive=false;onlineSeat=null;",
              "luckyEndOnline();")
 replace_hook("onlineActive=false;toast('ห้องทดสอบปิดแล้ว')",
              "luckyEndOnline();toast('ห้องทดสอบปิดแล้ว')")
+replace_hook("if(onlineSocket&&onlineSocket.readyState===WebSocket.OPEN&&!onlineRoomId){onlineSend({type:'cancel'});return;}",
+             "if(onlineSocket&&onlineSocket.readyState===WebSocket.OPEN&&!onlineRoomId){if(luckyResumeTarget)luckyEndOnline();else onlineSend({type:'cancel'});return;}")
 replace_hook("if(onlineSocket&&onlineSocket.readyState===WebSocket.CONNECTING)return;",
              """if(onlineSocket && onlineSocket.readyState<=WebSocket.OPEN){
+  if(luckyResumeTarget){luckyEndOnline();return;}
   if(!localGame?.over)return;
   luckyEndOnline();
  }""")
@@ -410,15 +429,56 @@ replace_hook("else if(msg.type==='error')toast(msg.message||'เซิร์ฟ�
 replace_hook(src, """let socket;
  try{socket=new WebSocket(protocol+'//'+location.host+'/ws');}
  catch{luckyEndOnline();toast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');return;}
- onlineSocket=socket;""")
+ onlineSocket=socket;
+ const socketUid=resume?.uid??window.luckySessionUid;
+ let resumeSent=0;
+ const failResume=()=>{
+  if(onlineSocket!==socket)return;
+  luckyEndOnline();toast('ยังกลับเข้าห้องเดิมไม่ได้ กรุณาลองอีกครั้ง');
+ };
+ const sendResume=async()=>{
+  if(onlineSocket!==socket||!resume||luckyResumeTarget!==resume||
+    window.luckySessionUid!==resume.uid||state.mode!==resume.mode||resumeSent>=18){
+   if(onlineSocket===socket)failResume();
+   return;
+  }
+  let token;
+  try{token=await window.luckyGetAccessToken(resume.uid);}
+  catch{failResume();return;}
+  if(onlineSocket!==socket||luckyResumeTarget!==resume||window.luckySessionUid!==resume.uid||
+     state.mode!==resume.mode||socket.readyState!==WebSocket.OPEN)return;
+  ++resumeSent;
+  onlineSend({type:'join',mode:resume.mode,resumeRoomId:resume.id,accessToken:token});
+ };
+ if(resume)luckyRetryExpiry=setTimeout(failResume,36000);""")
 replace_hook("socket.addEventListener('open',()=>{",
-             "socket.addEventListener('open',()=>{if(onlineSocket!==socket)return;")
+             "socket.addEventListener('open',()=>{if(onlineSocket!==socket)return;if(resume){void sendResume();return;}")
 replace_hook("try{onlineApplyMessage(JSON.parse(e.data))}catch(err){console.error('online message',err)}",
              """if(onlineSocket!==socket || socket.readyState!==WebSocket.OPEN)return;
-  try{onlineApplyMessage(JSON.parse(e.data));}
+  try{
+   const message=JSON.parse(e.data);
+   if(resume && luckyResumeTarget===resume){
+    if(message.type==='resume_wait' && message.roomId===resume.id){
+     if(luckyRetryTimer===null)luckyRetryTimer=setTimeout(()=>{
+      luckyRetryTimer=null;void sendResume();
+     },2000);
+     return;
+    }
+    if(message.type==='state' && message.roomId===resume.id && message.event?.type==='resume'){
+     luckyClearRetry();
+    }else{
+     failResume();return;
+    }
+   }
+   onlineApplyMessage(message);
+  }
   catch{luckyEndOnline();toast('ไม่สามารถแสดงข้อมูลห้องออนไลน์ได้');}""")
+replace_hook("socket.addEventListener('close',()=>{","socket.addEventListener('close',event=>{")
 replace_hook("if(onlineActive){toast('การเชื่อมต่อหลุด กดจับคู่เพื่อเชื่อมต่อใหม่');$('rollDice').disabled=true;}",
-             "luckyEndOnline();toast('การเชื่อมต่อหลุด กดจับคู่เพื่อเชื่อมต่อใหม่');")
+             """const target=event?.code!==4000&&onlineRoomId&&!localGame?.over&&socketUid&&window.luckySessionUid===socketUid?
+   {id:onlineRoomId,mode:state.mode,uid:socketUid}:null;
+  luckyEndOnline();luckyResumeTarget=target;
+  toast('การเชื่อมต่อหลุด กดจับคู่เพื่อเชื่อมต่อใหม่');""")
 replace_hook("()=>toast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้')",
              "()=>{if(onlineSocket===socket)toast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');}")
 replace_hook("""if(!onlineActive)return;
@@ -427,8 +487,12 @@ replace_hook("""if(!onlineActive)return;
  if(onlineActive){
   e.stopImmediatePropagation();toast('กำลังอยู่ในโหมดออนไลน์ กดออก/รีเฟรชก่อนเล่นบนเครื่องเดียว');return;
  }
+ luckyClearRetry();
  ++luckyConnectAttempt;
  luckyAuthPending=false;""")
+
+replace_hook("state.mode=btn.dataset.mode; updateMode();",
+             "if(state.mode!==btn.dataset.mode&&luckyResumeTarget)luckyEndOnline();state.mode=btn.dataset.mode; updateMode();")
 
 page.write_text(html,encoding='utf8')
 (OUT/'package.json').write_text(json.dumps({
