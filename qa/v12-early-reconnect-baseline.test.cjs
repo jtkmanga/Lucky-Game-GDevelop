@@ -14,7 +14,7 @@ const held='ห้องเดิมอยู่บนเซิร์ฟเว�
 const roomId='aaaaaaaa-0000-4000-8000-000000000009';
 const game={mode:'free',board:{id:1,version:1},players:[{name:'A',score:10}],current:0,over:false};
 
-test('baseline v12 needs a second manual tap after an early join hits an active room lease',async()=>{
+test('legacy client without a recorded session UID retains manual reconnect behavior',async()=>{
  const nodes=new Map(),sockets=[],views=[],notices=[];
  const $=id=>{
   if(!nodes.has(id))nodes.set(id,{style:{},handlers:{},addEventListener(type,cb){this.handlers[type]=cb;}});
@@ -30,7 +30,7 @@ test('baseline v12 needs a second manual tap after an early join hits an active 
   deliver(msg){this.emit('message',{data:JSON.stringify(msg)});}
   close(){if(this.readyState===3)return;this.readyState=3;this.emit('close');}
  }
- const context={WebSocket,$,Date,location:{protocol:'https:',host:'lucky.invalid'},
+ const context={WebSocket,$,Date,clearTimeout,location:{protocol:'https:',host:'lucky.invalid'},
   window:{luckyGetAccessToken:async()=>'synthetic-token'},CHARACTERS:[['A']],
   state:{name:'A',mode:'free',character:0},movementRunning:false,localGame:null,
   resultVisible:false,luckySeenRoomBoard:null,stopClock(){},refreshLocal(){},
