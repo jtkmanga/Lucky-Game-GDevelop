@@ -1,6 +1,6 @@
 # Lucky Game — Canonical Project Status / Resume Checkpoint
 
-**Checkpoint ล่าสุด 28 พ.ย. 2026 (D15):** ติดตั้งและยืนยันตัวตรวจสิทธิ์ VIP2 บน Supabase Staging แยก พร้อม candidate Railway ทดสอบในเครื่อง 36/36. ยังไม่เปิดห้อง VIP บน Railway. รวม **67% โค้ด / 69% ทดสอบ / 41% พร้อมจริง**. ไม่แตะ Production.
+**Checkpoint ล่าสุด 28 พ.ย. 2026 (D15):** VIP2 ผ่าน hosted Railway + Supabase Staging แยก: ปฏิเสธผู้ไม่มีสิทธิ์, คิว 1/2, เริ่มห้อง 2 ที่นั่งเดียว และลูกเต๋าตรงกันทั้งสองแท็บ. คืน Staging และปิดสิทธิ์ทดสอบแล้ว. รวม **67% โค้ด / 71% ทดสอบ / 44% พร้อมจริง**. ไม่แตะ Production.
 
 **นโยบายปัจจุบัน:** D15 ใน `DECISIONS_TH.md` บนสาขา `docs/lucky-autonomous-backlog` แทนข้อจำกัดด้านกระบวนการ D14 ที่ขัดกัน โดยคงขอบเขต Production/เงินจริง/งบ/ข้อมูลส่วนตัวเดิม.
 
@@ -12,9 +12,9 @@
 ## สถานะปัจจุบัน / เริ่มงานจากตรงนี้ (28 พ.ย. 2026, เวลาไทย)
 
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
-- **Railway Staging:** ตัวที่รันจริง `56e41aa8` (deployment `89000c74`, 1 replica, SUCCESS); desired source ยังผูก `qa/isolated-free-leaderboard-d15` (`ac74247`) และไม่มี staged patch. ห้าม Redeploy จากค่าเดิมเพราะ credential แยกปิดแล้ว.
-- **หลักฐานผ่าน:** Free4 ด้วย Google จริงสี่บัญชีและคะแนน +10, Lucky Box แบบ fixture (ให้ +50 ครั้งเดียว), อันดับ Free ผ่านหน้า v12 บนฐานแยก. ไม่ทดสอบซ้ำหากไม่จำเป็น. VIP2 ใหม่ผ่านเฉพาะฐาน managed และการประกอบ runtime ในเครื่อง.
-- **งานถัดไป:** ขอการยืนยันเฉพาะ deploy ชั่วคราวของ VIP2 candidate `5897a976` บน Railway Staging โดยใช้บัญชี Google ทดสอบเดิม 2 บัญชี; จากนั้นตรวจ denied → waiting → ห้อง 2 ที่นั่งเดียวแล้วคืนค่า. Archive ยังไม่เปิดเพราะ writer รุ่นเก่ายังเขียน ledger ตรงได้.
+- **Railway Staging:** ตัวที่รันจริง `56e41aa8` (rollback `8baeecfc`, 1 replica, SUCCESS, /health ready). Desired source ยัง pin VIP QA `5897a976` แต่ปิด profile และ credential แล้ว. ไม่มี pending patch; ห้าม Redeploy จาก desired เดิม.
+- **หลักฐานผ่าน:** Free4 (Google สี่บัญชี, ชนะ +10), Lucky Box แบบ fixture (+50 ครั้งเดียว), อันดับ Free ผ่านหน้า v12, และ VIP2 (denied → wait → 2 seats → 1 roll). ไม่ซ้ำโดยไม่มีเหตุผล. VIP endgame/อันดับ VIP/Archive ยังไม่ผ่าน hosted.
+- **งานถัดไป:** archive cutover lab ที่ `85b14c3b`; ยืนยัน write fence กัน writer เก่าและทดสอบ writer/closer หลาย physical sessions ก่อนติดตั้ง trigger หรือเปิดผลถาวร. SQL Bangkok boundary บนฐาน managed ผ่าน 4/4 แล้ว.
 
 ---
 
@@ -1906,3 +1906,13 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - เริ่มตรวจ archive ต่อแบบ read-only: ฐานแยกมี 0 archive rows, ไม่มีฟังก์ชัน archive/period, runtime ไม่ได้สิทธิ์อ่าน/เขียน archive แต่ยัง INSERT ledger ได้ตรงและ DEFAULT `created_at=now()`. ยังไม่ประกาศผลย้อนหลังถาวร: ต้องยืนยัน fencing ครบทุก writer ก่อนเปิด archive เพื่อไม่ตัดคะแนนธุรกรรมที่เกิดก่อนเที่ยงคืนแต่ commit หลังเที่ยงคืน.
 - **P0–P6 (โค้ด/ทดสอบ/พร้อมจริง):** P0 **100/100/ไม่เกี่ยว** · P1 **90/95/80** · P2 **90/95/50** · P3 **70/75/25** · P4 **70/80/60** · P5 **25/0/0** · P6 **0/0/0**. ถ่วงน้ำหนักเดิม **67% / 69% / 41%** (67.00/69.25/41.05). ให้เครดิตโค้ด P4 สำหรับ candidate ที่ประกอบได้ ไม่ให้เครดิต hosted VIP หรือ archive ก่อนเห็นผลจริง. ใช้ Dot, GitHub, Supabase และ Railway แบบอ่าน; ไม่อ้าง Work/Codex Cloud แยก.
 - **NEXT:** เมื่อได้รับการยืนยัน deploy ของ Railway สำหรับ candidate นี้ ใช้ Staging เดิมหนึ่ง replica และ Google QA เดิม 2 บัญชีตามแผนใน `qa/isolated-staging/VIP2_MANAGED_GATE.md`; ทำ patch และคืนค่าในช่วงทดสอบเดียว. ห้ามสร้าง patch ที่มี credential ชั่วคราวทิ้งไว้ขณะรอ.
+
+
+### D15 — VIP2 ผ่านบน Railway Staging จริง และเริ่มงาน archive (28 พ.ย. 2026)
+
+- เจ้าของอนุมัติ pin `5897a976da3c4922461c8ec538b2f96abff2d617` และระบบยืนยัน Apply. Railway deployment `1a74fe6c-80e0-4924-969d-e83bc488a9a1` SUCCESS เฉพาะ service เดิม Staging หนึ่ง replica; แยกฐาน Supabase ตาม binding. Log ช่วงเริ่มพบ `28P01` ก่อนตัวบริการพร้อม; การเริ่มครั้งถัดไป listen สำเร็จ ไม่ได้เปลี่ยนโค้ดหรืออนุญาต fallback. ใช้ UI v12 เดิมและ Google QA เดิมสองบัญชี; บัญชีที่สองผ่าน device challenge. ไม่เก็บตัวตนหรือ token ใน repo.
+- เมื่อหนึ่งบัญชียังไม่มี entitlement, หน้าเกมปฏิเสธ และ deployment log ยืนยัน `VIP_ACCESS_DENIED`. อีกบัญชีที่มี grant ชั่วคราวเห็นคิว **1/2**. หลังเพิ่ม short-lived QA grant เฉพาะบัญชีที่ขาด ทั้งสองแท็บเห็น **ห้อง VIP เดียว 2 ที่นั่ง**. ทอยหนึ่งครั้งได้ **6 จากช่อง 0 → 6** เหมือนกัน. Supabase ยืนยัน 1 VIP room, 2 distinct authorized seats, 1 persisted roll receipt (6), ไม่มีคะแนนใหม่. ไม่อ้างว่าเล่นจนจบ, ทดสอบการแข่งขัน revoke/commit บน hosting, เปิดอันดับ VIP หรือซื้อสิทธิ์.
+- Rollback `8baeecfc-cfe1-4039-8b67-7892388f0978` SUCCESS ที่ `56e41aa8`; /health ready และ Auth กลับ baseline, candidate ถูกถอด. ปิด profile ใน desired ด้วย skipDeploys, ปิด SQL login credential, ปิดเฉพาะห้อง VIP โดยคง receipt, ลบสอง QA grants ตามระบบยืนยัน, คืน binding เดิม. Readback 0 active rooms / 0 VIP grants, 3 ห้องหลักฐาน, ledger 2 แถวรวม 60. Desired source ยัง pin QA; ห้าม Redeploy จากค่าเดิม. ไม่เปิด Codespaces, ไม่เพิ่ม replica/แพ็กเกจ, ไม่แตะ Production/เงินจริง; ยังไม่ได้วัดค่า Railway เพิ่มจริง.
+- เริ่ม archive: commit `85b14c3bfc7952e6645f84b4948bdfc4889d8eb3` บน `qa/isolated-archive-cutover-d15` เพิ่ม writer inventory, reviewed-only trigger proposal และ sequence ตัดย้าย. จาก build พบ INSERT private score ledger ที่ runtime ใช้หนึ่งทาง แต่ constructor ยังไม่บังคับ period fence; managed มี 0 archive rows / 0 active ledger triggers, runtime INSERT ตรงได้. SQL managed **4/4 PASS** สำหรับ 1 ms ก่อนและตรงเส้นเที่ยงคืน Free/VIP. ยังไม่ติดตั้ง trigger หรือเปิด archive; ต้องพิสูจน์หลาย session และปิดทาง writer รุ่นเก่าก่อน cutover.
+- **P0–P6 (โค้ด/ทดสอบ/พร้อมจริง):** P0 **100/100/ไม่เกี่ยว** · P1 **90/95/80** · P2 **90/97/60** · P3 **72/75/25** · P4 **70/85/65** · P5 **25/0/0** · P6 **0/0/0**. ถ่วงน้ำหนักเดิม **67% / 71% / 44%** (67.40/70.65/44.21). ไม่ใช่ go-live approval. เครื่องมือ: Dot, GitHub, Supabase, Railway และ Cloud Browser; ไม่อ้าง Work/Codex Cloud แยก.
+- **NEXT:** ทดสอบ I/T/I transaction, late writer, exclusive closer และ guard สำหรับ unfenced INSERT จาก fixture PostgreSQL 17 แยกก่อนเสนอ staged cutover; ใช้หลักฐาน native ที่มีแล้วไม่รัน Free4/VIP2 ซ้ำ.
