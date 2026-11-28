@@ -30,7 +30,12 @@ async function portOnLoopback(){
 test('packaged Free4 heartbeat preserves committed Lucky Box and reconnect on real PG17',
  {skip:bin===undefined,timeout:30000},async t=>{
   assert.ok(path.isAbsolute(bin),'set absolute local PostgreSQL 17 binaries path');
-  const {Client,Pool}=require(process.env.LUCKY_PG17_DRIVER||'pg');
+  const backend=path.resolve(__dirname,'../railway-runtime/backend');
+  const runtimeRequire=createRequire(path.join(backend,'railway','secure-server.cjs'));
+  const manifest=runtimeRequire('../../package.json');
+  assert.equal(runtimeRequire('pg/package.json').version,manifest.dependencies.pg);
+  assert.equal(runtimeRequire('ws/package.json').version,manifest.dependencies.ws);
+  const {Client,Pool}=runtimeRequire('pg');
   const port=await portOnLoopback(),root=await fs.mkdtemp(path.join(os.tmpdir(),'lucky-joint-free4-tcp-'));
   const data=path.join(root,'data'), env={PATH:'/usr/bin:/bin',LC_ALL:'C'};
   let proc,stopped,obs,pool;
@@ -106,7 +111,6 @@ test('packaged Free4 heartbeat preserves committed Lucky Box and reconnect on re
     row_security_active('game.turn_receipts') AS receipts,row_security_active('game.score_events') AS scores,
     rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user`)).rows,
    [{login,addr:'127.0.0.1/32',rooms:true,receipts:true,scores:true,rolsuper:false,rolbypassrls:false}]);
-  const backend=path.resolve(__dirname,'../railway-runtime/backend');
   const from=rel=>path.join(backend,rel);
   const source=await fs.readFile(from('railway/secure-server.cjs'),'utf8');
   const Rules=require(from('railway/multi-board-rules.cjs'));
@@ -123,6 +127,16 @@ test('packaged Free4 heartbeat preserves committed Lucky Box and reconnect on re
    return use(id);
   },moduleFixture);
   const actual=moduleFixture.exports.createRailwayStore('fixture-only');
+  const tx=await pool.connect();
+  try {
+   assert.equal(tx.getTransactionStatus(),'I');
+   await tx.query('BEGIN');
+   assert.equal(tx.getTransactionStatus(),'T');
+   await assert.rejects(tx.query('SELECT 1/0'),{code:'22012'});
+   assert.equal(tx.getTransactionStatus(),'E');
+   await tx.query('ROLLBACK');
+   assert.equal(tx.getTransactionStatus(),'I');
+  } finally { tx.release(true); }
   const {WebSocket,WebSocketServer}=use('ws');
   const {startSocketHeartbeat}=require(from('railway/socket-heartbeat.cjs'));
   const {eligibleGiftTiles,getBoard}=require(from('railway/board-maps.cjs'));

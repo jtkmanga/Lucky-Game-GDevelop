@@ -426,8 +426,17 @@ page.write_text(html,encoding='utf8')
  "version":"0.0.1",
  "private":True,
  "scripts":{"start":"node backend/railway/secure-server.cjs"},
- "dependencies":{"pg":"^8.13.1","ws":"^8.18.3"},
+ "dependencies":{"pg":"8.23.1","ws":"8.22.2"},
  "engines":{"node":">=20"}
 },indent=2)+'\n',encoding='utf8')
+# Copy the tracked npm v3 lock last and reject drift before build.
+lockfile=ROOT/'tools'/'railway-package-lock.json'
+lock=json.loads(lockfile.read_text(encoding='utf8'))
+manifest=json.loads((OUT/'package.json').read_text(encoding='utf8'))
+root=lock['packages']['']
+if lock.get('lockfileVersion')!=3 or any(
+    root.get(key)!=manifest[key] for key in ('name','version','dependencies','engines')):
+    raise RuntimeError('Railway package manifest and lockfile are out of sync')
+shutil.copy2(lockfile,OUT/'package-lock.json')
 print('Generated Railway draft runtime at',OUT)
 print('Not tested, not deployed. No Supabase OAuth login flow tested and no game SQL migrated.')
