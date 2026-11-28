@@ -1,6 +1,6 @@
 # Lucky Game — Canonical Project Status / Resume Checkpoint
 
-**Checkpoint ล่าสุด 27 พ.ย. 2026 (D15):** Free4 ผ่านบน Staging; หลังจบ pilot คืน Staging เป็น `56e41aa8` และ `/health` ready. Lucky Box, Payment Sandbox และ leaderboard มีผล PostgreSQL 17 แบบแยกเพิ่ม แต่ยังไม่ใช่ gate บน Staging. รวม **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**. ดูผลล่าสุดท้ายไฟล์; Production ยังไม่เปิด.
+**Checkpoint ล่าสุด 28 พ.ย. 2026 (D15):** ติดตั้งและยืนยันตัวตรวจสิทธิ์ VIP2 บน Supabase Staging แยก พร้อม candidate Railway ทดสอบในเครื่อง 36/36. ยังไม่เปิดห้อง VIP บน Railway. รวม **67% โค้ด / 69% ทดสอบ / 41% พร้อมจริง**. ไม่แตะ Production.
 
 **นโยบายปัจจุบัน:** D15 ใน `DECISIONS_TH.md` บนสาขา `docs/lucky-autonomous-backlog` แทนข้อจำกัดด้านกระบวนการ D14 ที่ขัดกัน โดยคงขอบเขต Production/เงินจริง/งบ/ข้อมูลส่วนตัวเดิม.
 
@@ -12,9 +12,9 @@
 ## สถานะปัจจุบัน / เริ่มงานจากตรงนี้ (28 พ.ย. 2026, เวลาไทย)
 
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
-- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
-- **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** Free leaderboard จากคะแนนจริงบน isolated Railway/Supabase ผ่านแบบอ่านอย่างเดียว; คืน Staging baseline แล้ว. ถัดไปแยกทดสอบ VIP eligibility + การเปลี่ยนรอบ/เก็บประวัติ โดยไม่ทดสอบ Free4 หรือ Lucky Box ซ้ำ. ล่าสุด **66% โค้ด / 69% ทดสอบ / 41% พร้อมจริงตาม rubric**; Production ไม่เริ่ม.
+- **Railway Staging:** ตัวที่รันจริง `56e41aa8` (deployment `89000c74`, 1 replica, SUCCESS); desired source ยังผูก `qa/isolated-free-leaderboard-d15` (`ac74247`) และไม่มี staged patch. ห้าม Redeploy จากค่าเดิมเพราะ credential แยกปิดแล้ว.
+- **หลักฐานผ่าน:** Free4 ด้วย Google จริงสี่บัญชีและคะแนน +10, Lucky Box แบบ fixture (ให้ +50 ครั้งเดียว), อันดับ Free ผ่านหน้า v12 บนฐานแยก. ไม่ทดสอบซ้ำหากไม่จำเป็น. VIP2 ใหม่ผ่านเฉพาะฐาน managed และการประกอบ runtime ในเครื่อง.
+- **งานถัดไป:** ขอการยืนยันเฉพาะ deploy ชั่วคราวของ VIP2 candidate `5897a976` บน Railway Staging โดยใช้บัญชี Google ทดสอบเดิม 2 บัญชี; จากนั้นตรวจ denied → waiting → ห้อง 2 ที่นั่งเดียวแล้วคืนค่า. Archive ยังไม่เปิดเพราะ writer รุ่นเก่ายังเขียน ledger ตรงได้.
 
 ---
 
@@ -1895,3 +1895,14 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - Railway Staging deployment `43ae02a5-ee9f-4072-b788-25885c222968` SUCCESS, 1 replica. ใช้ Google session เดิมเพียงหนึ่งบัญชี; หน้า v12 จาก API แสดงอันดับ **50 → 10** ตรงกับ ledger เดิม. Direct GET Free ที่ไม่ login ถูกปฏิเสธและ VIP ไม่คืนรายการ; ไม่ใช่ hosted VIP success หรือการพิสูจน์ scheduler/rolling archive. หลังทดสอบ 2 ห้องเดิม, 0 ห้อง playing, 2 score rows รวม 60 ไม่เปลี่ยน.
 - Rollback `89000c74-a927-4c75-8f34-3b42eba96543` SUCCESS ที่ `56e41aa8`, /health ready และ Auth baseline คืนแล้ว. Candidate ถูกถอด, คืน cutoff ของ binding ให้ตรงหลักฐานเดิม, ปิดรหัสฐานแยกและ reset role default, ปิด flags อันดับ/fixture ของ desired config โดยไม่ deploy เพิ่ม. Desired source ยัง pin `ac74247` ที่หมดสิทธิ์ฐาน; ห้าม Redeploy โดยไม่ตั้ง clean patch. ไม่แตะ Production, ไม่เปิด Codespaces เพิ่ม, ไม่เปลี่ยนแพ็กเกจหรือใช้เงินจริง; ค่าใช้เพิ่มของ Railway ยังไม่วัด.
 - เฟส (โค้ด/ทดสอบ/พร้อมจริง): P0 **100/100/ไม่เกี่ยว** · P1 **90/95/80** · P2 **90/95/50** · P3 **70/75/25** · P4 **65/80/60** · P5 **25/0/0** · P6 **0/0/0**. ถ่วงน้ำหนักเดิม **66% / 69% / 41%** (66/69.25/41.05). ถัดไปยกระดับ VIP / รอบอันดับ / archive และจัด Staging desired config แบบไม่พึ่งรหัสชั่วคราว ก่อนเปิด hosted flow ถัดไป; ไม่ทดสอบ Free4 ซ้ำ. รอบนี้ใช้ Dot รัน QA สด, GitHub, Railway, Supabase และ Cloud Browser; ไม่อ้างว่า Work/Codex Cloud รันแยก.
+
+
+### D15 — VIP2: gate บน Supabase Staging ผ่าน; Railway candidate พร้อมตรวจรับ (28 พ.ย. 2026)
+
+- Migration SQL `b3c0355017c4457a7da407cc5333bae2174645c8`, blob `d9a742022e2d9dc8db5649b0589e37f1dec84e10` ตรง GitHub. ติดตั้ง migration `20261128113140` เฉพาะ Supabase PostgreSQL 17.12 โปรเจกต์แยก. ตัวฟังก์ชันตรง lab native race `f17b7321`; การทดสอบใน migration ตรวจ active pair ทั้งสองลำดับ, missing, duplicate, null, หมดอายุ, expiry infinity, revoked และ role guard เขียน entitlement ไม่ได้. คืน fixture ทั้งหมดใน subtransaction; ไม่มีการให้ VIP ค้างหรือรับเงินจริง.
+- Readback: restricted runtime เรียก gate ได้ แต่ไม่ได้เป็นสมาชิก role guard; browser anon/authenticated เรียกไม่ได้. Guard ไม่มี LOGIN/BYPASSRLS/CREATE schema และใช้ search path จำกัด. หลังทดสอบ 0 VIP grants, 2 ห้องเดิม, 0 playing, 2 ledger events รวม 60 แต้ม.
+- QA candidate `5897a976da3c4922461c8ec538b2f96abff2d617` บน `qa/isolated-vip2-runtime-d15`: exact Railway environment/project และ DB ref, fixed room หนึ่งห้อง สองบัญชีและ cutoff ไม่เกิน 30 นาที, ปฏิเสธ Free/บัญชีอื่น/โปรไฟล์ QA ผสม, startup ต้องเรียก private gate ผ่านก่อนรับเกม, transaction ล็อกและสร้างห้องใน checkout เดียว. Local **36/36 PASS** (สามเคสเพิ่ม), packager และ syntax generated server ผ่าน; SHA-256 HTML `d63ea39bc1db1796fe3f9cf268886df0f93e7ac122be1068d0c1f754dbe38975`; ไม่มี UI source change. ยังไม่ deploy, ไม่ทดสอบ Google VIP/WebSocket หรือการเชื่อมต่อของ Railway สำหรับ candidate นี้. ไม่เปิด Codespaces, ไม่ตั้ง schedule, ไม่ merge/main/Production.
+- ตรวจ Railway connector: active `89000c74-a927-4c75-8f34-3b42eba96543` SUCCESS ที่ `56e41aa8b6d70fc024e59d97bcad47de6a558f88`, 1 replica, ไม่มี pending patch. Desired source ยังเป็น leaderboard QA ที่ credential หมดอายุ ไม่แก้/ไม่ redeploy. ไม่ได้เปลี่ยน credential หรือ binding เดิมในรอบนี้.
+- เริ่มตรวจ archive ต่อแบบ read-only: ฐานแยกมี 0 archive rows, ไม่มีฟังก์ชัน archive/period, runtime ไม่ได้สิทธิ์อ่าน/เขียน archive แต่ยัง INSERT ledger ได้ตรงและ DEFAULT `created_at=now()`. ยังไม่ประกาศผลย้อนหลังถาวร: ต้องยืนยัน fencing ครบทุก writer ก่อนเปิด archive เพื่อไม่ตัดคะแนนธุรกรรมที่เกิดก่อนเที่ยงคืนแต่ commit หลังเที่ยงคืน.
+- **P0–P6 (โค้ด/ทดสอบ/พร้อมจริง):** P0 **100/100/ไม่เกี่ยว** · P1 **90/95/80** · P2 **90/95/50** · P3 **70/75/25** · P4 **70/80/60** · P5 **25/0/0** · P6 **0/0/0**. ถ่วงน้ำหนักเดิม **67% / 69% / 41%** (67.00/69.25/41.05). ให้เครดิตโค้ด P4 สำหรับ candidate ที่ประกอบได้ ไม่ให้เครดิต hosted VIP หรือ archive ก่อนเห็นผลจริง. ใช้ Dot, GitHub, Supabase และ Railway แบบอ่าน; ไม่อ้าง Work/Codex Cloud แยก.
+- **NEXT:** เมื่อได้รับการยืนยัน deploy ของ Railway สำหรับ candidate นี้ ใช้ Staging เดิมหนึ่ง replica และ Google QA เดิม 2 บัญชีตามแผนใน `qa/isolated-staging/VIP2_MANAGED_GATE.md`; ทำ patch และคืนค่าในช่วงทดสอบเดียว. ห้ามสร้าง patch ที่มี credential ชั่วคราวทิ้งไว้ขณะรอ.
