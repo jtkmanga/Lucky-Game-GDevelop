@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** isolated Railway Free4 **ผ่าน** (Google 4/4 → ห้องเดียว → reload กลับห้อง → จบเกม +10 ครั้งเดียว); คืน runtime เดิมแล้ว. ยังต้องทดสอบ hosted Lucky Box และเตรียม desired source/variables ให้ตรงก่อน deployment รอบหน้า; ห้าม redeploy patch pilot เดิม.
+- **งานถัดไป:** isolated Free4 และ Lucky Box สองตาแบบ fixture ผ่านบน Railway; คืน runtime เดิมแล้ว. รวม current leaderboard แบบอ่านอย่างเดียวใน candidate ที่ไม่ผูก fixture และยืนยัน desired config ใหม่ก่อน deploy รอบถัดไป. หลักฐานล่าสุด **65% โค้ด / 67% ทดสอบ / 38% พร้อมจริงตาม rubric**; Production ยังไม่เริ่ม.
 
 ---
 
@@ -1866,3 +1866,23 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - หลักฐานฐานแยก: 4 players, 1 bound room, `finished` revision 55, 4 seats, 55 receipts (54 ลูกเต๋าในช่วง 1–6, 1 เทิร์นอื่น), ledger `win` **1 รายการ รวม +10**, ไม่มี Lucky Box award. Lucky Box ยังไม่ปิด hosted gate; ไม่ได้ทดสอบ restart/lease-Redial แบบ browser end-to-end รอบนี้. Follow-up redial `9842816` ไม่ได้ใช้ใน pilot นี้.
 - คืน runtime Railway Staging เป็น baseline `56e41aa8b6d70fc024e59d97bcad47de6a558f88` ผ่าน rollback deployment `0f2b6e81-5483-49bf-8ec9-2b7a23d5cdc8` **SUCCESS**, `/health` ready, public Auth config กลับสู่ baseline. ไม่มี pending patch. ปิด credential ชั่วคราวของ isolated DB role หลัง rollback; เก็บผลทดสอบไว้ในฐานแยก. **ข้อควรระวัง:** desired source ใน Railway ยัง pin `qa/isolated-staging-free4-d15` / `f1baacd7` และชื่อ isolated pilot variables ยังอยู่. ไม่ถือว่า desired config คืนแล้ว; ห้าม Redeploy จาก desired config โดยไม่ทวนและตั้งค่าใหม่. การใช้ runtime rollback ไม่แก้ desired source โดยอัตโนมัติ. ไม่มี Production deploy หรือเงินจริง; ยอดเพิ่มจริงยังไม่ยืนยัน.
 - งานถัดไป: ทำ isolated hosted Lucky Box แบบหนึ่ง receipt ต่อรางวัลโดยไม่ทดสอบ OAuth 4/4 ซ้ำโดยไม่จำเป็น และจัดการ desired config ให้ไม่พยายามใช้ pilot credential ที่ปิดแล้วก่อนรอบถัดไป. อย่ารายงานพร้อม Production จากผลเกมรอบเดียว.
+
+
+### D15 — Lucky Box: เปิดครั้งเดียวบน Railway Staging (28 พ.ย. 2026)
+
+- Candidate QA `4d05d5d47e0d03bdc6ae6c93cadc54c4fad84650` บน `qa/hosted-lucky-box-two-rolls-d15`, deployment `8b92ba71-460f-4ce0-9f6c-5ad9e95457e4` ผ่าน startup. Pin เฉพาะ Staging 1 replica / isolated Supabase ref; deterministic สองตาแรกเฉพาะ room ที่ผูกและตำแหน่ง 15/16. Local fixture guard 2/2 PASS; ไม่ merge QA ไป main และไม่ใช้เป็นหลักฐานสุ่มจริง. เก็บห้อง Free4 เดิม revision 55 ไว้ ใช้ atomic rebind เมื่อห้องเดิม finished และไม่มีห้อง playing; ใช้บัญชีทดสอบเดิมสองบัญชีโดยไม่ทดสอบชุด OAuth 4/4 ซ้ำ.
+- Browser ทั้งสองเห็นผู้เล่นแรกทอย 1 จากช่อง 15 ลงช่อง 16 และ **ได้ +50**. ผู้เล่นที่สองลงช่อง 16 เดียวกันโดย **ได้ 0**. โหลดหน้าใหม่แล้วรางวัลและคะแนนเดิมยังแสดง. SQL จากฐาน managed: receipt revision 1 (actor seat 0, roll 1, position 16, reward 50, 1 award) และ revision 2 (seat 1, roll 1, position 16, reward 0, 0 awards); ledger `lucky_box` 1 แถว +50, UID ตรงกับผู้เล่นที่ลงช่องครั้งแรก. ไม่กล่าวว่าเปิดกล่องจากการเล่นสุ่มตามปกติหรือทดสอบรับเงินจริง.
+- Rollback `3e465f7e-198a-44f1-b3ef-e8cfb8c005af` SUCCESS ที่ `56e41aa8`, /health ready และ Auth กลับ baseline. หลัง QA deployment ถูกถอด ปิดห้องทดสอบแบบรักษาประวัติ, ปิด credential ฐานแยก และตั้ง `LUCKY_PILOT_LUCKY_BOX_FIXTURE=false` ใน desired โดย `skipDeploys:true`; ไม่พบ pending patch หรือ deployment เพิ่ม. **Desired source ยัง pin QA `4d05d5d`**; ห้าม redeploy จากค่านี้โดยตรง เพราะ isolated credential ปิดและ binding เดิมปิดแล้ว. งานถัดไปต้องใช้ clean candidate และตั้งค่าปลายทาง/credential ใหม่ใน patch เดียว; active runtime ไม่ได้ใช้ desired เหล่านี้. ไม่เปิด Codespaces เพิ่มหรือแตะ Production/ชำระเงินจริง; ค่า Railway เพิ่มจริงยังไม่วัด.
+- เริ่มงานอันดับแล้วด้วย SQL read-only จาก ledger ทดสอบจริง: ช่วง Free ประจำสัปดาห์ไทยคืน 2 คะแนน **50, 10** ตามลำดับ; VIP window ไม่มีรายการ. ยังไม่ทดสอบ endpoint/หน้าอันดับ, archive หรือ reset scheduler บน hosted และไม่ได้เปิดสิทธิ์อ่านเพิ่ม.
+
+| เฟส | โค้ด | ทดสอบ | พร้อมจริง | หลักฐานที่เปลี่ยน |
+|---|---:|---:|---:|---|
+| P0 ฐานเกม | 100% | 100% | ไม่เกี่ยว | คง UI v12 |
+| P1 ฐานข้อมูล/Auth | 90% | 95% | 80% | isolated Supabase/TLS/role และ Google 4/4 ใช้จริง |
+| P2 กติกา/Multiplayer | 90% | 95% | 50% | Free4 จริง + Lucky Box fixture จริง; VIP และ 5 แผนที่ยังไม่ผ่าน hosted |
+| P3 Reconnect/อันดับ/Admin/ชำระเงิน | 65% | 70% | 15% | กลับห้องและคะแนนคงอยู่บน Staging; อ่านคะแนน SQL จริงเท่านั้น |
+| P4 ตรวจรับ Staging | 65% | 75% | 55% | สอง scoped acceptance และ rollback พร้อมตรวจ readiness; ยังไม่ผ่านทุก flow |
+| P5 โหลด/ความทนทาน | 25% | 0% | 0% | ไม่มี load/soak gate ใหม่ |
+| P6 เปิด Production | 0% | 0% | 0% | ยังไม่เปิด |
+
+น้ำหนักเดิม 5/15/20/20/20/10/10 (พร้อมจริงไม่รวม P0) ให้ **65% / 67% / 38%** จาก 65.00 / 67.25 / 37.89 โดยประมาณ. นี่คือคะแนนตามหลักฐานไม่ใช่อัตราผ่านเทสต์หรือสัญญาณอนุมัติ go-live.
