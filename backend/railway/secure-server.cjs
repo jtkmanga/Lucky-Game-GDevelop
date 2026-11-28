@@ -488,6 +488,11 @@ async function handle(ws,msg){
  if(msg.type==='join'){
   if(ws.session)return send(ws,{type:'error',message:'อยู่ในคิวหรือห้องแล้ว'});
   const mode=msg.mode;
+  const resumeOnly=Object.hasOwn(msg,'resumeRoomId');
+  const requestedRoom=msg.resumeRoomId;
+  if(resumeOnly&&(typeof requestedRoom!=='string'||
+     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(requestedRoom)))
+   return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม'});
   if(mode!=='free'&&mode!=='vip')return send(ws,{type:'error',message:'โหมดไม่ถูกต้อง'});
   // Every join and resume must supply a valid Supabase access token.
   const auth=await requirePlayerIdentity(msg);
@@ -500,6 +505,9 @@ async function handle(ws,msg){
   await withUidJoinLock(uid,async()=>{
    if(ws.readyState!==WebSocket.OPEN||(pilot&&ws.session))return;
    let existing=sessions.get(uid);
+   if(resumeOnly&&existing&&(existing.roomId!==requestedRoom||existing.mode!==mode||
+     existing.pendingRoomId||!rooms.has(requestedRoom)||rooms.get(requestedRoom).game.over))
+    return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม'});
   // On process restart, locate the unfinished verified UID seat in PostgreSQL.
   // The same-process cache remains the fast path. No guest bearer-token resume.
   if(!existing){
@@ -511,17 +519,32 @@ async function handle(ws,msg){
     if(saved){
      if(saved.status!=='playing'||saved.mode!=='free'||!pilot.matches(pilot.roomId,saved.seats))
       return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
+     if(resumeOnly&&!saved.seats.some(seat=>seat.uid===uid))
+      return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม'});
      savedRoomId=pilot.roomId;
     }else if(Date.now()>=pilot.cutoffMs){
      return send(ws,{type:'error',message:'หมดเวลาทดสอบ'});
     }
    }else savedRoomId=await store.findResumableRoomForUid(uid);
+   if(resumeOnly&&savedRoomId!==requestedRoom)
+    return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม'});
+   if(resumeOnly&&!pilot){
+    const saved=await store.loadRoom(savedRoomId);
+    if(!saved||saved.status!=='playing'||saved.mode!==mode||
+       !Array.isArray(saved.seats)||!saved.seats.some(seat=>seat?.uid===uid))
+     return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม'});
+   }
    if(savedRoomId){
      const recovered=await restoreRoom(savedRoomId);
+     if(!recovered&&resumeOnly&&!shuttingDown)
+      return send(ws,{type:'resume_wait',roomId:requestedRoom});
      if(!recovered)return send(ws,{type:'error',
        message:'ห้องเดิมอยู่บนเซิร์ฟเวอร์อื่นหรือยังไม่พร้อม'});
    }
    existing=sessions.get(uid);
+   if(resumeOnly&&(!existing||existing.roomId!==requestedRoom||existing.mode!==mode||
+     existing.pendingRoomId||!rooms.has(requestedRoom)||rooms.get(requestedRoom).game.over))
+    return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม'});
   }
   if(existing){
    if(existing.mode!==mode && (existing.roomId||existing.pendingRoomId))
