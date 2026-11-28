@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** Google ยอมรับ callback ของ Supabase Staging แล้วและถึงหน้าเลือกบัญชี; ยังไม่ได้ยืนยันการแลก code หรือ enroll. เตรียมหน้าลงทะเบียน private และยืนยันบัญชีทดสอบทั้ง 4 ก่อนสลับ Railway.
+- **งานถัดไป:** Google OAuth ลงทะเบียนจริงครบ 4 บัญชีใน Supabase แยกและปิดหน้า enrollment แล้ว; เตรียม isolated Railway Staging pilot แบบ fixed room ก่อนทดสอบ reconnect. ยังไม่ยืนยัน hosted gameplay.
 
 ---
 
@@ -1847,3 +1847,9 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 - QA commit `9842816198bca783d696355e48a5175d35198ad5` บน `qa/bounded-replacement-redial-d15`: ถ้า socket ใหม่หลุดแบบชั่วคราวก่อนรับสถานะห้อง ให้ลองเชื่อมต่อใหม่ได้อีกหนึ่งครั้งโดยใช้ UID, mode และ room เดิม ภายใต้เส้นตาย 36 วินาที/18 sends เดิม; ไม่ส่ง matchmaking ใหม่. ยกเลิก/เปลี่ยน account/mode/การปิดโดยเจตนายังหยุดได้.
 - Generated JavaScript/packaging: **14 PASS / 0 FAIL**, HTML hash `9efaff4bb75161fdce6401656531f3599ec7faa8fcac00ae2712445ded5bf5b9`. ยังไม่ได้ทดสอบ Chromium หรือ Staging สำหรับ follow-up นี้ และไม่ได้สลับ candidate `f1baacd7` ของ hosted pilot. ไม่แตะ Supabase/Railway; private enrollment handoff เดิมยังค้าง.
+
+
+### D15 — ยืนยัน Google Auth 4/4 และเตรียม isolated pilot (28 พ.ย. 2026)
+
+- Auth database ของโปรเจกต์ใหม่พบ Google identities ที่ verified **4/4** และส่วนท้าย UID ตรงกับภาพเจ้าของทั้งสี่ใบ. ไม่เก็บ email/UID ใน repo. ลบ exact private enrollment redirect; ตรวจว่าเหลือ Railway URL เดียว และ GitHub ยืนยัน Codespace หยุดแล้ว. ยอดหลังปิดยังไม่ได้ตรวจ.
+- ติดตั้ง acceptance-binding schema 006 และผูก 1 ห้องบนฐานใหม่ว่างเท่านั้น. สร้าง credential ให้ role จำกัดของฐานใหม่นี้และส่งให้ Railway Staging โดยไม่ลง GitHub. Stage candidate `f1baacd7886bca5e3dac5243b515a697cd7bdb3d` กับค่าฐาน/roster ใน patch เดียว; cutoff `2026-11-28T11:44:37.500Z`. ยังไม่ได้กด deploy ณ checkpoint นี้. ไม่แตะ Production; baseline Railway `77996b93` / `56e41aa8` และ desired source เดิม `bbefbd63` ใช้ตรวจการคืนค่า.
