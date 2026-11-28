@@ -28,9 +28,10 @@ async function startDisposablePg17(t,{bin,roster,runtimeRequire}) {
   const {Client,Pool}=runtimeRequire('pg');
   const port=await portOnLoopback(),root=await fs.mkdtemp(path.join(os.tmpdir(),'lucky-joint-free4-tcp-'));
   const data=path.join(root,'data'), env={PATH:'/usr/bin:/bin',LC_ALL:'C'};
-  let proc,stopped,obs,pool;
+  let proc,stopped,obs;
+  const pools=new Set();
   t.after(async()=>{
-   await Promise.allSettled([pool?.end(),obs?.end()]);
+   await Promise.allSettled([...Array.from(pools,p=>p.ended?undefined:p.end()),obs?.end()]);
    if(proc?.exitCode===null && proc.signalCode===null){
     proc.kill('SIGINT');
     const deadline=new AbortController();
@@ -95,12 +96,16 @@ async function startDisposablePg17(t,{bin,roster,runtimeRequire}) {
   }
   assert.ok(obs,'private PostgreSQL startup failed: '+log);
   await obs.query('SET default_transaction_read_only=on');
-  pool=new Pool({...opts(login,pw),max:2});
+  const createPool=()=>{
+   const pool=new Pool({...opts(login,pw),max:2});
+   pools.add(pool);return pool;
+  };
+  const pool=createPool();
   assert.deepEqual((await pool.query(`SELECT session_user AS login,
     inet_client_addr()::text AS addr,row_security_active('game.rooms') AS rooms,
     row_security_active('game.turn_receipts') AS receipts,row_security_active('game.score_events') AS scores,
     rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user`)).rows,
    [{login,addr:'127.0.0.1/32',rooms:true,receipts:true,scores:true,rolsuper:false,rolbypassrls:false}]);
-  return {pool,obs};
+  return {pool,obs,createPool};
 }
 module.exports={startDisposablePg17,assertNativeInputs};
