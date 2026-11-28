@@ -8,6 +8,20 @@
 
 **สถานะฐานข้อมูลล่าสุด 26 พ.ย. 2026:** ติดตั้ง migrations 001–003 บน staging แล้ว ดู checkpoint ท้ายไฟล์สำหรับ migration IDs และข้อจำกัด ย่อหน้าก่อนหน้านั้นเป็นสถานะตามวันที่บันทึก
 
+
+## สถานะปัจจุบัน / เริ่มงานจากตรงนี้ (28 พ.ย. 2026, เวลาไทย)
+
+- **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
+- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `67478b9b5d7b46bf2493a90686ad678beaab499d`. อย่าปะปน SHA ทั้งสาม.
+- **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy และการส่งสัญญาณปิด process แบบแยก; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
+- **งานถัดไป:** ใช้ PostgreSQL ชั่วคราวแบบแยกทดสอบเปลี่ยนสอง process จริงขณะมีห้องที่เล่นอยู่ วัดเวลา UID/seat/revision เดิมกลับมา และเช็ก receipt/score ไม่ซ้ำทั้ง SIGTERM กับ SIGKILL. ยังไม่มีหลักฐานว่าเปลี่ยน instance บน Railway หรือคืน lease เร็วได้ ตรวจการแยก DB ควบคู่เมื่อจะเปิด hosted gate.
+
+---
+
+## บันทึกฐานเดิมและประวัติ (ไม่ใช่คำสั่งปัจจุบัน)
+
+ข้อความจาก baseline ด้านล่างเป็นประวัติ อาจระบุว่าไม่มีบริการหรือต้องพักการทดสอบ; ใช้สรุปปัจจุบันด้านบนและ checkpoint ท้ายไฟล์แทน.
+
 ## Identity / repositories
 - **ACTIVE repository:** `jtkmanga/Lucky-Game-GDevelop`, branch **`main`**, primary source for this **NEW** Lucky Game prototype. Do not create a second repo now.
 - Historical project `jtkmanga/Snakes-and-Ladders-Private` (branch `lucky-cloudflare-do-v1`) is **another project**, not this new app. Consult only for optional reference, never overwrite.
@@ -1709,3 +1723,10 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 - `ebc00aeb8a33c8d840a9fa55801d75db745b4fe2` บน `qa/runtime-contents-d15`: `node --test qa/railway-packaged-wss-proxy.test.cjs` **1/1 PASS** (test 0.21 s; command suite 0.38 s). ใช้ ws 8.22.2 และ heartbeat จาก runtime ที่ build จริง ผ่าน TLS endpoint แบบ loopback ไป HTTP Upgrade backend; reject ใบรับรองที่ไม่เชื่อถือก่อนถึง upgrade, ใบรับรองที่เชื่อถือทำงาน, peer ปกติตอบ pong/รับส่ง payload ต่อได้, peer ไม่ตอบถูกตัดที่ tick ถัดไป. ไม่ปิดการตรวจ TLS; synthetic cert/edge/clock ไม่ใช่ Railway WSS timeout, Google/เกมหรือ DB จริง.
 - รอบนี้รวม **2 งาน candidate / 6 commits** รวม checkpoint และตรวจ metadata, เทสต์ targeted **38/38** จากสองคำสั่ง, บวก entry-point fail-closed sanity แยก. ไม่ทราบเวลาประมวลผลรวม/โควต้า/บิลส่วนเพิ่มของบริการเดิม; ไม่มีการเปิดเครื่องเสียเงินหรือเปลี่ยน hosted state. P0–P6 คง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**. **ถัดไป:** เลือกปลายทาง DB แยกที่ยืนยันได้ภายในทรัพยากรเดิมหรือออกแบบ login ที่กั้น roster/room ระดับ DB และทดสอบบนฐานแยกก่อนพิจารณา hosted write. ไม่ย้าย Production ไม่เปิดเงินจริง ไม่ตั้ง Scheduled Task.
+
+
+### D15 — Packaged lifecycle: ส่ง SIGTERM ตรงถึงเกม (28 พ.ย. 2026)
+
+- ทดสอบคำสั่งเดิม `cd railway-runtime && npm start` บน Linux shell: HTTP health พร้อม, เปิด WebSocket ได้ แต่ส่ง SIGTERM ถึง PID ที่เปิดจากคำสั่งแล้วเกมไม่ปิด socket ภายใน 3.8 วินาที (baseline **FAIL 1/1**); ปิดกลุ่ม process ทดสอบหลังจบ. ไม่ใช่ผลสังเกตบน Railway/container จริง.
+- เปลี่ยนเพียง start command ใน `railway.json` เป็น shell exec ของ Node entry point เดิม (`1584505606e45251bb3128da669573f2e847bdab`), เพิ่ม `qa/railway-process-signal.test.cjs` (`67478b9b5d7b46bf2493a90686ad678beaab499d`). **2/2 PASS** (~0.47 s): SIGTERM ปิด WebSocket ด้วย 1001, เรียกปิด store และ exit 0 (~10 ms ใน fixture); SIGKILL ปิด transport ด้วย 1006 โดยไม่มี graceful close. ใช้ server จริง/loopback และจำลอง store, ไม่ล็อกอินหรือเชื่อม Supabase, ไม่ทดสอบ lease/turn/receipt ด้วย PG17 เพราะ runtime ของรอบนี้ไม่มี PostgreSQL binaries.
+- [Railway singleton deployment docs](https://docs.railway.com/deployments/reference#singleton-deploys) ระบุ default 0 วินาทีก่อน SIGKILL และตั้งเวลาผ่าน service variable ได้; เปลี่ยน launcher อย่างเดียวไม่ให้ grace time และไม่เพิ่มการคืน lease. ไม่แก้ variable, ไม่ Deploy/เปิด Codespaces/เพิ่มรายการค่าใช้จ่าย หรือวัดบิล/โควต้า. ไม่เปลี่ยน UI หรือกติกา. รอบนี้ 1 งาน candidate / 3 commits รวม checkpoint. ไม่ขยับ P0–P6 เพราะยังไม่ผ่าน durable recovery/hosted gate.
