@@ -1835,3 +1835,9 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 ### D15 — Google redirect probe ผ่าน (28 พ.ย. 2026)
 
 - หลังเจ้าของบันทึก Authorized redirect URI ทดสอบใหม่จาก Supabase Staging ด้วย PKCE probe: Google เปิดหน้าเลือกบัญชี `/v3/signin/accountchooser` และ `redirect_uri` ที่ส่งตรง callback ของโปรเจกต์ใหม่. ไม่พบ 400 ในรอบนี้. ปิด probe โดยไม่เลือกบัญชี; ไม่ได้ลงทะเบียนบัญชีหรือแลก code และยังไม่เริ่มเกมทดสอบ. ไม่เปลี่ยน Railway/Auth/Production ในการตรวจนี้.
+
+
+### D15 — เปิด enrollment แบบ Private และตรวจ TLS (28 พ.ย. 2026)
+
+- ตรวจ budget เฉพาะ repo Codespaces `$0.20/$5.00` ก่อนเปิด และยืนยัน Stop usage เปิดอยู่. เปิดเครื่องเดิม 2 คอร์โดยไม่แตะ working tree. จาก exact candidate `f1baacd7` ตรวจ Supabase Session Pooler ใหม่ด้วย TLS hostname และ CA ที่ bundle: OpenSSL `Verification: OK`. ยังไม่ตรวจแบบ authenticated Node driver.
+- เปิดหน้า enrollment PKCE แยกที่ Codespace port 4317 **Private** และยืนยันหน้าแสดงปุ่ม Google ในเบราว์เซอร์เดียวกัน. ตั้ง expiration ตัว web process 25 นาที. เพิ่ม exact redirect ของหน้า private นี้ใน Supabase Staging โดยคง Railway URL เดิม; จบหรือหมดเวลาต้องลบ URL ชั่วคราวและหยุด Codespace. ไม่ใช้ token ลับหรือ commit บัญชี; ไม่มีการ deploy หรือสลับ Railway. รอผู้ใช้เลือกบัญชี Google ที่อนุมัติให้ทดสอบ 4 บัญชี และยังไม่ได้ยืนยัน token exchange.
