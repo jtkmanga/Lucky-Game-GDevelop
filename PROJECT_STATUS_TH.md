@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** Railway isolated pilot พร้อมแล้ว (`e45f92c9`, candidate `f1baacd7`), Google OAuth ลงทะเบียน 4/4; ทดสอบเข้าห้องจริง 4 คนและ reconnect ก่อนคืน baseline. ยังไม่ยืนยัน hosted gameplay.
+- **งานถัดไป:** isolated Railway Free4 **ผ่าน** (Google 4/4 → ห้องเดียว → reload กลับห้อง → จบเกม +10 ครั้งเดียว); คืน runtime เดิมแล้ว. ยังต้องทดสอบ hosted Lucky Box และเตรียม desired source/variables ให้ตรงก่อน deployment รอบหน้า; ห้าม redeploy patch pilot เดิม.
 
 ---
 
@@ -1858,3 +1858,11 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 ### D15 — isolated Railway pilot deploy พร้อมทดสอบ (28 พ.ย. 2026)
 
 - Apply เฉพาะ environment `staging`, service เดิมหนึ่ง replica. Deployment `e45f92c9-c515-4bcf-8bef-9444448cf8a8` `SUCCESS`, candidate `f1baacd7886bca5e3dac5243b515a697cd7bdb3d`. HTTPS `/health` ตอบ ready; public game config ชี้ Supabase แยกและรายงาน pilot tab isolation. Startup ใช้ restricted DB role และตรวจ binding ผ่านก่อน listen. ไม่มี production deploy, ไม่มี replica ใหม่, ไม่เปลี่ยนแพ็กเกจ. ยังไม่ยืนยันเกมหรือคะแนนจริง.
+
+
+### D15 — Free4 บน Railway + Supabase แยกผ่าน (28 พ.ย. 2026)
+
+- Pilot `e45f92c9-c515-4bcf-8bef-9444448cf8a8` ที่ SHA `f1baacd7886bca5e3dac5243b515a697cd7bdb3d`: Google OAuth จาก UI v12 จริงผ่าน 4/4 โดยสี่แท็บแยก; ทั้งหมดเห็นรายชื่อ/คะแนนห้องเดียวกัน. โหลดใหม่หนึ่งแท็บแล้วกลับเข้าห้อง 4 ที่นั่งเดิมได้. เห็นข้ามตา 20 วินาทีโดยไม่ทอยเอง, ลูกเต๋า, งู และบันไดบนเกมจริง. เล่นจนจบ สี่แท็บเห็นผู้ชนะ +10 ตรงกัน.
+- หลักฐานฐานแยก: 4 players, 1 bound room, `finished` revision 55, 4 seats, 55 receipts (54 ลูกเต๋าในช่วง 1–6, 1 เทิร์นอื่น), ledger `win` **1 รายการ รวม +10**, ไม่มี Lucky Box award. Lucky Box ยังไม่ปิด hosted gate; ไม่ได้ทดสอบ restart/lease-Redial แบบ browser end-to-end รอบนี้. Follow-up redial `9842816` ไม่ได้ใช้ใน pilot นี้.
+- คืน runtime Railway Staging เป็น baseline `56e41aa8b6d70fc024e59d97bcad47de6a558f88` ผ่าน rollback deployment `0f2b6e81-5483-49bf-8ec9-2b7a23d5cdc8` **SUCCESS**, `/health` ready, public Auth config กลับสู่ baseline. ไม่มี pending patch. ปิด credential ชั่วคราวของ isolated DB role หลัง rollback; เก็บผลทดสอบไว้ในฐานแยก. **ข้อควรระวัง:** desired source ใน Railway ยัง pin `qa/isolated-staging-free4-d15` / `f1baacd7` และชื่อ isolated pilot variables ยังอยู่. ไม่ถือว่า desired config คืนแล้ว; ห้าม Redeploy จาก desired config โดยไม่ทวนและตั้งค่าใหม่. การใช้ runtime rollback ไม่แก้ desired source โดยอัตโนมัติ. ไม่มี Production deploy หรือเงินจริง; ยอดเพิ่มจริงยังไม่ยืนยัน.
+- งานถัดไป: ทำ isolated hosted Lucky Box แบบหนึ่ง receipt ต่อรางวัลโดยไม่ทดสอบ OAuth 4/4 ซ้ำโดยไม่จำเป็น และจัดการ desired config ให้ไม่พยายามใช้ pilot credential ที่ปิดแล้วก่อนรอบถัดไป. อย่ารายงานพร้อม Production จากผลเกมรอบเดียว.
