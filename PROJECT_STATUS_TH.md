@@ -12,7 +12,7 @@
 ## สถานะปัจจุบัน / เริ่มงานจากตรงนี้ (28 พ.ย. 2026, เวลาไทย)
 
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
-- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `393a65ae0672c9dc55e63e37bf8e36e037484535`. อย่าปะปน SHA ทั้งสาม.
+- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `ea4c76d147bde6453b4a83eb09e2706aac78a98c`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
 - **งานถัดไป:** ใช้ PostgreSQL ชั่วคราวแบบแยกทดสอบเปลี่ยนสอง process จริงขณะมีห้องที่เล่นอยู่ วัดเวลา UID/seat/revision เดิมกลับมา และเช็ก receipt/score ไม่ซ้ำทั้ง SIGTERM กับ SIGKILL. ยังไม่มีหลักฐานว่าเปลี่ยน instance บน Railway หรือคืน lease เร็วได้ ตรวจการแยก DB ควบคู่เมื่อจะเปิด hosted gate.
 
@@ -1753,3 +1753,10 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - เพิ่มสองกรณีแบบ opt-in (SIGTERM/SIGKILL) ให้สอง process เกมเรียก store จริงผ่าน broker และแยก pool ต่อ worker. รอหมด lease ตามนาฬิกาฐานจริง ไม่ขยับ lease; ใช้ observer แบบ read-only ตรวจ room/seat/revision และนับ receipt/award. เก็บ deadline ทดสอบนานขึ้นเพื่อไม่ให้ timeout ของเกมบังหน้าต่างสังเกต lease. GitHub `550e00a`, `393a65ae0672c9dc55e63e37bf8e36e037484535`. ยังไม่ได้ยืนยันการทำงานของเส้นทาง opt-in นี้.
 - ชุดที่รันได้ **4 PASS / 3 SKIP / 0 FAIL** (~0.91 s): สองกรณี input + สอง recovery แบบ synthetic ผ่าน; ทั้งสามกรณี PG17 (heartbeat เดิมและ recovery ใหม่สองกรณี) ข้ามเพราะ binary ไม่พร้อม. ไม่ใช้ฐานจริงแทน, ไม่ Deploy, ไม่เปลี่ยน UI หรือกติกา, ไม่เปิดค่าใช้จ่ายใหม่/งานตั้งเวลา. 2 งานเตรียม / 6 commits รวม checkpoint. P0–P6 คง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
 - ถัดไป: บนเครื่องที่มี PostgreSQL 17 แยกให้ระบุ `LUCKY_PG17_BIN` ชี้โฟลเดอร์ binary แล้วรัน `node --test --test-name-pattern=postgres17 qa/railway-two-process-recovery.test.cjs` หลัง build/install runtime. อย่าตีความ SKIP เป็น PASS. Staging write ยัง HOLD.
+
+
+### D15 — หลักฐานพฤติกรรมกดเชื่อมต่อเร็วใน v12 (28 พ.ย. 2026)
+
+- `ea4c76d147bde6453b4a83eb09e2706aac78a98c`: รัน `node --test qa/v12-early-reconnect-baseline.test.cjs`, **1/1 PASS (~0.16 s)** หมายถึงทำซ้ำพฤติกรรมเดิมได้: หลุดจากห้อง → กดก่อน lease เดิมหมด → generic error ปิด socket และกลับ lobby → ข้อมูลจาก socket เก่าถูกทิ้ง → ต้องกดครั้งที่สองจึงกลับเข้าห้องเดิม. ใช้ JavaScript ที่ build จาก v12 จริงใน Node VM แต่ DOM/socket เป็น fixture ไม่ใช่ browser จริงหรือ Railway. ไม่มีการเปลี่ยนโค้ดเกม/UI.
+- ตรวจเครื่อง Debian 13 เดิมแล้วไม่พบเซิร์ฟเวอร์ PostgreSQL หรือไฟล์แพ็กเกจใน cache ที่ใช้ได้ ไม่ติดตั้งแบบ global หรือใช้ฐานจริงแทน. Native PG17 ยัง **NOT RUN**; หลักฐานหนึ่งคลิกเป็นคนละ gate กับการรักษาคะแนน/ข้อมูลใน PostgreSQL.
+- ถัดไปที่ไม่ต้องรอ PG17: เพิ่มสัญญาณให้ลองใหม่เฉพาะ UID ที่ยืนยันตัวตนและมีห้องเดิม, จำกัดจำนวน/เวลา, ยกเลิกเมื่อออกหรือเปลี่ยนบัญชี, ห้าม fallback ไปจับคู่ห้องใหม่. คงปุ่มและ UI v12 เดิม. ทดสอบด้วย fixture และแยกทดสอบบน browser จริงเมื่อเครื่องพร้อม. 1 งานหลักฐาน / 2 commits รวม checkpoint; P0–P6 คง **65% / 64% / 27%**. ไม่ Deploy ไม่เปิดค่าใช้จ่ายเพิ่มหรือ Scheduled Task.
