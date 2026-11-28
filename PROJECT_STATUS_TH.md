@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** ใช้ PostgreSQL ชั่วคราวแบบแยกทดสอบเปลี่ยนสอง process จริงขณะมีห้องที่เล่นอยู่ วัดเวลา UID/seat/revision เดิมกลับมา และเช็ก receipt/score ไม่ซ้ำทั้ง SIGTERM กับ SIGKILL. ยังไม่มีหลักฐานว่าเปลี่ยน instance บน Railway หรือคืน lease เร็วได้ ตรวจการแยก DB ควบคู่เมื่อจะเปิด hosted gate.
+- **งานถัดไป:** ตรวจขอบเขตเขียน Staging แบบ read-only ก่อน hosted reconnect. Native PostgreSQL 17 ผ่าน 2/2 และ Chromium จริงผ่าน 1/1 แยกกันใน Codespaces แล้ว; ยังไม่ใช่ Google/Railway acceptance และไม่อนุญาต hosted writes จนยืนยันการแยก.
 
 ---
 
@@ -1771,3 +1771,12 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 ### สภาพแวดล้อม acceptance (ตรวจแล้ว; HOLD)
 
 - Dot ตรวจพบ execution environment ที่เข้าถึงได้เพียงเครื่อง Debian 13 เดิม ไม่พบ `postgres`/`initdb` และตัวเรียก Chromium ติดเพราะไม่มี browser binary ที่ `/usr/lib/chromium/chromium`. ไม่มี native หรือ browser PASS ใหม่ ไม่เปิด Codespaces/CI, ไม่ใช้ hosted DB แทน และไม่เปลี่ยน Railway/Supabase. รอบนี้รวม 8 source/QA commits + 2 checkpoints. ขั้นถัดไปคือยืนยันตัวรันที่ได้รับอนุญาตและมีทั้งสอง dependency ก่อนรัน native/browser acceptance เฉพาะที่ขาด.
+
+
+### D15 — Codespaces: PostgreSQL 17 และ Chromium ผ่านการทดสอบแยก (28 พ.ย. 2026)
+
+- **Candidate:** `e303fa6f11471810f97069d824f93ee4aa7e5829` (`qa/runtime-contents-d15`). Dot ผ่าน GitHub Codespaces ใช้เครื่องเดิม `fantastic succotash` 2 คอร์. Fetch และตรวจ SHA แล้วแตก `git archive` ลง `/tmp` แยกจาก working tree ที่มีงานค้าง. Build v12 และติดตั้ง dependencies จาก lock; ไม่เปลี่ยน branch หรือไฟล์เดิมใน checkout.
+- **PostgreSQL 17.12 native: 2 PASS / 0 FAIL / 0 SKIP**. ใช้แพ็กเกจ PGDG ของ Ubuntu 24.04 จาก apt index ที่ตรวจลายเซ็นและแยกไฟล์ชั่วคราว (ไม่ติดตั้ง global); local disposable cluster/SCRAM และ synthetic accounts. รัน `LUCKY_PG17_BIN=<local bin> node --test --test-name-pattern=postgres17 qa/railway-two-process-recovery.test.cjs`. SIGTERM: resume 14 ms หลัง observer เห็น lease หมด / 29.790 s หลังหยุด; SIGKILL: 20 ms / 29.807 s. ทั้งคู่ยืนยันกลับห้อง/ที่นั่งเดิมและ DB receipt/award อย่างละหนึ่ง. สองเคสใช้เวลารวมตัวเทสต์ ~65.8 s.
+- **Chromium จริง: 1 PASS**, Chromium 159.0.8154.6 ผ่าน Playwright Core, v12 build จริงกับ WebSocket loopback และ Auth/lease response จำลอง. คลิกเชื่อมต่อใหม่หนึ่งครั้งหลังหลุด: 2 sockets (ก่อน/หลังหลุด), 1 initial match join, 2 resume requests บน socket หลังหลุด, ไม่ส่งคำขอจับคู่เพิ่ม, กลับห้องเดิมที่ seat 0 ใน 2.944 s. แยกจาก native PG17 และไม่ใช่ Google/Railway หรือ browser+PG17 end-to-end ในรันเดียว.
+- **งบ:** ก่อนเปิด GitHub แสดง $0.07/$5.00 เฉพาะ repository และยืนยันว่า Stop usage when budget limit is reached เปิดอยู่. หยุดเครื่องทันทีหลังเทสต์; GitHub ยืนยัน `Codespace "fantastic succotash" stopped`. ยอดเพิ่มสุดท้ายยังไม่ยืนยัน; ไม่เปลี่ยนงบ ไม่เปิดเครื่องใหม่/CI ไม่ Push main, Deploy หรือใช้ production DB. 2 งานทดสอบ / 1 docs commit; ความพร้อมเปิดจริงยัง **27%** เพราะยังไม่ปิด hosted gate. เก็บตัวเลขเดิม **65% โค้ด / 64% ทดสอบ** เพื่อเทียบเกณฑ์เดิมจนมีการปรับเกณฑ์ใน Master Plan.
+- **ถัดไป:** ตรวจหลักฐานขอบเขตเขียนของ Railway/Supabase Staging แบบ read-only และเตรียมเกณฑ์ทดสอบเฉพาะ reconnect. เก็บ hosted write HOLD หากยังยืนยันฐานแยกหรือสิทธิ์เฉพาะห้อง/บัญชีทดสอบไม่ได้.
