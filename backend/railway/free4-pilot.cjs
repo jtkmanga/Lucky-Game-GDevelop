@@ -36,3 +36,21 @@ function readFree4Pilot(env) {
 }
 
 module.exports = {readFree4Pilot};
+
+// Isolated hosted acceptance branch only. Never merge/deploy to live play.
+// The fixture affects two explicit rolls in the bound room, not RNG elsewhere.
+function readLuckyBoxFixture(env,pilot){
+ const flag=env.LUCKY_PILOT_LUCKY_BOX_FIXTURE;
+ if(flag===undefined || flag==='false')return ()=>null;
+ if(flag!=='true'||env.RAILWAY_ENVIRONMENT_NAME!=='staging'||
+    env.LUCKY_ISOLATED_STAGING_SUPABASE_REF!=='tpwmcozkzlvolehozzri'||!pilot)
+  throw Error('Invalid isolated Lucky Box acceptance fixture');
+ return (room,seat)=>{
+  if(room?.id!==pilot.roomId||room.mode!=='free'||(seat!==0&&seat!==1)||
+     room.revision!==seat||room.game?.map!==1||room.game.current!==seat||
+     room.game.gift!==16||room.game.giftUsed!==(seat===1)||
+     room.game.players?.[seat]?.pos!==15)return null;
+  return 1;
+ };
+}
+module.exports.readLuckyBoxFixture=readLuckyBoxFixture;

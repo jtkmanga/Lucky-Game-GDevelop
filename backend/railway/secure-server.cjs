@@ -27,8 +27,9 @@ const {startSocketHeartbeat}=require('./socket-heartbeat.cjs');
 const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs');
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
-const {readFree4Pilot}=require('./free4-pilot.cjs');
+const {readFree4Pilot,readLuckyBoxFixture}=require('./free4-pilot.cjs');
 const pilot=readFree4Pilot(process.env);
+const boxFixtureRoll=readLuckyBoxFixture(process.env,pilot);
 const supabaseConfig=readConfig();
 const store=createRailwayStore(process.env.DATABASE_URL,
  pilot ? {roomId:pilot.roomId,cutoffMs:pilot.cutoffMs} : null);
@@ -663,7 +664,7 @@ async function handle(ws,msg){
   if(pilot && room.busy)return send(ws,{type:'error',message:'ห้องกำลังตรวจสอบ กรุณาลองใหม่'});
   if(room.game.current!==s.index)return send(ws,{type:'error',message:'ยังไม่ถึงตา'});
   if(Date.now()>=room.deadline)return send(ws,{type:'error',message:'หมดเวลา'});
-  await advance(room,crypto.randomInt(1,7));
+  await advance(room,boxFixtureRoll(room,s.index)??crypto.randomInt(1,7));
  }
 }
 // Readiness reports the completed startup database preflight, not ongoing
