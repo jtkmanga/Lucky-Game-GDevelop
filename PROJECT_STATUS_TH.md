@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** Google OAuth ลงทะเบียนจริงครบ 4 บัญชีใน Supabase แยกและปิดหน้า enrollment แล้ว; เตรียม isolated Railway Staging pilot แบบ fixed room ก่อนทดสอบ reconnect. ยังไม่ยืนยัน hosted gameplay.
+- **งานถัดไป:** Railway isolated pilot พร้อมแล้ว (`e45f92c9`, candidate `f1baacd7`), Google OAuth ลงทะเบียน 4/4; ทดสอบเข้าห้องจริง 4 คนและ reconnect ก่อนคืน baseline. ยังไม่ยืนยัน hosted gameplay.
 
 ---
 
@@ -1853,3 +1853,8 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 - Auth database ของโปรเจกต์ใหม่พบ Google identities ที่ verified **4/4** และส่วนท้าย UID ตรงกับภาพเจ้าของทั้งสี่ใบ. ไม่เก็บ email/UID ใน repo. ลบ exact private enrollment redirect; ตรวจว่าเหลือ Railway URL เดียว และ GitHub ยืนยัน Codespace หยุดแล้ว. ยอดหลังปิดยังไม่ได้ตรวจ.
 - ติดตั้ง acceptance-binding schema 006 และผูก 1 ห้องบนฐานใหม่ว่างเท่านั้น. สร้าง credential ให้ role จำกัดของฐานใหม่นี้และส่งให้ Railway Staging โดยไม่ลง GitHub. Stage candidate `f1baacd7886bca5e3dac5243b515a697cd7bdb3d` กับค่าฐาน/roster ใน patch เดียว; cutoff `2026-11-28T11:44:37.500Z`. ยังไม่ได้กด deploy ณ checkpoint นี้. ไม่แตะ Production; baseline Railway `77996b93` / `56e41aa8` และ desired source เดิม `bbefbd63` ใช้ตรวจการคืนค่า.
+
+
+### D15 — isolated Railway pilot deploy พร้อมทดสอบ (28 พ.ย. 2026)
+
+- Apply เฉพาะ environment `staging`, service เดิมหนึ่ง replica. Deployment `e45f92c9-c515-4bcf-8bef-9444448cf8a8` `SUCCESS`, candidate `f1baacd7886bca5e3dac5243b515a697cd7bdb3d`. HTTPS `/health` ตอบ ready; public game config ชี้ Supabase แยกและรายงาน pilot tab isolation. Startup ใช้ restricted DB role และตรวจ binding ผ่านก่อน listen. ไม่มี production deploy, ไม่มี replica ใหม่, ไม่เปลี่ยนแพ็กเกจ. ยังไม่ยืนยันเกมหรือคะแนนจริง.
