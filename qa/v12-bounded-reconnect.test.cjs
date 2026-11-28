@@ -56,7 +56,7 @@ function fixture(){
   assert.equal(sockets[1].sent[0].resumeRoomId,roomId);
   return sockets[1];
  }
- return {sockets,views,timers,window,tokenRequests,state,openResume,tick,click};
+ return {sockets,views,timers,window,tokenRequests,state,openResume,tick,click,seat:()=>vm.runInContext("onlineSeat",context)};
 }
 const wait={type:'resume_wait',roomId};
 test('one tap retries only the same room, ignores the old transport and returns to the board',async()=>{
@@ -90,3 +90,48 @@ for(const stop of ['ordinary error','wrong room','explicit cancel','account chan
   assert.equal(f.sockets.length,2);
  });
 }
+
+test('one tap redials a lost replacement transport and resumes the same seat',async()=>{
+ const f=fixture(), first=await f.openResume();
+ first.deliver(wait);first.close(1006);
+ assert.equal(f.sockets.length,2);
+ assert.equal(f.timers.size,2,'redial replaces wait and shares the original hard expiration');
+ await f.tick(2000);
+ const second=f.sockets[2];
+ second.open();await flush();
+ assert.equal(f.sockets.length,3);
+ assert.equal(second.sent.length,1);
+ assert.equal(second.sent[0].resumeRoomId,roomId);
+ assert.equal(f.sockets.flatMap(s=>s.sent).filter(p=>!p.resumeRoomId).length,1);
+ second.deliver(f.state(2));
+ assert.equal(f.views.at(-1),'board');
+ assert.equal(f.seat(),0);
+ assert.equal(f.timers.size,0);
+});
+
+for(const edge of ['cancel','original expiration','second transport loss']){
+ test('redial remains bounded after '+edge,async()=>{
+  const f=fixture(),s=await f.openResume();
+  s.close(1006);
+  if(edge==='cancel')await f.click();
+  if(edge==='original expiration')await f.tick(36000);
+  if(edge==='second transport loss'){
+   await f.tick(2000);
+   f.sockets[2].open();await flush();
+   f.sockets[2].close(1006);
+  }
+  assert.equal(f.timers.size,0);
+  assert.equal(f.views.at(-1),'lobby');
+  assert.equal(f.sockets.length,edge==='second transport loss'?3:2);
+  assert.equal(f.sockets.flatMap(s=>s.sent).filter(p=>!p.resumeRoomId).length,1);
+ });
+}
+
+
+test('intentional session replacement does not redial',async()=>{
+ const f=fixture(),s=await f.openResume();
+ s.close(4000);
+ assert.equal(f.sockets.length,2);
+ assert.equal(f.timers.size,0);
+ assert.equal(f.views.at(-1),'lobby');
+});

@@ -63,11 +63,11 @@ if html.count(src)!=1:
 connect="""function onlineConnect(){"""
 if html.count(connect)!=1:
     raise RuntimeError('Online Connect entry changed; manual review required')
-html=html.replace(connect,"async function onlineConnect(){",1)
+html=html.replace(connect,"async function onlineConnect(automaticResume=false){",1)
 check=""" if(!/^https?:$/.test(location.protocol)){toast('ต้องเปิดผ่าน http หรือ https');return;}"""
 if html.count(check)!=1:
     raise RuntimeError('Online Connect guard changed; manual review required')
-html=html.replace(check,check+"""\n if(luckyAuthPending || movementRunning)return;\n const resume=luckyResumeTarget;\n if(resume && resume.mode!==state.mode){luckyEndOnline();return;}\n const attempt=++luckyConnectAttempt;\n luckyAuthPending=true;\n let authenticatedAccessToken;\n try{if(!resume)authenticatedAccessToken=await window.luckyGetAccessToken();}\n catch(error){if(attempt===luckyConnectAttempt)toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}\n finally{if(attempt===luckyConnectAttempt)luckyAuthPending=false;}\n if(attempt!==luckyConnectAttempt || movementRunning)return;""",1)
+html=html.replace(check,check+"""\n if(luckyAuthPending || movementRunning)return;\n const resume=luckyResumeTarget;\n if(!automaticResume&&luckyResumeRun&&!onlineSocket){luckyEndOnline();return;}\n if(automaticResume&&(!resume||!luckyResumeRun))return;\n if(resume && resume.mode!==state.mode){luckyEndOnline();return;}\n const attempt=++luckyConnectAttempt;\n luckyAuthPending=true;\n let authenticatedAccessToken;\n try{if(!resume)authenticatedAccessToken=await window.luckyGetAccessToken();}\n catch(error){if(attempt===luckyConnectAttempt)toast('กรุณาเข้าสู่ระบบ Google ก่อนเล่นออนไลน์');return;}\n finally{if(attempt===luckyConnectAttempt)luckyAuthPending=false;}\n if(attempt!==luckyConnectAttempt || movementRunning)return;""",1)
 legacy="""let token=null;try{token=localStorage.getItem('lucky-online-test-token')}catch{}
   onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],token});"""
 secure="""onlineSend({type:'join',mode:state.mode,name:state.name,avatar:CHARACTERS[state.character][0],accessToken:authenticatedAccessToken});"""
@@ -382,10 +382,10 @@ replace_hook("$('enterLobby').addEventListener('click',()=>{$('welcomeName').tex
 
 replace_hook("function onlineSend(message){", """let luckyConnectAttempt=0;
 let luckyAuthPending=false;
-let luckyResumeTarget=null,luckyRetryTimer=null,luckyRetryExpiry=null;
+let luckyResumeTarget=null,luckyRetryTimer=null,luckyRetryExpiry=null,luckyResumeRun=null;
 function luckyClearRetry(){
  clearTimeout(luckyRetryTimer);clearTimeout(luckyRetryExpiry);
- luckyRetryTimer=null;luckyRetryExpiry=null;luckyResumeTarget=null;
+ luckyRetryTimer=null;luckyRetryExpiry=null;luckyResumeTarget=null;luckyResumeRun=null;
 }
 function luckyEndOnline(){
  ++luckyConnectAttempt;luckyAuthPending=false;luckyClearRetry();
@@ -431,26 +431,27 @@ replace_hook(src, """let socket;
  catch{luckyEndOnline();toast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');return;}
  onlineSocket=socket;
  const socketUid=resume?.uid??window.luckySessionUid;
- let resumeSent=0;
+ const firstResume=resume&&!luckyResumeRun;
+ const run=resume?(luckyResumeRun??={sent:0,redials:0}):null;
  const failResume=()=>{
-  if(onlineSocket!==socket)return;
+  if(!run||luckyResumeRun!==run)return;
   luckyEndOnline();toast('ยังกลับเข้าห้องเดิมไม่ได้ กรุณาลองอีกครั้ง');
  };
  const sendResume=async()=>{
   if(onlineSocket!==socket||!resume||luckyResumeTarget!==resume||
-    window.luckySessionUid!==resume.uid||state.mode!==resume.mode||resumeSent>=18){
+    window.luckySessionUid!==resume.uid||state.mode!==resume.mode||run?.sent>=18){
    if(onlineSocket===socket)failResume();
    return;
   }
   let token;
   try{token=await window.luckyGetAccessToken(resume.uid);}
-  catch{failResume();return;}
+  catch{if(onlineSocket===socket)failResume();return;}
   if(onlineSocket!==socket||luckyResumeTarget!==resume||window.luckySessionUid!==resume.uid||
      state.mode!==resume.mode||socket.readyState!==WebSocket.OPEN)return;
-  ++resumeSent;
+  ++run.sent;
   onlineSend({type:'join',mode:resume.mode,resumeRoomId:resume.id,accessToken:token});
  };
- if(resume)luckyRetryExpiry=setTimeout(failResume,36000);""")
+ if(firstResume)luckyRetryExpiry=setTimeout(failResume,36000);""")
 replace_hook("socket.addEventListener('open',()=>{",
              "socket.addEventListener('open',()=>{if(onlineSocket!==socket)return;if(resume){void sendResume();return;}")
 replace_hook("try{onlineApplyMessage(JSON.parse(e.data))}catch(err){console.error('online message',err)}",
@@ -475,7 +476,22 @@ replace_hook("try{onlineApplyMessage(JSON.parse(e.data))}catch(err){console.erro
   catch{luckyEndOnline();toast('ไม่สามารถแสดงข้อมูลห้องออนไลน์ได้');}""")
 replace_hook("socket.addEventListener('close',()=>{","socket.addEventListener('close',event=>{")
 replace_hook("if(onlineActive){toast('การเชื่อมต่อหลุด กดจับคู่เพื่อเชื่อมต่อใหม่');$('rollDice').disabled=true;}",
-             """const target=event?.code!==4000&&onlineRoomId&&!localGame?.over&&socketUid&&window.luckySessionUid===socketUid?
+             """// One replacement transport may redial within the same room-only budget.
+  if(run&&luckyResumeRun===run&&luckyResumeTarget===resume&&
+     [1006,1012,1013].includes(event?.code)&&run.redials<1&&run.sent<18&&
+     window.luckySessionUid===resume.uid&&state.mode===resume.mode){
+   ++run.redials;
+   onlineSocket=null;
+   clearTimeout(luckyRetryTimer);
+   luckyRetryTimer=setTimeout(()=>{
+    luckyRetryTimer=null;
+    if(luckyResumeRun!==run||luckyResumeTarget!==resume)return;
+    if(window.luckySessionUid!==resume.uid||state.mode!==resume.mode||movementRunning){failResume();return;}
+    void onlineConnect(true);
+   },2000);
+   return;
+  }
+  const target=event?.code!==4000&&onlineRoomId&&!localGame?.over&&socketUid&&window.luckySessionUid===socketUid?
    {id:onlineRoomId,mode:state.mode,uid:socketUid}:null;
   luckyEndOnline();luckyResumeTarget=target;
   toast('การเชื่อมต่อหลุด กดจับคู่เพื่อเชื่อมต่อใหม่');""")
