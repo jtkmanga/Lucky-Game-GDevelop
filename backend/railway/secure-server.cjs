@@ -145,9 +145,22 @@ async function restoreRoom(roomId){
   const sourceSeats=row.seats;
   if(pilot&&(row.mode!=='free'||!pilot.matches(roomId,sourceSeats)))
    throw Error('Invalid Free4 pilot room');
+  const readCheckpointInt=value=>{
+    if(typeof value!=='number' &&
+       (typeof value!=='string'||!/^\d+$/.test(value)))return null;
+    const number=Number(value);
+    return Number.isSafeInteger(number)&&number>=0?number:null;
+  };
+  const revision=readCheckpointInt(row.revision);
+  const deadline=readCheckpointInt(row.deadline_ms);
+  const game=row.game_state;
   if(!['free','vip'].includes(row.mode)||!Array.isArray(sourceSeats)||
-    sourceSeats.length!==capacity(row.mode)||!Number.isSafeInteger(Number(row.revision))||
-    !row.game_state||typeof row.game_state!=='object'||!Number.isFinite(Number(row.deadline_ms)))
+    sourceSeats.length!==capacity(row.mode)||revision===null||deadline===null||deadline===0||
+    !game||typeof game!=='object'||game.mode!==row.mode||game.over!==false||
+    !Array.isArray(game.players)||game.players.length!==sourceSeats.length||
+    !Number.isInteger(game.current)||game.current<0||game.current>=sourceSeats.length||
+    game.players.some((player,index)=>!player||player.id!==index||
+      !Number.isInteger(player.pos)||player.pos<0||player.pos>=100))
     throw Error('Invalid persisted room checkpoint');
   // A stored room can have been edited or corrupted while offline.
   // Refuse restoration before registering sessions or scheduling any turns.
@@ -167,8 +180,7 @@ async function restoreRoom(roomId){
    return existing||{uid:seat.uid,mode:row.mode,name:seat.name||'Player',
       avatar:'🐱',ws:null,roomId,index:i};
   });
-  const room={id:roomId,mode:row.mode,seats:members,game:row.game_state,
-    deadline:Number(row.deadline_ms),revision:Number(row.revision),
+  const room={id:roomId,mode:row.mode,seats:members,game,deadline,revision,
     timer:null,leaseTimer:null,leaseEpoch:claim.leaseEpoch,busy:false,halted:false};
   if(pilot && !await checkPilot(room))return null;
   members.forEach((member,i)=>{
