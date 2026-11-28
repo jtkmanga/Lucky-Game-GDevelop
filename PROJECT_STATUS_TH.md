@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** isolated Free4 และ Lucky Box สองตาแบบ fixture ผ่านบน Railway; คืน runtime เดิมแล้ว. รวม current leaderboard แบบอ่านอย่างเดียวใน candidate ที่ไม่ผูก fixture และยืนยัน desired config ใหม่ก่อน deploy รอบถัดไป. หลักฐานล่าสุด **65% โค้ด / 67% ทดสอบ / 38% พร้อมจริงตาม rubric**; Production ยังไม่เริ่ม.
+- **งานถัดไป:** Free leaderboard จากคะแนนจริงบน isolated Railway/Supabase ผ่านแบบอ่านอย่างเดียว; คืน Staging baseline แล้ว. ถัดไปแยกทดสอบ VIP eligibility + การเปลี่ยนรอบ/เก็บประวัติ โดยไม่ทดสอบ Free4 หรือ Lucky Box ซ้ำ. ล่าสุด **66% โค้ด / 69% ทดสอบ / 41% พร้อมจริงตาม rubric**; Production ไม่เริ่ม.
 
 ---
 
@@ -1886,3 +1886,12 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 | P6 เปิด Production | 0% | 0% | 0% | ยังไม่เปิด |
 
 น้ำหนักเดิม 5/15/20/20/20/10/10 (พร้อมจริงไม่รวม P0) ให้ **65% / 67% / 38%** จาก 65.00 / 67.25 / 37.89 โดยประมาณ. นี่คือคะแนนตามหลักฐานไม่ใช่อัตราผ่านเทสต์หรือสัญญาณอนุมัติ go-live.
+
+
+### D15 — ตรวจสัญญาคะแนนและอันดับ Free ผ่านหน้าเกม Staging (28 พ.ย. 2026)
+
+- เทียบ Master Plan P2/P3, D08, source และ UI v12: ชนะเมื่อถึง/เกินช่อง 100 ได้ **+10 ปกติ**; Lucky Box **หนึ่งกล่องต่อเกม** เปิดได้ครั้งเดียวเมื่อผู้เล่นลงช่อง และใช้รางวัลสุ่ม v12 **10/50/100/500/1,000** ตามน้ำหนัก **50%/30%/19%/0.9%/0.1%**. ตัวเลข +50 ของ fixture ก่อนหน้าเป็นหนึ่งผลลัพธ์ที่ถูกต้อง ไม่ใช่ค่าตายตัว. ตัวคูณรางวัลชนะ +20 เป็น item track แยกที่ยังไม่เปิดใน pilot; ไม่คูณ Lucky Box. รอบแต้ม Free เริ่มอาทิตย์ 00:00 และ VIP เริ่มทุกวัน 00:00 เวลาไทย. ไม่แก้กติกา/ตารางรางวัล.
+- Candidate `ac7424715051fe35cf4a0d002664cf60aec70afe` (`qa/isolated-free-leaderboard-d15`), 7 ไฟล์, local 8/8 PASS; เทสต์ source ตรวจ win +10/overshoot ทั้ง 5 แผนที่และขอบน้ำหนักของกล่อง ไม่อ้างว่าทั้ง 5 แผนที่ deploy จริง. v12 HTML/CSS ที่ไม่ใช่สคริปต์ตรงเดิม. อันดับผูก 2 ห้องสิ้นสุดและ roster เดิม, ไม่คืนชื่อ/email/UID, default-off, ปฏิเสธการเข้าเกมออนไลน์สำหรับตัวอ่านอันดับ, ไม่มี seed คะแนนใหม่.
+- Railway Staging deployment `43ae02a5-ee9f-4072-b788-25885c222968` SUCCESS, 1 replica. ใช้ Google session เดิมเพียงหนึ่งบัญชี; หน้า v12 จาก API แสดงอันดับ **50 → 10** ตรงกับ ledger เดิม. Direct GET Free ที่ไม่ login ถูกปฏิเสธและ VIP ไม่คืนรายการ; ไม่ใช่ hosted VIP success หรือการพิสูจน์ scheduler/rolling archive. หลังทดสอบ 2 ห้องเดิม, 0 ห้อง playing, 2 score rows รวม 60 ไม่เปลี่ยน.
+- Rollback `89000c74-a927-4c75-8f34-3b42eba96543` SUCCESS ที่ `56e41aa8`, /health ready และ Auth baseline คืนแล้ว. Candidate ถูกถอด, คืน cutoff ของ binding ให้ตรงหลักฐานเดิม, ปิดรหัสฐานแยกและ reset role default, ปิด flags อันดับ/fixture ของ desired config โดยไม่ deploy เพิ่ม. Desired source ยัง pin `ac74247` ที่หมดสิทธิ์ฐาน; ห้าม Redeploy โดยไม่ตั้ง clean patch. ไม่แตะ Production, ไม่เปิด Codespaces เพิ่ม, ไม่เปลี่ยนแพ็กเกจหรือใช้เงินจริง; ค่าใช้เพิ่มของ Railway ยังไม่วัด.
+- เฟส (โค้ด/ทดสอบ/พร้อมจริง): P0 **100/100/ไม่เกี่ยว** · P1 **90/95/80** · P2 **90/95/50** · P3 **70/75/25** · P4 **65/80/60** · P5 **25/0/0** · P6 **0/0/0**. ถ่วงน้ำหนักเดิม **66% / 69% / 41%** (66/69.25/41.05). ถัดไปยกระดับ VIP / รอบอันดับ / archive และจัด Staging desired config แบบไม่พึ่งรหัสชั่วคราว ก่อนเปิด hosted flow ถัดไป; ไม่ทดสอบ Free4 ซ้ำ. รอบนี้ใช้ Dot รัน QA สด, GitHub, Railway, Supabase และ Cloud Browser; ไม่อ้างว่า Work/Codex Cloud รันแยก.
