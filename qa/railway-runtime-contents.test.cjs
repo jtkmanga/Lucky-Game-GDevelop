@@ -8,14 +8,14 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
-const htmlHash = 'd63ea39bc1db1796fe3f9cf268886df0f93e7ac122be1068d0c1f754dbe38975';
+const htmlHash = 'c6277e37f0b214c3b24612db3871ee2c891b78475bc59f8155fa81a53852f27d';
 
 function fixture(t) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'lucky-runtime-contents-'));
   t.after(() => fs.rmSync(scratch, {recursive:true, force:true}));
   const at = relative => path.join(scratch, relative);
   for (const name of ['tools/prepare_railway_secure.py', 'tools/railway-package-lock.json',
-    'backend/railway','backend/auth','backend/supabase','Lucky_Game_Multiplayer_Test_v1.zip','prod-ca-2021.crt']) {
+    'backend/railway','backend/auth','backend/supabase','backend/storage','Lucky_Game_Multiplayer_Test_v1.zip','prod-ca-2021.crt']) {
     fs.cpSync(path.join(root, name), at(name), {recursive:true});
   }
   const build = () => {

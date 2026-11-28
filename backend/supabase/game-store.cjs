@@ -188,6 +188,18 @@ function createRailwayStore(connectionString,config=null,{atomicVip=false}={}){
    }finally{client.release(discard);}
   },
   // Legacy unfenced commit intentionally removed. Only commitFencedTurn is allowed.
+  async scopedFreeLeaderboard(roster,rooms,startMs,endMs,limit){
+   const r=await pool.query(
+    `SELECT sum(e.points)::bigint AS score FROM game.score_events e
+     JOIN game.rooms g ON g.room_id=e.game_id
+     WHERE e.mode='free' AND g.mode='free' AND g.status IN ('finished','closed')
+       AND e.kind IN ('win','lucky_box') AND e.uid=ANY($1::uuid[]) AND e.game_id=ANY($2::uuid[])
+       AND e.created_at>=to_timestamp($3::double precision/1000)
+       AND e.created_at<to_timestamp($4::double precision/1000)
+     GROUP BY e.uid ORDER BY score DESC,e.uid LIMIT $5`,
+    [roster,rooms,startMs,endMs,limit]);
+   return r.rows;
+  },
   async leaderboard(mode,startMs,endMs,limit=50){
    if(!['free','vip'].includes(mode))throw Error('Invalid leaderboard mode');
    const r=await pool.query(

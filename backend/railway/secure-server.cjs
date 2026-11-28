@@ -28,10 +28,12 @@ const {classifyRoomReconciliation}=require('../supabase/room-reconciliation.cjs'
 const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.cjs');
 
 const {readFree4Pilot}=require('./free4-pilot.cjs');
+const {createStagingCurrentLeaderboard}=require('./current-leaderboard-staging.cjs');
 const pilot=readFree4Pilot(process.env);
 const supabaseConfig=readConfig();
 const store=createRailwayStore(process.env.DATABASE_URL,
  pilot ? {roomId:pilot.roomId,cutoffMs:pilot.cutoffMs} : null);
+const stagingLeaderboard=createStagingCurrentLeaderboard({env:process.env,pilot,verifyIdentity:requirePlayerIdentity,store});
 const PORT=Number(process.env.PORT||8080);
 const WEB=path.resolve(__dirname,'public');
 const MAX_CONNECTIONS=500; // conservative until authorized capacity validation
@@ -672,11 +674,21 @@ let startupReady=false;
 let shuttingDown=false;
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
+ if(u.pathname==='/api/current-leaderboard'){
+  if(!stagingLeaderboard){res.writeHead(404);res.end('Not Found');return;}
+  if(!startupReady||shuttingDown){res.writeHead(503,{'cache-control':'private, no-store'});res.end('Unavailable');return;}
+  Promise.resolve().then(()=>stagingLeaderboard(req,res)).catch(()=>{
+   if(!res.headersSent){res.writeHead(503,{'cache-control':'private, no-store'});res.end('Unavailable');}
+   else res.destroy();
+  });
+  return;
+ }
  if(u.pathname==='/api/supabase-config'){
   const config={
    url:supabaseConfig.origin,
    publishableKey:supabaseConfig.key,
    ...(pilot ? {pilotTabIsolation:true} : {}),
+   ...(stagingLeaderboard ? {currentLeaderboard:true} : {}),
    mode:'supabase'
   };
   if(!config.publishableKey){res.writeHead(503);res.end('Supabase web config missing');return;}
@@ -701,6 +713,7 @@ const server=http.createServer((req,res)=>{
 const wss=new WebSocketServer({server,path:'/ws',maxPayload:16384,perMessageDeflate:false});
 const socketHeartbeat=startSocketHeartbeat({wss,open:WebSocket.OPEN});
 wss.on('connection',ws=>{
+ if(stagingLeaderboard){ws.close(1008,'Read-only acceptance');return;}
  if(clients.size>=MAX_CONNECTIONS){ws.close(1013,'Server capacity gate');return;}
  clients.add(ws);
  let last=0,processing=false;
@@ -731,6 +744,7 @@ wss.on('connection',ws=>{
 // No periodic global scan yet: defer to authenticated reconnect and avoid
 // unexpected database costs while capacity remains untested.
 async function recoverOrphanedRoomsAtStartup(){
+ if(stagingLeaderboard)return;
  // The pilot startup path visits only its configured fixed row.
  if(pilot){
   await restoreRoom(pilot.roomId);

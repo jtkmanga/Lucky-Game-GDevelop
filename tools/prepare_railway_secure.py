@@ -23,7 +23,8 @@ AUTH.mkdir(parents=True, exist_ok=True)
 
 for name in ('secure-server.cjs','health-readiness.cjs','health-http-handler.cjs','startup-lifecycle.cjs','socket-shutdown.cjs','socket-heartbeat.cjs','postgres-store.cjs','rules.js',
              'board-maps.cjs','board-definitions.json','multi-board-rules.cjs',
-             'rule-transition-guard.cjs','free4-pilot.cjs'):
+             'rule-transition-guard.cjs','free4-pilot.cjs','current-leaderboard-staging.cjs',
+             'leaderboard-http-handler.cjs','current-leaderboard.cjs','v12-leaderboard-rows.cjs'):
     shutil.copy2(ROOT/'backend/railway'/name,APP/name)
 for name in ('supabase-access-token.cjs','room-access.cjs'):
     shutil.copy2(ROOT/'backend/auth'/name,AUTH/name)
@@ -34,6 +35,8 @@ DB.mkdir()
 for name in ('game-store.cjs','pg-tls-config.cjs','room-lease-store.cjs',
              'room-reconciliation.cjs','manual-room-recovery.cjs'):
     shutil.copy2(ROOT/'backend/supabase'/name,DB/name)
+(API/'storage').mkdir(exist_ok=True)
+shutil.copy2(ROOT/'backend/storage/score-periods.cjs',API/'storage/score-periods.cjs')
 # Supabase's public 2021 root CA (owner-downloaded from project dashboard).
 # Bundled only for PostgreSQL TLS trust; it is NOT a credential or private key.
 # Fail closed if absent, rather than relying on disabled certificate checking.
@@ -82,6 +85,8 @@ bootstrap="""<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.4
 'use strict';
 // Authentication wiring only; original Lucky Game layout and styles unchanged.
 let luckyPilotTab=false;
+let luckyCurrentLeaderboard=null;
+/* __LUCKY_CURRENT_LEADERBOARD_CLIENT__ */
 function luckyPilotAuth(){
  if(window.top!==window.self)throw Error('Pilot requires a top-level tab');
  const storage=window.sessionStorage;
@@ -114,6 +119,8 @@ let luckyClientPromise = fetch('/api/supabase-config',{cache:'no-store'})
  .then(config=>{
    if(!window.supabase || !window.supabase.createClient)throw Error('Supabase JS unavailable');
    if(!config.url || !config.publishableKey)throw Error('Missing Supabase public config');
+   if(config.currentLeaderboard===true)
+    luckyCurrentLeaderboard=createCurrentLeaderboardClient(()=>renderLeaderboard());
    if(config.pilotTabIsolation===true){
     luckyPilotTab=true;
     return window.supabase.createClient(config.url,config.publishableKey,{auth:luckyPilotAuth()});
@@ -265,12 +272,16 @@ function luckyMountGoogleControls(){
    const client=await luckyClientPromise;
    const {error}=await client.auth.signOut();
    if(error)throw error;
+   luckyCurrentLeaderboard?.setSession(null);
    show(null);
   }catch{leaf.textContent='ออกจากระบบไม่สำเร็จ กรุณาลองใหม่';}
   finally{logout.disabled=false;}
  });
  luckyClientPromise.then(async client=>{
-  client.auth.onAuthStateChange((_event,session)=>show(session?.user||null));
+  client.auth.onAuthStateChange((_event,session)=>{
+   luckyCurrentLeaderboard?.setSession(session);
+   show(session?.user||null);
+  });
   const {data,error}=await client.auth.getUser();
   if(error && error.name!=='AuthSessionMissingError')throw error;
   show(data?.user||null);
@@ -283,6 +294,8 @@ if(document.readyState==='loading'){
 }else{luckyMountGoogleControls();}
 </script>
 """
+leaderboard_client=(ROOT/'backend/railway/current-leaderboard-client.js').read_text(encoding='utf8')
+bootstrap=bootstrap.replace('/* __LUCKY_CURRENT_LEADERBOARD_CLIENT__ */',leaderboard_client,1)
 anchor="<script>/* Lucky Game pure turn rules:"
 if html.count(anchor)!=1:
     raise RuntimeError('Script injection anchor changed; manual review required')
@@ -370,6 +383,9 @@ def replace_hook(source, replacement):
     if html.count(source) != 1:
         raise RuntimeError('Expected exactly one v12 hook: ' + source[:70])
     html = html.replace(source, replacement, 1)
+
+replace_hook('  const data=LEADERBOARD_DATA[mode];',
+             '  const data=luckyCurrentLeaderboard?.rowsFor(mode)??LEADERBOARD_DATA[mode];')
 
 # Replace the v12 local-only nickname handler, keeping the original name field/button.
 replace_hook("$('saveName').addEventListener('click',()=>{const name=$('playerName').value.trim(); if(name.length<2){toast('กรุณาใส่ชื่ออย่างน้อย 2 ตัวอักษร'); return;} state.name=name; try{localStorage.setItem('lucky-new-ui-name',name)}catch{} $('welcomeName').textContent=name; if($('localPlayer0'))$('localPlayer0').value=name; toast('บันทึกชื่อบนอุปกรณ์นี้แล้ว'); renderPlayerSlots();});",
