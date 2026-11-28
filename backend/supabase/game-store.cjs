@@ -73,6 +73,13 @@ function createRailwayStore(connectionString,config=null,{atomicVip=false}={}){
    if(columns.rowCount!==3)throw Error('Supabase room lease schema 002 missing; do not start');
    const receipts=await pool.query("SELECT to_regclass('game.turn_receipts') AS receipts");
    if(!receipts.rows[0]?.receipts)throw Error('Supabase turn receipt schema 003 missing; do not start');
+   if(pilot){
+    const marker=await pool.query(
+     'SELECT COUNT(*)::int AS matches FROM game.staging_acceptance_binding WHERE project_ref=$1 AND room_id=$2::uuid AND cutoff_ms=$3::bigint',
+     [process.env.LUCKY_ISOLATED_STAGING_SUPABASE_REF,pilot.roomId,pilot.cutoffMs]);
+    if(marker.rows[0]?.matches!==1)
+     throw Error('Isolated database is not bound to this Free4 acceptance run');
+   }
   },
   acquireRoomLease:leases.acquire,
   inspectPilotFence:leases.inspectPilotFence,

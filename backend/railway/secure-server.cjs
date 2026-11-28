@@ -675,7 +675,7 @@ const server=http.createServer((req,res)=>{
  if(u.pathname==='/api/supabase-config'){
   const config={
    url:supabaseConfig.origin,
-   publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY,
+   publishableKey:supabaseConfig.key,
    ...(pilot ? {pilotTabIsolation:true} : {}),
    mode:'supabase'
   };

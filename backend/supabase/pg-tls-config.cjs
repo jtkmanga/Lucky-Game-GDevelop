@@ -3,15 +3,19 @@
 // SOURCE ONLY. Requires separately approved staging setup and test.
 const fs=require('node:fs');
 const crypto=require('node:crypto');
-const USER='lucky_game_server_login.llbkxnazkliskzcureec';
-const HOST='aws-1-ap-southeast-1.pooler.supabase.com';
-function poolConnectionOptions(connectionString,caPath=process.env.PG_SSL_ROOT_CERT_PATH){
+const {expectedProjectRef,SHARED_PROJECT_REF}=require('../auth/supabase-access-token.cjs');
+const SHARED_HOST='aws-1-ap-southeast-1.pooler.supabase.com';
+function poolConnectionOptions(connectionString,caPath=process.env.PG_SSL_ROOT_CERT_PATH,env=process.env){
+ const ref=expectedProjectRef(env);
+ const host=ref===SHARED_PROJECT_REF?SHARED_HOST:env.LUCKY_ISOLATED_STAGING_POOLER_HOST;
+ const user='lucky_game_server_login.'+ref;
  if(typeof connectionString!=='string'||!connectionString)throw Error('DATABASE_URL required');
- let url;
- try{url=new URL(connectionString);}catch{throw Error('DATABASE_URL invalid');}
+ let url, login;
+ try{url=new URL(connectionString);login=decodeURIComponent(url.username);}
+ catch{throw Error('DATABASE_URL invalid');}
  if(!['postgresql:','postgres:'].includes(url.protocol)||
-    url.hostname!==HOST||url.port!=='5432'||url.pathname!=='/postgres'||
-    decodeURIComponent(url.username)!==USER||!url.password||
+    url.hostname!==host||url.port!=='5432'||url.pathname!=='/postgres'||
+    login!==user||!url.password||
     url.search||url.hash)throw Error('DATABASE_URL must use the approved restricted Session Pooler without query parameters');
  // pg's URI SSL parameters can override the explicit SSL object; forbid URI query.
  if(typeof caPath!=='string'||!caPath.trim())throw Error('PG_SSL_ROOT_CERT_PATH required');
