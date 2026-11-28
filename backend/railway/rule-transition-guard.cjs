@@ -65,6 +65,8 @@ function requireRuleTransition(before,after,receipt,awards){
  if(o.type!==predicted.type||o.position!==predicted.position)
   fail('BOARD_MOVE_INCONSISTENT');
  const lucky=awards.filter(a=>a.kind==='lucky_box');
+ const earnsLuckyBox=!before.giftUsed&&predicted.position===before.gift;
+ if(earnsLuckyBox&&o.reward===0)fail('LUCKY_BOX_REWARD_REQUIRED');
  const winners=awards.filter(a=>a.kind==='win');
  if(o.from!==old.pos||o.landing!==old.pos+d||now.pos!==o.position||
     after.lastRoll!==d||after.over!==win||o.gameOver!==win||
