@@ -8,7 +8,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
-const htmlHash = 'a7edbf3783972e25ee134180af46f9ce5d763a318de63e0aa2cc4b8f5f76c35e';
+const htmlHash = 'd63ea39bc1db1796fe3f9cf268886df0f93e7ac122be1068d0c1f754dbe38975';
 
 function fixture(t) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'lucky-runtime-contents-'));
