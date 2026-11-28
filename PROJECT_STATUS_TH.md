@@ -12,7 +12,7 @@
 ## สถานะปัจจุบัน / เริ่มงานจากตรงนี้ (28 พ.ย. 2026, เวลาไทย)
 
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
-- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e16b2972ec59bbb02123d9c6b951a69c344b5b49`. อย่าปะปน SHA ทั้งสาม.
+- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `393a65ae0672c9dc55e63e37bf8e36e037484535`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
 - **งานถัดไป:** ใช้ PostgreSQL ชั่วคราวแบบแยกทดสอบเปลี่ยนสอง process จริงขณะมีห้องที่เล่นอยู่ วัดเวลา UID/seat/revision เดิมกลับมา และเช็ก receipt/score ไม่ซ้ำทั้ง SIGTERM กับ SIGKILL. ยังไม่มีหลักฐานว่าเปลี่ยน instance บน Railway หรือคืน lease เร็วได้ ตรวจการแยก DB ควบคู่เมื่อจะเปิด hosted gate.
 
@@ -1745,3 +1745,11 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 - นำ QA gate ที่เคยอยู่แยกมารวม: เซิร์ฟเวอร์เลือกกระดานเมื่อ Free4 เป็นการทดสอบ local เท่านั้น (NODE_ENV=test, เปิด flag และไม่มีตัวระบุ Railway); default/Railway/pilot ยังคงกระดาน 1. ไม่รับเลขกระดานจากผู้เล่น. Source `67c0d42d94ede528c707af3c49225d0b217e9329`, pin `ac8004f495c0770dba4127bcf5374494defa1546`, QA/head `e16b2972ec59bbb02123d9c6b951a69c344b5b49`. GitHub compare รวมรอบนี้ **7 source/QA commits / 5 files** เทียบ `67478b9`.
 - ชุดรวมสุดท้าย **55/55 PASS** (~0.96 s), รวมจับคู่ ทอย และคืนห้องครบกระดาน 1–5, default/Railway ปักกระดาน 1, guard ตรวจ checkpoint และสอง process. HTML v12 hash ตรงเดิม. การสุ่มห้ากระดานบน Staging ยังไม่เปิด; ไม่มีเทสต์ PostgreSQL native หรือ hosted ใหม่. สรุปรอบ 3 งาน / 9 commits รวม checkpoints; ตัวเลข **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง** คงเดิม. ไม่ Deploy ไม่แก้ Railway/Supabase และไม่เปิดงานตั้งเวลา.
+
+
+### D15 — เตรียมชุดทดสอบสลับเซิร์ฟเวอร์ด้วย PostgreSQL 17 (native ยังไม่รัน)
+
+- Dot + Node.js แยกตัวเตรียม PostgreSQL ชั่วคราวในเครื่องเป็น helper ใช้ซ้ำได้ จำกัดการตั้งค่าเป็น path ของ binary กับ 4 synthetic UID เท่านั้น ไม่รับ hosted DSN. เทสต์ขอบเขต **2/2 PASS**. GitHub `04e92f1`, `757f30a`, `1b0acfd`.
+- เพิ่มสองกรณีแบบ opt-in (SIGTERM/SIGKILL) ให้สอง process เกมเรียก store จริงผ่าน broker และแยก pool ต่อ worker. รอหมด lease ตามนาฬิกาฐานจริง ไม่ขยับ lease; ใช้ observer แบบ read-only ตรวจ room/seat/revision และนับ receipt/award. เก็บ deadline ทดสอบนานขึ้นเพื่อไม่ให้ timeout ของเกมบังหน้าต่างสังเกต lease. GitHub `550e00a`, `393a65ae0672c9dc55e63e37bf8e36e037484535`. ยังไม่ได้ยืนยันการทำงานของเส้นทาง opt-in นี้.
+- ชุดที่รันได้ **4 PASS / 3 SKIP / 0 FAIL** (~0.91 s): สองกรณี input + สอง recovery แบบ synthetic ผ่าน; ทั้งสามกรณี PG17 (heartbeat เดิมและ recovery ใหม่สองกรณี) ข้ามเพราะ binary ไม่พร้อม. ไม่ใช้ฐานจริงแทน, ไม่ Deploy, ไม่เปลี่ยน UI หรือกติกา, ไม่เปิดค่าใช้จ่ายใหม่/งานตั้งเวลา. 2 งานเตรียม / 6 commits รวม checkpoint. P0–P6 คง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
+- ถัดไป: บนเครื่องที่มี PostgreSQL 17 แยกให้ระบุ `LUCKY_PG17_BIN` ชี้โฟลเดอร์ binary แล้วรัน `node --test --test-name-pattern=postgres17 qa/railway-two-process-recovery.test.cjs` หลัง build/install runtime. อย่าตีความ SKIP เป็น PASS. Staging write ยัง HOLD.
