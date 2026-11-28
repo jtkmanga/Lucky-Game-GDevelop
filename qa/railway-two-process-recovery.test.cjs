@@ -16,6 +16,7 @@ const root = path.resolve(__dirname,'..');
 const runtime = path.join(root,'railway-runtime');
 const use = createRequire(path.join(runtime,'backend/railway/secure-server.cjs'));
 const { WebSocket } = use('ws');
+const {startDisposablePg17}=require('./helpers/disposable-pg17.cjs');
 const roster = [1,2,3,4].map(n=>'aaaaaaaa-0000-4000-8000-'+String(n).padStart(12,'0'));
 
 async function beforeDeadline(promise, label, ms=2800) {
@@ -25,7 +26,7 @@ async function beforeDeadline(promise, label, ms=2800) {
  } finally { timer.abort(); }
 }
 
-function createFixture(t) {
+function createFixture(t,native) {
  const tmp = fs.mkdtempSync(path.join(os.tmpdir(),'lucky-process-recovery-'));
  t.after(()=>fs.rmSync(tmp,{recursive:true,force:true}));
  const hook = path.join(tmp,'fixture.cjs');
@@ -128,6 +129,60 @@ http.Server.prototype.listen = function(port, host) {
   close(worker){data.closed.push(worker);}
  };
  const noReply = Symbol('hold committed response');
+ async function observe(){
+  if(!native)return;
+  const result=await native.obs.query('SELECT *,revision::int AS revision,lease_epoch::int AS lease_epoch FROM game.rooms');
+  assert.equal(result.rowCount,1,'expected one persisted game room');
+  data.room=result.rows[0];
+  data.receipts=(await native.obs.query('SELECT revision::int AS revision,roll FROM game.turn_receipts ORDER BY revision')).rows
+   .map(r=>({revision:r.revision,event:{dice:r.roll}}));
+  data.awards=(await native.obs.query('SELECT uid,kind,points FROM game.score_events')).rows;
+ }
+ if(native){
+  const storePath=path.join(runtime,'backend/supabase/game-store.cjs');
+  const source=fs.readFileSync(storePath,'utf8'), fromStore=createRequire(storePath), real={};
+  for(const worker of ['A','B']){
+   const pool=worker==='A'?native.pool:native.createPool();
+   const fixture={exports:{}};
+   Function('require','module',source)(id=>{
+    if(id==='pg')return {Pool:function(){return pool;}};
+    if(id==='./pg-tls-config.cjs')return {poolConnectionOptions:()=>({})};
+    return fromStore(id);
+   },fixture);
+   real[worker]=fixture.exports.createRailwayStore('loopback-fixture');
+  }
+  for(const method of Object.keys(stores))stores[method]=(worker,...args)=>real[worker][method](...args);
+  stores.initializeRoom=async(worker,x)=>{
+   const result=await real[worker].initializeRoom(x);
+   data.inserts++;return result;
+  };
+  stores.acquireRoomLease=async(worker,...args)=>{
+   const result=await real[worker].acquireRoomLease(...args);
+   if(!result)data.blockedClaims++;
+   return result;
+  };
+  stores.commitFencedTurn=async(worker,x)=>{
+   data.attempts++;assert.equal(worker,'A');
+   // Reserve time to observe the unmodified 30-second DB lease before the
+   // next automatic skip. Do not change the lease or database clock.
+   await real[worker].commitFencedTurn({...x,deadlineMs:Date.now()+75000});
+   await observe();onCommit();return noReply;
+  };
+  stores.close=async worker=>{await real[worker].close();data.closed.push(worker);};
+ }
+ async function afterExpiry(){
+  if(!native){data.clockOffset=31000;return;}
+  const until=performance.now()+39000;
+  let active;
+  do {
+   const q=await native.obs.query('SELECT lease_until >= clock_timestamp() AS active FROM game.rooms WHERE room_id=$1',[data.room.room_id]);
+   assert.equal(q.rowCount,1);
+   active=q.rows[0].active;
+   if(!active)return;
+   await delay(50);
+  }while(performance.now()<until);
+  assert.fail('native PostgreSQL lease did not expire');
+ }
  async function launch(worker) {
   const command = require('../railway.json').deploy.startCommand;
   const child = spawn('/bin/sh',['-c',command],{cwd:root,detached:true,
@@ -139,11 +194,11 @@ http.Server.prototype.listen = function(port, host) {
   child.stdout.on('data',b=>{logs=(logs+b).slice(-2000);});
   child.stderr.on('data',b=>{logs=(logs+b).slice(-2000);});
   child.on('error',rejectPort);
-  child.on('message',msg=>{
+  child.on('message',async msg=>{
    if(msg.fixturePort){resolvePort(msg.fixturePort);return;}
    try {
     assert.ok(Object.hasOwn(stores,msg.op));
-    const value = stores[msg.op](worker,...msg.args);
+    const value = await stores[msg.op](worker,...msg.args);
     if(value!==noReply && child.connected)child.send({id:msg.id,ok:true,value},()=>{});
    }catch(error){
     brokerError=error;
@@ -181,14 +236,16 @@ http.Server.prototype.listen = function(port, host) {
   }
   return {send,waitFor,closed,packets};
  }
- return {data,firstCommit,launch,connect};
+ return {data,firstCommit,launch,connect,observe,afterExpiry};
 }
 const join = seat => ({type:'join',mode:'free',name:'Local '+seat, accessToken:'local-fixture-only-'+seat});
 
-for(const signal of ['SIGTERM','SIGKILL']){
- test('separate packaged process resumes the same committed seat after '+signal,
-  {skip:process.platform!=='linux',timeout:12000},async t=>{
-  const {data,firstCommit,launch,connect}=createFixture(t);
+for(const scope of ['synthetic','postgres17'])for(const signal of ['SIGTERM','SIGKILL']){
+ const bin=process.env.LUCKY_PG17_BIN;
+ test(scope+': separate packaged process resumes the same committed seat after '+signal,
+  {skip:process.platform!=='linux'||(scope==='postgres17'&&!bin),timeout:scope==='postgres17'?70000:12000},async t=>{
+  const native=scope==='postgres17'?await startDisposablePg17(t,{bin,roster,runtimeRequire:use}):null;
+  const {data,firstCommit,launch,connect,observe,afterExpiry}=createFixture(t,native);
   const a=await launch('A'), old=[];
   for(let seat=0;seat<4;seat++){
    const c=await connect(a);old.push(c);
@@ -220,7 +277,7 @@ for(const signal of ['SIGTERM','SIGKILL']){
   const oldLeaseOwner=data.room.lease_owner;
   // Advance only the synthetic storage clock past the old lease; wall clock
   // and the server's real turn deadline remain unchanged.
-  data.clockOffset = 31000;
+  await afterExpiry();
   const elapsedStart=performance.now();
   const resumed=await connect(b);
   resumed.send(join(0));
@@ -231,6 +288,7 @@ for(const signal of ['SIGTERM','SIGKILL']){
   assert.equal(packet.game.players[0].score,data.awards[0].points);
   assert.equal(packet.game.giftUsed,true);
   assert.equal(packet.game.current,1);
+  await observe();
   assert.notEqual(data.room.lease_owner,oldLeaseOwner);
   assert.equal(data.room.lease_epoch,2);
   assert.equal(data.inserts,1);
@@ -239,6 +297,8 @@ for(const signal of ['SIGTERM','SIGKILL']){
   assert.equal(data.awards.length,1);
   assert.equal(data.awards[0].uid,roster[0]);
   a.noBrokerErrors(); b.noBrokerErrors();
-  t.diagnostic('termination + socket close observed before synthetic expiry; reconnect '+Math.round(performance.now()-elapsedStart)+' ms after clock advance, '+Math.round(performance.now()-terminatedAt)+' ms after signal (not a native lease wait)');
+  t.diagnostic('reconnect '+Math.round(performance.now()-elapsedStart)+
+   ' ms after '+(native?'observed PG17 lease expiry':'synthetic clock advance')+
+   ', '+Math.round(performance.now()-terminatedAt)+' ms after signal');
  });
 }
