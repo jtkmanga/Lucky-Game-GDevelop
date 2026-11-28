@@ -5,7 +5,7 @@
     "buildCommand": "python3 tools/prepare_railway_secure.py && cd railway-runtime && npm ci --omit=dev --no-audit --no-fund"
   },
   "deploy": {
-    "startCommand": "cd railway-runtime && npm start",
+    "startCommand": "cd railway-runtime && exec node backend/railway/secure-server.cjs",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 60,
     "restartPolicyType": "ON_FAILURE",
