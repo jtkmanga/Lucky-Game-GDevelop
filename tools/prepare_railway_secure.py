@@ -4,13 +4,17 @@ No tests, deployments, database creation or credentials involved.
 The v12 visual layout, styles and board remain unmodified.
 """
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import json
 import shutil
 import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'Lucky_Game_Multiplayer_Test_v1.zip'
-OUT=ROOT/'railway-runtime'
+RUNTIME=ROOT/'railway-runtime'
+# Assemble and validate off to the side before replacing generated files.
+stage=TemporaryDirectory(prefix='.railway-runtime-', dir=ROOT)
+OUT=Path(stage.name)
 API=OUT/'backend'
 APP=API/'railway'
 AUTH=API/'auth'
@@ -23,7 +27,13 @@ for name in ('secure-server.cjs','health-readiness.cjs','health-http-handler.cjs
     shutil.copy2(ROOT/'backend/railway'/name,APP/name)
 for name in ('supabase-access-token.cjs','room-access.cjs'):
     shutil.copy2(ROOT/'backend/auth'/name,AUTH/name)
-shutil.copytree(ROOT/'backend/supabase',API/'supabase',dirs_exist_ok=True)
+# Publish only the default listener's dependency graph, not SQL, proposals,
+# fixtures, or dormant candidates that may be present in a developer checkout.
+DB=API/'supabase'
+DB.mkdir()
+for name in ('game-store.cjs','pg-tls-config.cjs','room-lease-store.cjs',
+             'room-reconciliation.cjs','manual-room-recovery.cjs'):
+    shutil.copy2(ROOT/'backend/supabase'/name,DB/name)
 # Supabase's public 2021 root CA (owner-downloaded from project dashboard).
 # Bundled only for PostgreSQL TLS trust; it is NOT a credential or private key.
 # Fail closed if absent, rather than relying on disabled certificate checking.
@@ -438,5 +448,18 @@ if lock.get('lockfileVersion')!=3 or any(
     root.get(key)!=manifest[key] for key in ('name','version','dependencies','engines')):
     raise RuntimeError('Railway package manifest and lockfile are out of sync')
 shutil.copy2(lockfile,OUT/'package-lock.json')
-print('Generated Railway draft runtime at',OUT)
+# Keep node_modules for existing local QA workflows; Railway installs from
+# scratch via npm ci. Replace the whole generated backend so stale modules and
+# static files from a previous candidate cannot enter this runtime.
+for target in (RUNTIME,RUNTIME/'backend'):
+    if target.is_symlink() or (target.exists() and not target.is_dir()):
+        raise RuntimeError('Invalid Railway generated directory: '+str(target))
+RUNTIME.mkdir(exist_ok=True)
+if (RUNTIME/'backend').exists():
+    shutil.rmtree(RUNTIME/'backend')
+API.rename(RUNTIME/'backend')
+for name in ('package.json','package-lock.json'):
+    (OUT/name).replace(RUNTIME/name)
+stage.cleanup()
+print('Generated Railway draft runtime at',RUNTIME)
 print('Not tested, not deployed. No Supabase OAuth login flow tested and no game SQL migrated.')
