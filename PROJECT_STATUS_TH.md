@@ -12,7 +12,7 @@
 ## สถานะปัจจุบัน / เริ่มงานจากตรงนี้ (28 พ.ย. 2026, เวลาไทย)
 
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
-- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `ea4c76d147bde6453b4a83eb09e2706aac78a98c`. อย่าปะปน SHA ทั้งสาม.
+- **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
 - **งานถัดไป:** ใช้ PostgreSQL ชั่วคราวแบบแยกทดสอบเปลี่ยนสอง process จริงขณะมีห้องที่เล่นอยู่ วัดเวลา UID/seat/revision เดิมกลับมา และเช็ก receipt/score ไม่ซ้ำทั้ง SIGTERM กับ SIGKILL. ยังไม่มีหลักฐานว่าเปลี่ยน instance บน Railway หรือคืน lease เร็วได้ ตรวจการแยก DB ควบคู่เมื่อจะเปิด hosted gate.
 
@@ -1760,3 +1760,10 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - `ea4c76d147bde6453b4a83eb09e2706aac78a98c`: รัน `node --test qa/v12-early-reconnect-baseline.test.cjs`, **1/1 PASS (~0.16 s)** หมายถึงทำซ้ำพฤติกรรมเดิมได้: หลุดจากห้อง → กดก่อน lease เดิมหมด → generic error ปิด socket และกลับ lobby → ข้อมูลจาก socket เก่าถูกทิ้ง → ต้องกดครั้งที่สองจึงกลับเข้าห้องเดิม. ใช้ JavaScript ที่ build จาก v12 จริงใน Node VM แต่ DOM/socket เป็น fixture ไม่ใช่ browser จริงหรือ Railway. ไม่มีการเปลี่ยนโค้ดเกม/UI.
 - ตรวจเครื่อง Debian 13 เดิมแล้วไม่พบเซิร์ฟเวอร์ PostgreSQL หรือไฟล์แพ็กเกจใน cache ที่ใช้ได้ ไม่ติดตั้งแบบ global หรือใช้ฐานจริงแทน. Native PG17 ยัง **NOT RUN**; หลักฐานหนึ่งคลิกเป็นคนละ gate กับการรักษาคะแนน/ข้อมูลใน PostgreSQL.
 - ถัดไปที่ไม่ต้องรอ PG17: เพิ่มสัญญาณให้ลองใหม่เฉพาะ UID ที่ยืนยันตัวตนและมีห้องเดิม, จำกัดจำนวน/เวลา, ยกเลิกเมื่อออกหรือเปลี่ยนบัญชี, ห้าม fallback ไปจับคู่ห้องใหม่. คงปุ่มและ UI v12 เดิม. ทดสอบด้วย fixture และแยกทดสอบบน browser จริงเมื่อเครื่องพร้อม. 1 งานหลักฐาน / 2 commits รวม checkpoint; P0–P6 คง **65% / 64% / 27%**. ไม่ Deploy ไม่เปิดค่าใช้จ่ายเพิ่มหรือ Scheduled Task.
+
+
+### D15 — กลับเข้าห้องเดิมได้ด้วยการกดครั้งเดียว (offline candidate)
+
+- Dot แก้ protocol ฝั่ง Node `734e892` และสคริปต์ generated UI v12 `466ac6d`. เมื่อหลุดจากห้องที่ยังเล่นและมีบัญชีเดิม กดปุ่มเดิมครั้งเดียว; เฉพาะคำตอบชั่วคราวจากเซิร์ฟเวอร์สำหรับ UID/โหมด/ห้องเดิมที่ตรวจแล้วจึงลองใหม่ทุก 2 วินาที สูงสุด 18 ครั้ง/36 วินาที. ไม่ส่งคำขอจับคู่ใหม่, ไม่เชื่อ room ID อย่างเดียว, ไม่เขียนคะแนนซ้ำ, หยุดเมื่อยกเลิก ออกจากบัญชี/เปลี่ยนบัญชี เปลี่ยนโหมด ปิด socket หรือหมดเวลา. SHA ของ HTML ทั้งไฟล์เปลี่ยนเพราะสคริปต์ แต่ layout/CSS ที่ไม่ใช่สคริปต์ยังตรงเดิม.
+- **64 PASS / 2 SKIP / 0 FAIL** (~1.21 s): 6 browser-script VM cases, legacy reconnect และ regressions รวมสอง game processes/loopback WebSocket กับ store จำลอง; UID นอกห้องและ ID ผิดไม่ได้ยึด lease. สอง PG17 cases ข้ามเพราะไม่มี server binary. ยังไม่ทดสอบ browser จริง/Railway และไม่ deploy. Candidate `e303fa6f11471810f97069d824f93ee4aa7e5829`, 8 source+QA commits และ checkpoint ฉบับนี้. P0–P6 คง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
+- ถัดไป: ตรวจว่า execution environment ที่ได้รับอนุญาตมี browser และ PG17 แบบแยกที่รันได้จริง แล้วรัน acceptance เดิมเฉพาะกรณีที่ยังขาด. รักษา hosted write HOLD; ไม่ใช้ข้อมูลจริงหรือเปิดค่าใช้จ่ายใหม่.
