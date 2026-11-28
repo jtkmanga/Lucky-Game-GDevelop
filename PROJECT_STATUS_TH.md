@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** ฐาน Supabase Free แยกและ Site URL/redirect ของ Railway Staging พร้อมแล้ว. Google ยังปิดอยู่จนมี Web OAuth client แยกสำหรับ Staging; จากนั้นลงทะเบียนบัญชีทดสอบ 4 บัญชีในโปรเจกต์นี้ก่อนสลับ Railway. ยังไม่ Deploy candidate ใหม่.
+- **งานถัดไป:** Google Provider เปิดแล้ว แต่การทดสอบ isolated OAuth ถูก Google ปฏิเสธด้วย `400 redirect_uri_mismatch`; ให้เพิ่ม exact callback ของ Supabase Staging ใน Google Web OAuth client ตัวเดียวกับ Client ID ใน Supabase. ยังไม่ enroll บัญชีหรือ Deploy candidate.
 
 ---
 
@@ -1824,3 +1824,9 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 - ตรวจไฟล์ CA จาก candidate `f1baacd7` ด้วย OpenSSL แบบ offline: Supabase Root 2021 CA, `CA:TRUE`, ใช้ได้ถึง 26 เม.ย. 2031 UTC. SHA-256 fingerprint `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`. ยังไม่ได้พิสูจน์ trust chain/hostname ของ Session Pooler ใหม่ `aws-0-ap-southeast-1.pooler.supabase.com:5432`; network policy ของ Dot ไม่อนุญาต direct TCP ไปยังปลายทางนี้. ทำ handshake แบบไม่ส่ง credential ใน Codespace เดิมเมื่อเปิดเพื่อ enrollment ภายในงบที่ยืนยันแล้ว; ตรวจ hostname และ exact candidate CA, ไม่ปิด verification. ตามด้วย driver read-only smoke เมื่อมี restricted login และ binding.
 - Railway read-only ยืนยัน baseline id `77996b93-ed1b-4104-8f87-cf6be6f9e247`, SHA `56e41aa8b6d70fc024e59d97bcad47de6a558f88`, SUCCESS และ rollback ได้; desired branch `feature/lucky-integration-v12-candidate` ยังอยู่ที่ `bbefbd63`, ไม่มี staged patch. ก่อน cutover และหลังคืนค่าให้ตรวจทั้ง active deployment และ desired source แยกกัน. ไม่ deploy, ไม่เปิด Codespaces, ไม่เปลี่ยนบริการ; Google setup handoff เดิมยังค้าง.
+
+
+### D15 — Google provider เปิดแล้ว แต่ callback ยังไม่ผ่าน (28 พ.ย. 2026)
+
+- เจ้าของสร้าง Client Secret ใหม่และเปิด provider. ตรวจใน Dashboard ของโปรเจกต์แยกแล้วว่า Google เป็น Enabled โดยไม่อ่านหรือบันทึก Secret. ทำ browser redirect probe บน Supabase Auth ของโปรเจกต์แยก โดยใช้ PKCE challenge และ exact Staging redirect; Google ตอบ `400: redirect_uri_mismatch` ก่อนหน้าเลือกบัญชี. การเปลี่ยน Secret อย่างเดียวไม่แก้ URI mismatch. ยังไม่ได้ยืนยันแลก code หรือ Google sign-in end-to-end.
+- ขั้นถัดไป: เพิ่ม `https://tpwmcozkzlvolehozzri.supabase.co/auth/v1/callback` ใน **Authorized redirect URIs** ของ Google Web OAuth client ที่ตรงกับ Client ID ใน Supabase Staging. คง URL และ secrets เดิมของ client ไว้ถ้ามีระบบอื่นใช้งาน; ห้ามหมุน/ปิด production secret. ตรวจ probe ซ้ำก่อนเริ่ม enrollment, Codespaces หรือเปลี่ยน Railway; รอบนี้ไม่มีการเปลี่ยน Railway/Auth/ข้อมูลจาก Dot.
