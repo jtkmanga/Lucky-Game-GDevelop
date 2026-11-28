@@ -29,9 +29,12 @@ const {prepareManualRecoveryDecision}=require('../supabase/manual-room-recovery.
 
 const {readFree4Pilot}=require('./free4-pilot.cjs');
 const pilot=readFree4Pilot(process.env);
+// This branch is exclusively the isolated VIP acceptance candidate.
+if(pilot?.mode!=='vip')throw Error('This QA build requires the isolated VIP profile');
 const supabaseConfig=readConfig();
 const store=createRailwayStore(process.env.DATABASE_URL,
- pilot ? {roomId:pilot.roomId,cutoffMs:pilot.cutoffMs} : null);
+ pilot ? {roomId:pilot.roomId,cutoffMs:pilot.cutoffMs,mode:pilot.mode} : null,
+ {atomicVip:pilot?.mode==='vip'});
 const PORT=Number(process.env.PORT||8080);
 const WEB=path.resolve(__dirname,'public');
 const MAX_CONNECTIONS=500; // conservative until authorized capacity validation
@@ -124,7 +127,7 @@ async function restoreRoom(roomId){
    }
    pilotCreateUncertain=false;
    if(['closed','finished'].includes(candidate.status))return null;
-   if(candidate.status!=='playing'||candidate.mode!=='free'||!pilot.matches(roomId,candidate.seats))
+   if(candidate.status!=='playing'||candidate.mode!==pilot.mode||!pilot.matches(roomId,candidate.seats))
     throw Error('Invalid Free4 pilot room');
   }
   // Claim ownership BEFORE any local timer/state is reconstructed. If another
@@ -143,7 +146,7 @@ async function restoreRoom(roomId){
      Number(row.lease_epoch)!==claim.leaseEpoch)
     throw Error('Room lease changed during restore');
   const sourceSeats=row.seats;
-  if(pilot&&(row.mode!=='free'||!pilot.matches(roomId,sourceSeats)))
+  if(pilot&&(row.mode!==pilot.mode||!pilot.matches(roomId,sourceSeats)))
    throw Error('Invalid Free4 pilot room');
   const readCheckpointInt=value=>{
     if(typeof value!=='number' &&
@@ -266,7 +269,7 @@ async function dispatch(mode){
    // Seats must be reserved BEFORE the DB call. A disconnect while INSERT is
    // pending must not return a seat to matchmaking (or create two rooms).
    const id=pilot?.roomId||crypto.randomUUID();
-   if(pilot&&(mode!=='free'||!pilot.matches(id,seats)||rooms.has(id)))
+   if(pilot&&(mode!==pilot.mode||!pilot.matches(id,seats)||rooms.has(id)))
     throw Error('Invalid Free4 pilot allocation');
    // Do not change deployed or fixed-pilot room allocation for this QA path.
    // Neither the join packet nor the player may choose a board.
@@ -517,7 +520,7 @@ async function handle(ws,msg){
     // may not fall through to normal matchmaking or create a second room.
     const saved=await store.loadRoom(pilot.roomId);
     if(saved){
-     if(saved.status!=='playing'||saved.mode!=='free'||!pilot.matches(pilot.roomId,saved.seats))
+     if(saved.status!=='playing'||saved.mode!==pilot.mode||!pilot.matches(pilot.roomId,saved.seats))
       return send(ws,{type:'error',message:'ห้องทดสอบไม่พร้อม'});
      if(resumeOnly&&!saved.seats.some(seat=>seat.uid===uid))
       return send(ws,{type:'error',message:'ห้องเดิมไม่พร้อม'});

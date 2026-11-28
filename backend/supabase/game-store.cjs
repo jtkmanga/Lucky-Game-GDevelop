@@ -55,6 +55,7 @@ async function createLockedVipRoom(pool, uids, insert, reservationCurrent){
 function createRailwayStore(connectionString,config=null,{atomicVip=false}={}){
  if(!connectionString)throw Error('DATABASE_URL required');
  const pilot=pilotBinding(config);
+ if(pilot?.mode==='vip' && atomicVip!==true)throw Error('VIP pilot requires atomic pair admission');
  const pool=new Pool(poolConnectionOptions(connectionString));
  const leases=createRoomLeaseStore(pool,pilot);
  return {
@@ -73,6 +74,12 @@ function createRailwayStore(connectionString,config=null,{atomicVip=false}={}){
    if(columns.rowCount!==3)throw Error('Supabase room lease schema 002 missing; do not start');
    const receipts=await pool.query("SELECT to_regclass('game.turn_receipts') AS receipts");
    if(!receipts.rows[0]?.receipts)throw Error('Supabase turn receipt schema 003 missing; do not start');
+   if(pilot?.mode==='vip'){
+    // Exercise the real private function as the restricted login, without locking entitlement rows.
+    const gate=await pool.query('SELECT game.lock_vip_pair(NULL::uuid,NULL::uuid) AS admitted');
+    if(gate.rowCount!==1||gate.rows[0]?.admitted!==false)
+     throw Error('Atomic VIP gate unavailable');
+   }
    if(pilot){
     const marker=await pool.query(
      'SELECT COUNT(*)::int AS matches FROM game.staging_acceptance_binding WHERE project_ref=$1 AND room_id=$2::uuid AND cutoff_ms=$3::bigint',
@@ -110,7 +117,7 @@ function createRailwayStore(connectionString,config=null,{atomicVip=false}={}){
     seats.some(s=>!UUID.test(s.uid)))throw Error('Invalid verified seats');
    mustUid(ownerId);
    const isPilot=pilot?.roomId===roomId;
-   if(pilot && (!isPilot||mode!=='free'))throw Error('Unexpected pilot room');
+   if(pilot && (!isPilot||mode!==(pilot.mode??'free')))throw Error('Unexpected pilot room');
    const state=storedGame(game,pilot,roomId);
    const roster=seats.map(({uid,name})=>({uid,name}));
    const rosterJson=JSON.stringify(roster);

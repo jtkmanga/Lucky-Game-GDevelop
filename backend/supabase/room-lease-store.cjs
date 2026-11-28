@@ -15,7 +15,9 @@ function pilotBinding(config){
   throw Error('Invalid pilot cutoff');
  checkUuid(config.roomId);
  if(config.roomId!==config.roomId.toLowerCase())throw Error('Use canonical pilot UUID');
- return Object.freeze({roomId:config.roomId,cutoffMs:config.cutoffMs});
+ if (config.mode!==undefined && !['free','vip'].includes(config.mode)) throw Error('Invalid pilot mode');
+ // Free marker is byte-for-byte compatible with existing accepted rooms.
+ return Object.freeze({roomId:config.roomId,cutoffMs:config.cutoffMs,...(config.mode==='vip'?{mode:'vip'}:{})});
 }
 function publicRow(row,pilot){
  if(!row)return row;
@@ -26,7 +28,8 @@ function publicRow(row,pilot){
   return row;
  }
  const marker=state[markerKey];
- if(!expected || row.mode!=='free' || !marker || Object.keys(marker).length!==2 ||
+ if(!expected || row.mode!==(pilot.mode??'free') || !marker ||
+    Object.keys(marker).length!==(pilot.mode==='vip'?3:2) || marker.mode!==pilot.mode ||
     marker.roomId!==pilot.roomId || marker.cutoffMs!==pilot.cutoffMs)
   throw Error('Unexpected pilot marker');
  const clean={...state};
@@ -66,7 +69,7 @@ function buildRoomLeaseStore(pool,config,beginAwardPeriod) {
       SET lease_owner=$2::uuid, lease_epoch=lease_epoch+1,
           lease_until=clock_timestamp()+($3::integer*interval '1 second')
       WHERE room_id=$1::uuid AND status='playing'
-        AND ${isPilot?"mode='free' AND game_state->'_free4CutoffV1'=$4::jsonb":"NOT (game_state ? '_free4CutoffV1')"}
+        AND ${isPilot?"mode=COALESCE(($4::jsonb)->>'mode','free') AND game_state->'_free4CutoffV1'=$4::jsonb":"NOT (game_state ? '_free4CutoffV1')"}
         AND (lease_owner IS NULL OR lease_until<clock_timestamp()
           OR lease_owner=$2::uuid)
       RETURNING room_id,lease_epoch,lease_until,revision,game_state,seats,mode,deadline_ms`,

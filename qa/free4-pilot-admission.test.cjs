@@ -27,7 +27,7 @@ function section(from, to) {
 }
 
 // Exercise the real controller without loading credentials or opening a listener.
-function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlement, initializeRoom, commit, denyClaims = 0, beforeInspect, createFailure, identity = async msg => ({uid:msg.accessToken})} = {}) {
+function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlement, initializeRoom, commit, denyClaims = 0, beforeInspect, createFailure, insertThrough, identity = async msg => ({uid:msg.accessToken})} = {}) {
   let row = initial && structuredClone(initial);
   const calls = [];
   const timers=new Map();
@@ -60,9 +60,10 @@ function fixture({pilot = readFree4Pilot(config), initial = null, getVipEntitlem
       if(failRead){failRead=false;throw Object.assign(Error('connection lost'),{code:'ECONNRESET'});}
       return id===roomId&&row?structuredClone(row):null;
     },
-    initializeRoom(x) {
+    async initializeRoom(x) {
       calls.push(['create', x.roomId, x.seats.map(s => s.uid)]);
       assert.equal(row, null, 'fixture must never insert a second room');
+      if(insertThrough)await insertThrough(x);
       if(createFailure==='absent'){createFailure=null;throw Error('no insert');}
       row = {status:'playing', mode:x.mode, seats:x.seats, game_state:x.game, revision:0,
         deadline_ms:x.deadlineMs, lease_owner:x.ownerId, lease_epoch:1};
@@ -644,11 +645,15 @@ for (const event of ['expires during lookup', 'revoked', 'unavailable', 'cancel'
   });
 }
 
-function atomicStoreFixture(scenario, onGate) {
+function atomicStoreFixture(scenario, onGate, scoped = null) {
   const calls = [];
   let state = 'I', persisted = false;
   const inserted = p => {
-    assert.equal(p[0], uid(20));
+    assert.equal(p[0], scoped?.roomId || uid(20));
+    if(scoped){
+      assert.equal(p[6],scoped.cutoffMs);
+      assert.deepEqual(JSON.parse(p[3])._free4CutoffV1,{mode:'vip',roomId:scoped.roomId,cutoffMs:scoped.cutoffMs});
+    }
     assert.deepEqual(JSON.parse(p[2]).map(s => s.uid), roster.slice(0, p[1]==='vip'?2:4));
     return {command:'INSERT', rowCount:1, rows:[{lease_epoch:'1'}]};
   };
@@ -698,7 +703,7 @@ function atomicStoreFixture(scenario, onGate) {
     throw Error(name);
   });
   const opts=scenario==='default VIP'?undefined:{atomicVip:true};
-  return {calls,persisted:()=>persisted,store:moduleStub.exports.createRailwayStore('offline',null,opts)};
+  return {calls,persisted:()=>persisted,store:moduleStub.exports.createRailwayStore('offline',scoped && {roomId:scoped.roomId,cutoffMs:scoped.cutoffMs,mode:scoped.mode},opts)};
 }
 
 for(const scenario of ['allow','deny','query loss','insert loss','commit loss','client disconnect','socket close',
@@ -756,3 +761,67 @@ for(const scenario of ['allow','deny','query loss','insert loss','commit loss','
     assert.deepEqual(f.waiting.vip,[]);
   });
 }
+
+const vipEnv = {
+  ...config,
+  LUCKY_STAGING_PILOT_MODE:'vip',
+  LUCKY_FREE4_PILOT_CUTOFF_MS:String(Date.now()+15*60*1000),
+  LUCKY_FREE4_PILOT_UIDS:roster.slice(0,2).join(','),
+  RAILWAY_ENVIRONMENT_ID:'e0202327-924e-4913-9a3b-6c4493b2c31b',
+  RAILWAY_PROJECT_ID:'5d695e45-30fe-4b08-b0d0-0b0d250937eb',
+  LUCKY_ISOLATED_STAGING_SUPABASE_REF:'tpwmcozkzlvolehozzri'
+};
+test('VIP scope pins exact isolated environment, two allowlisted seats, and bounded cutoff', ()=>{
+  const pilot=readFree4Pilot(vipEnv);
+  assert.equal(pilot.mode,'vip');
+  assert.equal(pilot.admits(roster[0],'free'),false);
+  assert.equal(pilot.admits(roster[2],'vip'),false);
+  assert.equal(pilot.matches(uid(99),roster.slice(0,2).map(uid=>({uid}))),false);
+  for(const override of [
+    {LUCKY_FREE4_PILOT:'false'},
+    {RAILWAY_ENVIRONMENT_ID:'other'},
+    {RAILWAY_PROJECT_ID:'other'},
+    {LUCKY_ISOLATED_STAGING_SUPABASE_REF:'other'},
+    {LUCKY_PILOT_LUCKY_BOX_FIXTURE:'true'},
+    {LUCKY_PILOT_FREE_LEADERBOARD:'true'},
+    {LUCKY_FREE4_PILOT_UIDS:roster.join(',')},
+    {LUCKY_FREE4_PILOT_CUTOFF_MS:String(Date.now()+31*60*1000)}
+  ]) assert.throws(()=>readFree4Pilot({...vipEnv,...override}));
+});
+
+test('fixed VIP uses one two-seat locked insert; startup gate denies unsafe scope', async()=>{
+  const pilot=readFree4Pilot(vipEnv);
+  const accepted=new Set([roster[0]]);
+  const db=atomicStoreFixture('allow',()=>{},pilot);
+  const f=fixture({pilot,insertThrough:db.store.initializeRoom,
+    getVipEntitlement:async id=>accepted.has(id)?({uid:id,tier:'vip',status:'active',expiresAtMs:Date.UTC(2099,0)}):null});
+  f.setTime(Date.now());
+  await assert.rejects(f.join(roster[1],{mode:'vip'}),{code:'VIP_ACCESS_DENIED'});
+  assert.equal(f.waiting.vip.length,0);
+  assert.equal((await f.join(roster[0],{mode:'free'})).received.at(-1).type,'error');
+  assert.deepEqual(db.calls,[]);
+  const a=await f.join(roster[0],{mode:'vip'});
+  assert.equal(a.received.at(-1).type,'waiting');
+  assert.equal(f.waiting.vip.length,1);
+  assert.deepEqual(db.calls,[]);
+  accepted.add(roster[1]);
+  const b=await f.join(roster[1],{mode:'vip'});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(a.received.at(-1).event.type,'start');
+  assert.equal(b.received.at(-1).event.type,'start');
+  assert.deepEqual(f.row().seats.map(s=>s.uid),roster.slice(0,2));
+  assert.deepEqual(f.calls.filter(x=>x[0]==='create'),[['create',roomId,roster.slice(0,2)]]);
+  assert.deepEqual(db.calls,['checkout','BEGIN','SELECT','INSERT','COMMIT','release']);
+  assert.throws(()=>atomicStoreFixture('default VIP',()=>{},pilot),/requires atomic/);
+});
+
+test('VIP marker cannot be loaded or claimed as a Free room',()=>{
+  const {pilotBinding,publicRow,storedGame}=require('../backend/supabase/room-lease-store.cjs');
+  const vip=pilotBinding(readFree4Pilot(vipEnv));
+  const free=pilotBinding({roomId,cutoffMs:vip.cutoffMs,mode:'free'});
+  const row={room_id:roomId,mode:'vip',game_state:storedGame({map:1},vip,roomId)};
+  assert.deepEqual(publicRow(row,vip).game_state,{map:1});
+  assert.throws(()=>publicRow(row,free),/Unexpected pilot marker/);
+  assert.throws(()=>publicRow({...row,mode:'free'},vip),/Unexpected pilot marker/);
+  assert.deepEqual(storedGame({},free,roomId)._free4CutoffV1,{roomId,cutoffMs:vip.cutoffMs});
+});
