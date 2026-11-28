@@ -1841,3 +1841,9 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 
 - ตรวจ budget เฉพาะ repo Codespaces `$0.20/$5.00` ก่อนเปิด และยืนยัน Stop usage เปิดอยู่. เปิดเครื่องเดิม 2 คอร์โดยไม่แตะ working tree. จาก exact candidate `f1baacd7` ตรวจ Supabase Session Pooler ใหม่ด้วย TLS hostname และ CA ที่ bundle: OpenSSL `Verification: OK`. ยังไม่ตรวจแบบ authenticated Node driver.
 - เปิดหน้า enrollment PKCE แยกที่ Codespace port 4317 **Private** และยืนยันหน้าแสดงปุ่ม Google ในเบราว์เซอร์เดียวกัน. ตั้ง expiration ตัว web process 25 นาที. เพิ่ม exact redirect ของหน้า private นี้ใน Supabase Staging โดยคง Railway URL เดิม; จบหรือหมดเวลาต้องลบ URL ชั่วคราวและหยุด Codespace. ไม่ใช้ token ลับหรือ commit บัญชี; ไม่มีการ deploy หรือสลับ Railway. รอผู้ใช้เลือกบัญชี Google ที่อนุมัติให้ทดสอบ 4 บัญชี และยังไม่ได้ยืนยัน token exchange.
+
+
+### D15 — ป้องกันหลุดซ้ำระหว่างกลับห้อง (แยก branch ยังไม่ Deploy)
+
+- QA commit `9842816198bca783d696355e48a5175d35198ad5` บน `qa/bounded-replacement-redial-d15`: ถ้า socket ใหม่หลุดแบบชั่วคราวก่อนรับสถานะห้อง ให้ลองเชื่อมต่อใหม่ได้อีกหนึ่งครั้งโดยใช้ UID, mode และ room เดิม ภายใต้เส้นตาย 36 วินาที/18 sends เดิม; ไม่ส่ง matchmaking ใหม่. ยกเลิก/เปลี่ยน account/mode/การปิดโดยเจตนายังหยุดได้.
+- Generated JavaScript/packaging: **14 PASS / 0 FAIL**, HTML hash `9efaff4bb75161fdce6401656531f3599ec7faa8fcac00ae2712445ded5bf5b9`. ยังไม่ได้ทดสอบ Chromium หรือ Staging สำหรับ follow-up นี้ และไม่ได้สลับ candidate `f1baacd7` ของ hosted pilot. ไม่แตะ Supabase/Railway; private enrollment handoff เดิมยังค้าง.
