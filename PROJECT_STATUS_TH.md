@@ -14,7 +14,7 @@
 - **นโยบาย D15 ใช้งานอยู่**: ไม่ได้พักเทสต์ทั้งหมด ทำงานแยกและ Staging ตามสิทธิ์เดิมได้ แต่ยัง **HOLD สำหรับ hosted write acceptance** จนกว่าจะยืนยันการแยกฐาน/สิทธิ์เขียนเฉพาะข้อมูลทดสอบ. ไม่แตะ Production/เงินจริง/ค่าใช้จ่ายนอกงบ และไม่ตั้ง Scheduled Task.
 - **Railway Staging:** ตัวที่รันจริงยัง `56e41aa8` (deployment `77996b93`, 1 replica); desired source ผูก Integration `bbefbd63`. Candidate ที่อยู่เฉพาะ branch `qa/runtime-contents-d15`: `e303fa6f11471810f97069d824f93ee4aa7e5829`. อย่าปะปน SHA ทั้งสาม.
 - **หลักฐานผ่าน:** hosted Free4 ด้วย Google 4 บัญชี, จบเกมและ reconnect ใน deployment เดิมแล้ว ไม่ต้องทำซ้ำทั้งเกม. กิ่งทดสอบผ่าน build/lock, TLS proxy การส่งสัญญาณปิด process และย้ายห้องระหว่างสอง process โดยใช้ store จำลอง; UI v12 เดิม. ยังคง **65% โค้ด / 64% ทดสอบ / 27% พร้อมจริง**.
-- **งานถัดไป:** ตรวจขอบเขตเขียน Staging แบบ read-only ก่อน hosted reconnect. Native PostgreSQL 17 ผ่าน 2/2 และ Chromium จริงผ่าน 1/1 แยกกันใน Codespaces แล้ว; ยังไม่ใช่ Google/Railway acceptance และไม่อนุญาต hosted writes จนยืนยันการแยก.
+- **งานถัดไป:** รอเจ้าของยืนยันสร้าง Supabase แยกในองค์กรเดิมที่ราคาเสนอ $0/เดือน ก่อนทดสอบบน Railway Staging. Candidate แยก `qa/isolated-staging-free4-d15` ปฏิเสธฐานเดิมและโปรไฟล์ผิดขอบเขตแล้ว; ดูหลักฐานท้ายไฟล์. ยัง HOLD hosted writes.
 
 ---
 
@@ -1787,3 +1787,11 @@ cd /workspaces/Lucky-Game-GDevelop && git pull --ff-only origin main && node --t
 - Railway connector ยืนยัน `staging` มี 1 replica ไม่มี staged patch, active deployment `77996b93-ed1b-4104-8f87-cf6be6f9e247` SUCCESS ที่ `56e41aa8`, desired source ยังเป็น Integration. ไม่ได้เปลี่ยนค่าหรือย้ายไป `e303fa6`.
 - Supabase connector อ่าน metadata เท่านั้น: ไม่พบ development branch; restricted login สืบสิทธิ์ runtime ที่มี write predicates ไม่จำกัด roster/room ใน rooms 2, players 2, receipt/score events 2. ไม่อ่านแถวบัญชีหรือข้อมูลเกมและไม่เขียน. ชื่อ Railway environment ไม่ใช่หลักฐานแยกข้อมูล.
 - **คง HOLD hosted writes** หลัง local/native/browser acceptance: ขั้นต่อไปเตรียมทางเลือก staging ที่ใช้ฐานทดสอบแยกหรือ login ที่ถูกผูกกับบัญชีและห้องทดสอบระดับ DB แล้วตรวจการปฏิเสธข้อมูลนอกขอบเขตแบบ local ก่อนขอเปิด hosted run หากต้องใช้สิทธิ์หรือค่าใช้จ่ายใหม่. ห้ามใช้ Supabase เดิมที่มีสิทธิ์กว้างแทน; ไม่มี deploy, schema change หรือค่าใช้จ่ายใหม่จากการตรวจ read-only นี้. รวมรอบนี้ 2 docs commits, readiness **27%**.
+
+
+### D15 — แยก Supabase Auth และ PostgreSQL สำหรับ Free4 Staging (28 พ.ย. 2026)
+
+- เลือก Supabase standalone Singapore แยกจากฐานเดิม ไม่สร้าง Railway PostgreSQL หรือบริการ Railway เพิ่ม. Supabase connector เห็นเพียงโปรเจกต์เดิม; ใบเสนอราคาสำหรับองค์กรเดิมคือ standalone **$0/เดือน**, branch **$0.01344/ชั่วโมง**. เลือกแบบแรกและรอการยืนยันราคา/องค์กรสำหรับโปรเจกต์ใหม่ตามขั้นตอน Supabase. ไม่อัปเกรด ไม่คัดลอกข้อมูลผู้เล่น ไม่สร้างทรัพยากรในรอบนี้.
+- Candidate **`f1baacd7886bca5e3dac5243b515a697cd7bdb3d`** บน `qa/isolated-staging-free4-d15` (1 commit, 7 ไฟล์): Free4 pilot รับเฉพาะ Railway `staging`, Auth และ DB ต้องอ้างอิงโปรเจกต์แยกเดียวกัน; ปฏิเสธ ref เดิม, production, administrator DB login, transaction pooler และ key ลับของโปรเจกต์แยก. Startup ต้องเห็นตัวผูก ref/room/cutoff ที่ role ของเกมอ่านได้แต่แก้ไม่ได้. โพรไฟล์ปกติยังคง pin เดิม. มี runbook และ SQL bootstrap สำหรับฐานใหม่ว่างเท่านั้น.
+- **38 PASS / 0 FAIL / 0 SKIP** (รวม 3 isolation checks และ 35 packaging/pilot regressions); build ผ่าน, SHA256 ของ HTML v12 ยัง `d63ea39bc1db1796fe3f9cf268886df0f93e7ac122be1068d0c1f754dbe38975`. Test ที่เพิ่มใช้ค่าจำลองและ recording pool; ยังไม่รัน bootstrap SQL บน PostgreSQL จริงในรอบนี้ ไม่ใช่ผล hosted/Google ใหม่. ไม่มี Codespaces, CI หรือ Deploy ที่สั่งรัน, ไม่มี Railway/Supabase changes และไม่แตะ main/Production/เงินจริง; readiness ยัง **27%** (โค้ด 65% / ทดสอบ 64% ตาม rubric เดิม).
+- **ขั้นถัดไปจริงหลังยืนยัน:** สร้างโปรเจกต์แยกตามใบเสนอราคาเมื่อยังเป็น $0 และทวน target ก่อน bootstrap. ยืนยัน default grants และ role จริง/marker; จากนั้นเตรียม OAuth test config และ candidate บน Railway Staging ที่อนุมัติไว้ก่อนทำ Free4 reconnect และตรวจ receipt/score. การล็อกอิน Google จริงอาจต้องให้เจ้าของดำเนินการเมื่อพร้อม; ไม่ขอ secret ในแชต.
